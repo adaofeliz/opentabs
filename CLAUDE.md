@@ -118,7 +118,7 @@ bun run test:e2e      # E2E tests (Playwright)
 1. `bun run build`
 2. Open `chrome://extensions/`
 3. Enable Developer mode
-4. Load unpacked → select `platform/browser-extension/dist` folder
+4. Load unpacked → select `platform/browser-extension` folder
 
 ### Starting the MCP Server
 
