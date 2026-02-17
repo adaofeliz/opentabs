@@ -11,6 +11,7 @@ import {
   expect,
   startMcpServer,
   startTestServer,
+  createMcpClient,
   cleanupTestConfigDir,
   writeTestConfig,
   readPluginToolNames,
@@ -237,6 +238,108 @@ test.describe('Side panel data flow — tab state changes', () => {
 
       await sidePanelPage.close();
     } finally {
+      await context.close();
+      await server.kill();
+      await testServer.kill();
+      fs.rmSync(cleanupDir, { recursive: true, force: true });
+      cleanupTestConfigDir(configDir);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-006: Tool invocation animation tests
+// ---------------------------------------------------------------------------
+
+test.describe('Side panel data flow — tool invocation animation', () => {
+  test('shows spinner during tool call and removes it after', async () => {
+    // 1. Full setup: MCP server + test server + extension + MCP client
+    const absPluginPath = path.resolve(E2E_TEST_PLUGIN_DIR);
+    const prefixedToolNames = readPluginToolNames();
+    const tools: Record<string, boolean> = {};
+    for (const t of prefixedToolNames) {
+      tools[t] = true;
+    }
+
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-sp-anim-'));
+    writeTestConfig(configDir, { plugins: [absPluginPath], tools });
+
+    const server = await startMcpServer(configDir, true);
+    const testServer = await startTestServer();
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    setupAdapterSymlink(configDir, extensionDir);
+
+    const mcpClient = createMcpClient(server.port);
+
+    try {
+      // 2. Wait for extension to connect
+      await waitForExtensionConnected(server);
+      await waitForLog(server, 'tab.syncAll received', 15_000);
+
+      // 3. Open test app tab and wait for ready state
+      const appTab = await context.newPage();
+      await appTab.goto(testServer.url, { waitUntil: 'load' });
+
+      await expect
+        .poll(
+          async () => {
+            const res = await fetch(`http://localhost:${server.port}/health`);
+            const body = (await res.json()) as {
+              pluginDetails?: Array<{ name: string; tabState: string }>;
+            };
+            return body.pluginDetails?.find(p => p.name === 'e2e-test')?.tabState;
+          },
+          { timeout: 30_000, message: 'Server tab state for e2e-test did not become ready' },
+        )
+        .toBe('ready');
+
+      // 4. Initialize MCP client and verify tool is callable
+      await mcpClient.initialize();
+
+      // 5. Open side panel and expand plugin card
+      const sidePanelPage = await openSidePanel(context);
+      await sidePanelPage.reload({ waitUntil: 'load' });
+      await expect(sidePanelPage.getByText('E2E Test')).toBeVisible({ timeout: 15_000 });
+
+      // Click the plugin card to expand it and show tool rows
+      const pluginCard = sidePanelPage.locator('button[aria-expanded]').first();
+      await pluginCard.click();
+
+      // Verify tool rows are visible (e.g., 'echo' tool)
+      await expect(sidePanelPage.getByText('echo', { exact: true })).toBeVisible({ timeout: 5_000 });
+
+      // 6. Set test server to slow mode (3s delay for tool responses)
+      await testServer.setSlow(3_000);
+
+      // 7. Start tool call and check for spinner in parallel
+      const spinnerLocator = sidePanelPage.locator('.animate-spin');
+      const pulseLocator = sidePanelPage.locator('.animate-tool-pulse');
+
+      // Verify no spinner before tool call
+      await expect(spinnerLocator).toBeHidden({ timeout: 2_000 });
+
+      // Start the tool call (will take ~3s due to slow mode)
+      const toolCallPromise = mcpClient.callTool('e2e-test_echo', { message: 'spinner test' });
+
+      // 8. Verify the spinner appears during tool execution
+      await expect(spinnerLocator).toBeVisible({ timeout: 10_000 });
+      await expect(pulseLocator).toBeVisible({ timeout: 2_000 });
+
+      // 9. Wait for tool to complete
+      const result = await toolCallPromise;
+      expect(result.isError).toBe(false);
+
+      // 10. Verify spinner disappears after completion
+      await expect(spinnerLocator).toBeHidden({ timeout: 10_000 });
+      await expect(pulseLocator).toBeHidden({ timeout: 2_000 });
+
+      // Reset slow mode
+      await testServer.setSlow(0);
+
+      await sidePanelPage.close();
+      await appTab.close();
+    } finally {
+      await mcpClient.close();
       await context.close();
       await server.kill();
       await testServer.kill();

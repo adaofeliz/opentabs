@@ -42,6 +42,41 @@ const App = () => {
       setLoading(false);
     });
 
+    /** Process tab state and tool invocation notifications from the server. */
+    const handleNotification = (data: Record<string, unknown>): void => {
+      // tab.stateChanged notification
+      if (data.method === 'tab.stateChanged' && data.params) {
+        const params = data.params as Record<string, unknown>;
+        if (typeof params.plugin === 'string' && typeof params.state === 'string' && validTabStates.has(params.state)) {
+          const pluginName = params.plugin;
+          const newState = params.state as TabState;
+          setPlugins(prev => prev.map(p => (p.name === pluginName ? { ...p, tabState: newState } : p)));
+        }
+      }
+
+      // tool.invocationStart notification
+      if (data.method === 'tool.invocationStart' && data.params) {
+        const params = data.params as Record<string, unknown>;
+        if (typeof params.plugin === 'string' && typeof params.tool === 'string') {
+          const toolKey = `${params.plugin}:${params.tool}`;
+          setActiveTools(prev => new Set(prev).add(toolKey));
+        }
+      }
+
+      // tool.invocationEnd notification
+      if (data.method === 'tool.invocationEnd' && data.params) {
+        const params = data.params as Record<string, unknown>;
+        if (typeof params.plugin === 'string' && typeof params.tool === 'string') {
+          const toolKey = `${params.plugin}:${params.tool}`;
+          setActiveTools(prev => {
+            const next = new Set(prev);
+            next.delete(toolKey);
+            return next;
+          });
+        }
+      }
+    };
+
     const listener = (
       message: InternalMessage,
       _sender: chrome.runtime.MessageSender,
@@ -70,8 +105,6 @@ const App = () => {
           return true;
         }
 
-        // Handle notifications (messages with method, no id)
-
         // plugins.changed notification — refetch the full plugin list
         if (data.method === 'plugins.changed') {
           loadPluginsRef.current();
@@ -79,57 +112,26 @@ const App = () => {
           return true;
         }
 
-        // tab.stateChanged notification
-        if (data.method === 'tab.stateChanged' && data.params) {
-          const params = data.params as Record<string, unknown>;
-          if (
-            typeof params.plugin === 'string' &&
-            typeof params.state === 'string' &&
-            validTabStates.has(params.state)
-          ) {
-            const pluginName = params.plugin;
-            const newState = params.state as TabState;
-            setPlugins(prev => prev.map(p => (p.name === pluginName ? { ...p, tabState: newState } : p)));
-          }
-        }
-
-        // tool.invocationStart notification
-        if (data.method === 'tool.invocationStart' && data.params) {
-          const params = data.params as Record<string, unknown>;
-          if (typeof params.plugin === 'string' && typeof params.tool === 'string') {
-            const toolKey = `${params.plugin}:${params.tool}`;
-            setActiveTools(prev => new Set(prev).add(toolKey));
-          }
-        }
-
-        // tool.invocationEnd notification
-        if (data.method === 'tool.invocationEnd' && data.params) {
-          const params = data.params as Record<string, unknown>;
-          if (typeof params.plugin === 'string' && typeof params.tool === 'string') {
-            const toolKey = `${params.plugin}:${params.tool}`;
-            setActiveTools(prev => {
-              const next = new Set(prev);
-              next.delete(toolKey);
-              return next;
-            });
-          }
-        }
-
+        handleNotification(data);
         sendResponse({ ok: true });
         return true;
       }
 
-      // Fallback: ws:message with sync.full is broadcast by the offscreen
-      // document to all extension contexts. When the side panel is opened as
-      // a regular extension page (not via chrome.sidePanel.open), the
-      // background's forwardToSidePanel may not reliably deliver
-      // sp:serverMessage. Handling ws:message directly ensures the side panel
-      // always refreshes after plugin changes.
+      // Fallback: ws:message is broadcast by the offscreen document to all
+      // extension contexts. When the side panel is opened as a regular
+      // extension page (not via chrome.sidePanel.open), the background's
+      // forwardToSidePanel may not reliably deliver sp:serverMessage.
+      // Handling ws:message directly ensures notifications always arrive.
       if (message.type === 'ws:message') {
         const wsData = message.data as Record<string, unknown> | undefined;
         if (wsData?.method === 'sync.full') {
           // Delay to let the background finish processing (storage writes, injection)
           setTimeout(() => loadPluginsRef.current(), 1_500);
+        } else if (wsData) {
+          // Process tool invocation and tab state notifications from the
+          // server. These are the same methods handled above for
+          // sp:serverMessage but via the offscreen broadcast path.
+          handleNotification(wsData);
         }
         return false;
       }
