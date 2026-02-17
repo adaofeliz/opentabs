@@ -701,7 +701,11 @@ const getBackgroundPage = async (context: BrowserContext, timeoutMs = 15_000): P
 interface McpClient {
   initialize: () => Promise<void>;
   listTools: () => Promise<Array<{ name: string; description: string; inputSchema?: unknown }>>;
-  callTool: (name: string, args?: Record<string, unknown>) => Promise<{ content: string; isError: boolean }>;
+  callTool: (
+    name: string,
+    args?: Record<string, unknown>,
+    options?: { timeout?: number },
+  ) => Promise<{ content: string; isError: boolean }>;
   close: () => Promise<void>;
   /** Reset the session so the next initialize() creates a fresh session. */
   resetSession: () => void;
@@ -713,7 +717,7 @@ const createMcpClient = (port: number): McpClient => {
 
   const mcpUrl = `http://localhost:${port}/mcp`;
 
-  const request = async (body: unknown): Promise<Record<string, unknown>> => {
+  const request = async (body: unknown, timeoutMs = 30_000): Promise<Record<string, unknown>> => {
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       Accept: 'application/json, text/event-stream',
@@ -725,7 +729,7 @@ const createMcpClient = (port: number): McpClient => {
       method: 'POST',
       headers,
       body: JSON.stringify(body),
-      signal: AbortSignal.timeout(30_000),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     if (!res.ok) {
       const text = await res.text().catch(() => '');
@@ -826,13 +830,23 @@ const createMcpClient = (port: number): McpClient => {
       return result.tools;
     },
 
-    callTool: async (name, args = {}) => {
-      const res = await request({
-        jsonrpc: '2.0',
-        method: 'tools/call',
-        params: { name, arguments: args },
-        id: nextId++,
-      });
+    callTool: async (name, args = {}, options) => {
+      const res = await request(
+        {
+          jsonrpc: '2.0',
+          method: 'tools/call',
+          params: { name, arguments: args },
+          id: nextId++,
+        },
+        options?.timeout,
+      );
+
+      // Handle JSON-RPC error responses (e.g. dispatch timeout)
+      if (res.error) {
+        const err = res.error as { message: string };
+        return { content: err.message, isError: true };
+      }
+
       const result = res.result as {
         content: Array<{ type: string; text: string }>;
         isError?: boolean;
