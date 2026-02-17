@@ -172,9 +172,22 @@ stream_filter() {
 }
 
 for i in $(seq 1 $MAX_ITERATIONS); do
+  # Check prd.json before each iteration — if all stories pass, exit early.
+  # This is the authoritative completion check: prd.json is updated by the
+  # agent after each story, so it reflects ground truth regardless of whether
+  # the agent emitted the <promise>COMPLETE</promise> signal.
+  REMAINING=$(jq '[.userStories[] | select(.passes != true)] | length' "$PRD_FILE" 2>/dev/null || echo "0")
+  if [ "$REMAINING" -eq 0 ]; then
+    echo ""
+    echo "All stories in prd.json pass. Ralph is done!"
+    echo "Completed before iteration $i of $MAX_ITERATIONS"
+    archive_run
+    exit 0
+  fi
+
   echo ""
   echo "==============================================================="
-  echo "  Ralph Iteration $i of $MAX_ITERATIONS ($TOOL)"
+  echo "  Ralph Iteration $i of $MAX_ITERATIONS — $REMAINING stories remaining ($TOOL)"
   echo "==============================================================="
 
   RESULT_FILE=$(mktemp)
