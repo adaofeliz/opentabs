@@ -74,10 +74,14 @@ const setupKeepaliveAlarm = async (): Promise<void> => {
 
 chrome.tabs.onUpdated.addListener((tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url) {
-    injectPluginsIntoTab(tabId, tab.url).catch(console.error);
-  }
-
-  if (changeInfo.url || changeInfo.status === 'complete') {
+    // Inject adapters before checking tab state so computePluginTabState
+    // finds the adapter and can call isReady(). Without this sequencing,
+    // the state check races with injection and often reports 'unavailable'
+    // even when the adapter would pass isReady().
+    injectPluginsIntoTab(tabId, tab.url)
+      .then(() => checkTabStateChanges(tabId, changeInfo))
+      .catch(console.error);
+  } else if (changeInfo.url) {
     checkTabStateChanges(tabId, changeInfo).catch(console.error);
   }
 });

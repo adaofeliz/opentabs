@@ -10,6 +10,7 @@ import {
   test,
   expect,
   startMcpServer,
+  startTestServer,
   cleanupTestConfigDir,
   writeTestConfig,
   readPluginToolNames,
@@ -135,6 +136,110 @@ test.describe('Side panel data flow — connection status', () => {
       await context.close();
       // server.kill() is safe to call multiple times
       await server.kill();
+      fs.rmSync(cleanupDir, { recursive: true, force: true });
+      cleanupTestConfigDir(configDir);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// US-004: Tab state change tests
+// ---------------------------------------------------------------------------
+
+test.describe('Side panel data flow — tab state changes', () => {
+  test('tab state dot updates when matching tab opens and closes', async () => {
+    // 1. Start MCP server with e2e-test plugin, start test server
+    const absPluginPath = path.resolve(E2E_TEST_PLUGIN_DIR);
+    const prefixedToolNames = readPluginToolNames();
+    const tools: Record<string, boolean> = {};
+    for (const t of prefixedToolNames) {
+      tools[t] = true;
+    }
+
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-sp-tab-'));
+    writeTestConfig(configDir, { plugins: [absPluginPath], tools });
+
+    const server = await startMcpServer(configDir, true);
+    const testServer = await startTestServer();
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    setupAdapterSymlink(configDir, extensionDir);
+
+    try {
+      // 2. Wait for extension to connect and content scripts to be registered
+      await waitForExtensionConnected(server);
+      await waitForLog(server, 'tab.syncAll received', 15_000);
+
+      // 3. Open side panel
+      const sidePanelPage = await openSidePanel(context);
+
+      // 4. Verify plugin card is visible with 'E2E Test'
+      await expect(sidePanelPage.getByText('E2E Test')).toBeVisible({ timeout: 30_000 });
+
+      // 5. Verify the red dot (closed state) — no matching tab is open
+      const pluginCard = sidePanelPage.locator('button[aria-expanded]').first();
+      await expect(pluginCard.locator('.bg-red-400')).toBeVisible({ timeout: 5_000 });
+
+      // 6. Open a new tab to the test server URL (matches http://localhost/*)
+      const appTab = await context.newPage();
+      await appTab.goto(testServer.url, { waitUntil: 'load' });
+
+      // 7. Wait for the server to report 'ready' state for the e2e-test plugin.
+      // The background injects the adapter, then checks tab state — once the
+      // adapter's isReady() returns true, the extension sends tab.stateChanged
+      // to the MCP server which updates its tabMapping.
+      await expect
+        .poll(
+          async () => {
+            const res = await fetch(`http://localhost:${server.port}/health`);
+            const body = (await res.json()) as {
+              pluginDetails?: Array<{ name: string; tabState: string }>;
+            };
+            return body.pluginDetails?.find(p => p.name === 'e2e-test')?.tabState;
+          },
+          { timeout: 30_000, message: 'Server tab state for e2e-test did not become ready' },
+        )
+        .toBe('ready');
+
+      // Reload the side panel to pick up the latest tab state from the server.
+      // In Playwright, the side panel runs as a regular extension page where
+      // chrome.runtime.sendMessage from the background (sp:serverMessage) may
+      // not arrive reliably — so we refresh to force a config.getState fetch.
+      await sidePanelPage.reload({ waitUntil: 'load' });
+      await expect(sidePanelPage.getByText('E2E Test')).toBeVisible({ timeout: 15_000 });
+
+      // Verify the green dot (ready state)
+      const refreshedCard = sidePanelPage.locator('button[aria-expanded]').first();
+      await expect(refreshedCard.locator('.bg-emerald-400')).toBeVisible({ timeout: 15_000 });
+
+      // 8. Close the matching tab
+      await appTab.close();
+
+      // 9. Wait for server to report 'closed' state, then refresh side panel
+      await expect
+        .poll(
+          async () => {
+            const res = await fetch(`http://localhost:${server.port}/health`);
+            const body = (await res.json()) as {
+              pluginDetails?: Array<{ name: string; tabState: string }>;
+            };
+            return body.pluginDetails?.find(p => p.name === 'e2e-test')?.tabState;
+          },
+          { timeout: 15_000, message: 'Server tab state for e2e-test did not return to closed' },
+        )
+        .toBe('closed');
+
+      await sidePanelPage.reload({ waitUntil: 'load' });
+      await expect(sidePanelPage.getByText('E2E Test')).toBeVisible({ timeout: 15_000 });
+
+      // Verify the red dot (closed state) reappears
+      const closedCard = sidePanelPage.locator('button[aria-expanded]').first();
+      await expect(closedCard.locator('.bg-red-400')).toBeVisible({ timeout: 15_000 });
+
+      await sidePanelPage.close();
+    } finally {
+      await context.close();
+      await server.kill();
+      await testServer.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
     }
