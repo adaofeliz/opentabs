@@ -68,15 +68,12 @@ const PluginCard = ({
   const handleToggleAll = (e: React.MouseEvent) => {
     e.stopPropagation();
     const newEnabled = !allEnabled;
+    const originalTools = plugin.tools;
     setPlugins(prev =>
       prev.map(p => (p.name === plugin.name ? { ...p, tools: p.tools.map(t => ({ ...t, enabled: newEnabled })) } : p)),
     );
     void setAllToolsEnabled(plugin.name, newEnabled).catch(() => {
-      setPlugins(prev =>
-        prev.map(p =>
-          p.name === plugin.name ? { ...p, tools: p.tools.map(t => ({ ...t, enabled: !newEnabled })) } : p,
-        ),
-      );
+      setPlugins(prev => prev.map(p => (p.name === plugin.name ? { ...p, tools: originalTools } : p)));
       showToggleError('Failed to toggle all tools');
     });
   };
