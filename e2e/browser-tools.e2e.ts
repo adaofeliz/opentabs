@@ -16,6 +16,8 @@
 
 import { test, expect } from './fixtures.js';
 import { waitForExtensionConnected, waitForLog, parseToolResult, waitFor } from './helpers.js';
+import fs from 'node:fs';
+import path from 'node:path';
 import type { McpClient, McpServer, TestServer } from './fixtures.js';
 
 // ---------------------------------------------------------------------------
@@ -50,11 +52,14 @@ const openTestServerTab = async (mcpClient: McpClient, testServer: TestServer): 
   await waitFor(
     async () => {
       try {
-        const result = await mcpClient.callTool('browser_execute_script', { tabId });
+        const result = await mcpClient.callTool('browser_execute_script', {
+          tabId,
+          code: 'return document.readyState',
+        });
         if (result.isError) return false;
         const data = parseToolResult(result.content);
         const value = data.value as Record<string, unknown> | undefined;
-        return value?.readyState === 'complete';
+        return value?.value === 'complete';
       } catch {
         return false;
       }
@@ -224,36 +229,408 @@ test.describe('browser_navigate_tab', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('browser_execute_script', () => {
-  test('returns page info for an open tab', async ({
+  test('executes code and returns a string result', async ({
     mcpServer,
     testServer,
     extensionContext: _extensionContext,
     mcpClient,
   }) => {
     await initAndListTools(mcpServer, mcpClient);
-
     const tabId = await openTestServerTab(mcpClient, testServer);
 
-    // Execute page inspection (no returnExpression)
-    const execResult = await mcpClient.callTool('browser_execute_script', { tabId });
-    if (execResult.isError) {
-      throw new Error(`browser_execute_script failed: ${execResult.content}`);
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return document.title',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value).toHaveProperty('value');
+    expect(typeof value.value).toBe('string');
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('executes code and returns a number result', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return 42',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBe(42);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('executes code and returns a boolean result', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return true',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBe(true);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('executes code and returns null', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return null',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBeNull();
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('executes code and returns an object', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return { foo: "bar", count: 3 }',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toEqual({ foo: 'bar', count: 3 });
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('accesses the DOM', async ({ mcpServer, testServer, extensionContext: _extensionContext, mcpClient }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return document.querySelectorAll("*").length',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(typeof value.value).toBe('number');
+    expect(value.value as number).toBeGreaterThan(0);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('accesses window.location', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return window.location.href',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(typeof value.value).toBe('string');
+    expect((value.value as string).startsWith('http')).toBe(true);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('accesses localStorage', async ({ mcpServer, testServer, extensionContext: _extensionContext, mcpClient }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    // Set a value, then read it back
+    const setResult = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'localStorage.setItem("__opentabs_test", "hello"); return localStorage.getItem("__opentabs_test")',
+    });
+    expect(setResult.isError).toBe(false);
+
+    const data = parseToolResult(setResult.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBe('hello');
+
+    // Clean up
+    await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'localStorage.removeItem("__opentabs_test")',
+    });
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('returns error for code that throws', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'throw new Error("test error")',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value).toHaveProperty('error');
+    expect(value.error).toBe('test error');
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('handles async code (Promises)', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return new Promise(resolve => setTimeout(() => resolve("async-result"), 100))',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBe('async-result');
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('handles async code that rejects', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return new Promise((_, reject) => setTimeout(() => reject(new Error("async-fail")), 100))',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value).toHaveProperty('error');
+    expect(value.error).toBe('async-fail');
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('code with no return produces undefined', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'var x = 1 + 1',
+    });
+    expect(result.isError).toBe(false);
+
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    // undefined is not JSON-serializable, so it becomes absent or null
+    expect('value' in value || 'error' in value).toBe(true);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('cleans up globalThis.__openTabs.__lastExecResult after execution', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    // Execute some code
+    await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return "cleanup-test"',
+    });
+
+    // Verify the global is cleaned up by checking it's absent
+    const checkResult = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return (globalThis.__openTabs && globalThis.__openTabs.__lastExecResult) || "clean"',
+    });
+    expect(checkResult.isError).toBe(false);
+
+    const data = parseToolResult(checkResult.content);
+    const value = data.value as Record<string, unknown>;
+    expect(value.value).toBe('clean');
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('fails with error for non-existent tab', async ({
+    mcpServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+
+    const result = await mcpClient.callTool('browser_execute_script', {
+      tabId: 999999,
+      code: 'return 1',
+    });
+    expect(result.isError).toBe(true);
+  });
+
+  test('exec file is cleaned up after successful execution', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return "file-cleanup-test"',
+    });
+
+    // Wait briefly for async file deletion
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Check that no __exec-*.js files remain in the adapters directory
+    const adaptersDir = path.join(mcpServer.configDir, 'extension', 'adapters');
+    const files = fs.readdirSync(adaptersDir);
+    const execFiles = files.filter(f => f.startsWith('__exec-') && f.endsWith('.js'));
+    expect(execFiles).toEqual([]);
+
+    await mcpClient.callTool('browser_close_tab', { tabId });
+  });
+
+  test('exec file is cleaned up after execution error (non-existent tab)', async ({
+    mcpServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+
+    await mcpClient.callTool('browser_execute_script', {
+      tabId: 999999,
+      code: 'return 1',
+    });
+
+    // Wait briefly for async file deletion
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Check that no __exec-*.js files remain
+    const adaptersDir = path.join(mcpServer.configDir, 'extension', 'adapters');
+    const files = fs.readdirSync(adaptersDir);
+    const execFiles = files.filter(f => f.startsWith('__exec-') && f.endsWith('.js'));
+    expect(execFiles).toEqual([]);
+  });
+
+  test('sequential executions leave no leftover state', async ({
+    mcpServer,
+    testServer,
+    extensionContext: _extensionContext,
+    mcpClient,
+  }) => {
+    await initAndListTools(mcpServer, mcpClient);
+    const tabId = await openTestServerTab(mcpClient, testServer);
+
+    // Run 5 executions sequentially
+    for (let i = 0; i < 5; i++) {
+      const result = await mcpClient.callTool('browser_execute_script', {
+        tabId,
+        code: `return ${i}`,
+      });
+      expect(result.isError).toBe(false);
+      const data = parseToolResult(result.content);
+      const value = data.value as Record<string, unknown>;
+      expect(value.value).toBe(i);
     }
 
-    const execData = parseToolResult(execResult.content);
-    expect(execData).toHaveProperty('value');
+    // Verify no leftover globals
+    const checkResult = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'var ot = globalThis.__openTabs || {}; return { hasResult: "__lastExecResult" in ot, hasAsync: "__lastExecAsync" in ot }',
+    });
+    expect(checkResult.isError).toBe(false);
+    const checkData = parseToolResult(checkResult.content);
+    const checkValue = (checkData.value as Record<string, unknown>).value as Record<string, unknown>;
+    expect(checkValue.hasResult).toBe(false);
+    expect(checkValue.hasAsync).toBe(false);
 
-    const value = execData.value as Record<string, unknown>;
-    expect(value).toHaveProperty('title');
-    expect(value).toHaveProperty('url');
-    expect(value).toHaveProperty('readyState');
-    expect(typeof value.title).toBe('string');
-    expect(typeof value.url).toBe('string');
+    // Wait for file cleanup
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Verify no leftover exec files
+    const adaptersDir = path.join(mcpServer.configDir, 'extension', 'adapters');
+    const files = fs.readdirSync(adaptersDir);
+    const execFiles = files.filter(f => f.startsWith('__exec-') && f.endsWith('.js'));
+    expect(execFiles).toEqual([]);
 
     await mcpClient.callTool('browser_close_tab', { tabId });
   });
 
-  test('returnExpression extracts a specific DOM value', async ({
+  test('concurrent executions on different tabs do not collide', async ({
     mcpServer,
     testServer,
     extensionContext: _extensionContext,
@@ -261,48 +638,66 @@ test.describe('browser_execute_script', () => {
   }) => {
     await initAndListTools(mcpServer, mcpClient);
 
-    const tabId = await openTestServerTab(mcpClient, testServer);
+    // Open two tabs
+    const tabId1 = await openTestServerTab(mcpClient, testServer);
+    const tabId2 = await openTestServerTab(mcpClient, testServer);
 
-    // Use returnExpression to get document.title
-    const execResult = await mcpClient.callTool('browser_execute_script', {
-      tabId,
-      returnExpression: 'document.title',
-    });
-    expect(execResult.isError).toBe(false);
+    // Execute on both tabs concurrently
+    const [result1, result2] = await Promise.all([
+      mcpClient.callTool('browser_execute_script', {
+        tabId: tabId1,
+        code: 'return "tab1-" + document.title',
+      }),
+      mcpClient.callTool('browser_execute_script', {
+        tabId: tabId2,
+        code: 'return "tab2-" + document.title',
+      }),
+    ]);
 
-    const execData = parseToolResult(execResult.content);
-    const value = execData.value as Record<string, unknown>;
-    expect(value).toHaveProperty('expression', 'document.title');
-    expect(value).toHaveProperty('expressionValue');
-    expect(typeof value.expressionValue).toBe('string');
-    // Page info baseline should also be present
-    expect(value).toHaveProperty('title');
-    expect(value).toHaveProperty('url');
+    expect(result1.isError).toBe(false);
+    expect(result2.isError).toBe(false);
 
-    await mcpClient.callTool('browser_close_tab', { tabId });
+    const data1 = parseToolResult(result1.content);
+    const data2 = parseToolResult(result2.content);
+    const value1 = (data1.value as Record<string, unknown>).value as string;
+    const value2 = (data2.value as Record<string, unknown>).value as string;
+
+    expect(value1.startsWith('tab1-')).toBe(true);
+    expect(value2.startsWith('tab2-')).toBe(true);
+
+    // Wait for file cleanup
+    await new Promise(resolve => setTimeout(resolve, 500));
+
+    // Verify no leftover exec files
+    const adaptersDir = path.join(mcpServer.configDir, 'extension', 'adapters');
+    const files = fs.readdirSync(adaptersDir);
+    const execFiles = files.filter(f => f.startsWith('__exec-') && f.endsWith('.js'));
+    expect(execFiles).toEqual([]);
+
+    await mcpClient.callTool('browser_close_tab', { tabId: tabId1 });
+    await mcpClient.callTool('browser_close_tab', { tabId: tabId2 });
   });
 
-  test('invalid returnExpression root returns error info without failing', async ({
+  test('large result is serialized and truncated', async ({
     mcpServer,
     testServer,
     extensionContext: _extensionContext,
     mcpClient,
   }) => {
     await initAndListTools(mcpServer, mcpClient);
-
     const tabId = await openTestServerTab(mcpClient, testServer);
 
-    const execResult = await mcpClient.callTool('browser_execute_script', {
+    // Generate a large object
+    const result = await mcpClient.callTool('browser_execute_script', {
       tabId,
-      returnExpression: 'nonexistent.property',
+      code: 'var obj = {}; for (var i = 0; i < 10000; i++) obj["key" + i] = "value" + i; return obj',
     });
-    expect(execResult.isError).toBe(false);
+    expect(result.isError).toBe(false);
 
-    const execData = parseToolResult(execResult.content);
-    const value = execData.value as Record<string, unknown>;
-    expect(value).toHaveProperty('expressionError');
-    // Page info baseline should still be present
-    expect(value).toHaveProperty('title');
+    const data = parseToolResult(result.content);
+    const value = data.value as Record<string, unknown>;
+    // Should have a value (possibly truncated string) or a serialized object
+    expect('value' in value || 'error' in value).toBe(true);
 
     await mcpClient.callTool('browser_close_tab', { tabId });
   });
@@ -313,7 +708,7 @@ test.describe('browser_execute_script', () => {
 // ---------------------------------------------------------------------------
 
 test.describe('Browser tools — tab lifecycle', () => {
-  test('open → inspect → close: full tab lifecycle', async ({
+  test('open → execute → close: full tab lifecycle', async ({
     mcpServer,
     testServer,
     extensionContext: _extensionContext,
@@ -324,8 +719,11 @@ test.describe('Browser tools — tab lifecycle', () => {
     // 1. Open tab to the test server (http://localhost — accessible to extension)
     const tabId = await openTestServerTab(mcpClient, testServer);
 
-    // 2. Inspect the page
-    const execResult = await mcpClient.callTool('browser_execute_script', { tabId });
+    // 2. Execute code on the page
+    const execResult = await mcpClient.callTool('browser_execute_script', {
+      tabId,
+      code: 'return document.title',
+    });
     expect(execResult.isError).toBe(false);
 
     // 3. Verify the tab appears in list

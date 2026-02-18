@@ -203,8 +203,8 @@ export interface BrowserCloseTabParams {
 /** browser.executeScript request params */
 export interface BrowserExecuteScriptParams {
   tabId: number;
-  world?: 'MAIN' | 'ISOLATED';
-  returnExpression?: string;
+  /** Filename of the exec script written by the MCP server to the adapters/ directory */
+  execFile: string;
 }
 
 /** plugin.uninstall request params */

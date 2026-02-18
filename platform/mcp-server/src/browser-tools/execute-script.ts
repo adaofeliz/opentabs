@@ -1,45 +1,52 @@
 /**
- * browser_execute_script — inspects page state or evaluates a return expression
- * in a browser tab.
+ * browser_execute_script — execute arbitrary JavaScript in a browser tab.
  *
- * Runs via chrome.scripting.executeScript with a pre-compiled function.
- * Arbitrary string eval is blocked by MV3 CSP in both ISOLATED and MAIN worlds,
- * so this tool provides structured page inspection by default and supports a
- * limited returnExpression for extracting specific DOM values.
+ * Writes the user's code to a temporary file in the extension's adapters/
+ * directory, then dispatches to the extension which injects it via
+ * chrome.scripting.executeScript({ files: [...], world: 'MAIN' }).
+ * File-based injection bypasses all page CSP restrictions.
+ *
+ * The result is captured into globalThis.__openTabs.__lastExecResult by
+ * the wrapper IIFE, read back by a follow-up func injection, and the
+ * temp file + global are cleaned up.
  */
 
 import { defineBrowserTool } from './definition.js';
-import { dispatchToExtension } from '../extension-protocol.js';
+import { dispatchToExtension, writeExecFile, deleteExecFile } from '../extension-protocol.js';
 import { z } from 'zod';
 
 const executeScript = defineBrowserTool({
   name: 'browser_execute_script',
   description:
-    'Inspect a browser tab and return page metadata (title, URL, origin, readyState, characterSet, contentType, cookieEnabled, and the first 500 chars of outerHTML). ' +
-    'By default runs in ISOLATED world (extension context). Set world to "MAIN" to access page globals. ' +
-    'Optionally pass a returnExpression to extract a specific value using dot-notation property access ' +
-    '(e.g. "document.title", "location.href", "navigator.language", "document.body.className"). ' +
-    'Only simple property chains are supported — method calls, bracket notation, and complex expressions are not.',
+    'Execute arbitrary JavaScript code in a browser tab and return the result. ' +
+    "Code runs in the page's MAIN world with full access to the DOM, window, localStorage, and all page globals. " +
+    'Bypasses page Content-Security-Policy restrictions. ' +
+    'The last expression value is returned (use `return` for explicit values). ' +
+    'Supports both synchronous and asynchronous code (Promises are awaited automatically). ' +
+    'Examples: `return document.title`, `return localStorage.length`, `return document.querySelectorAll("div").length`.',
   input: z.object({
-    tabId: z.number().int().positive().describe('Tab ID to inspect'),
-    returnExpression: z
+    tabId: z.number().int().positive().describe('Tab ID to execute the code in'),
+    code: z
       .string()
-      .optional()
+      .min(1)
       .describe(
-        'A simple JS expression to evaluate and return (e.g. "document.title", "location.href"). ' +
-          'Falls back to full page info if omitted or if evaluation fails.',
+        'JavaScript code to execute in the tab. The code is wrapped in a function body — ' +
+          'use `return` to produce a result. Examples: `return document.title`, ' +
+          '`return Array.from(document.querySelectorAll("script")).length`',
       ),
-    world: z
-      .enum(['ISOLATED', 'MAIN'])
-      .optional()
-      .describe('Execution world: ISOLATED (default, extension context) or MAIN (page context)'),
   }),
-  handler: async (args, state) =>
-    dispatchToExtension(state, 'browser.executeScript', {
-      tabId: args.tabId,
-      returnExpression: args.returnExpression,
-      world: args.world,
-    }),
+  handler: async (args, state) => {
+    const execId = crypto.randomUUID();
+    const filename = await writeExecFile(execId, args.code);
+    try {
+      return await dispatchToExtension(state, 'browser.executeScript', {
+        tabId: args.tabId,
+        execFile: filename,
+      });
+    } finally {
+      void deleteExecFile(filename);
+    }
+  },
 });
 
 export { executeScript };

@@ -15,7 +15,7 @@ import { browserTools } from './browser-tools/index.js';
 import { loadConfig, getConfigDir } from './config.js';
 import { discoverPlugins } from './discovery.js';
 import { ensureExtensionInstalled } from './extension-install.js';
-import { sendSyncFull, sendPluginUpdate } from './extension-protocol.js';
+import { sendSyncFull, sendPluginUpdate, cleanupStaleExecFiles } from './extension-protocol.js';
 import { startConfigWatching, startFileWatching, stopFileWatching } from './file-watcher.js';
 import { sweepStaleSessions } from './http-routes.js';
 import { log } from './logger.js';
@@ -265,6 +265,13 @@ const performReload = async (
       log.warn(
         `Extension install failed (continuing with plugin discovery): ${err instanceof Error ? err.message : String(err)}`,
       );
+    }
+
+    // Remove leftover __exec-*.js files from previous sessions/crashes
+    try {
+      await cleanupStaleExecFiles();
+    } catch (err) {
+      log.warn(`Exec file cleanup failed: ${err instanceof Error ? err.message : String(err)}`);
     }
 
     // Update browser tools from the fresh module import (bun --hot re-evaluates

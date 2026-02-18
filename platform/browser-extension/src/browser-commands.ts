@@ -121,83 +121,101 @@ export const handleBrowserExecuteScript = async (
       sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
       return;
     }
-    const world = (params.world as string) === 'MAIN' ? 'MAIN' : 'ISOLATED';
-    const returnExpression = typeof params.returnExpression === 'string' ? params.returnExpression : null;
+    const execFile = params.execFile;
+    if (typeof execFile !== 'string' || execFile.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid execFile parameter' }, id });
+      return;
+    }
 
-    // MV3 CSP blocks eval/Function in content scripts. This tool returns
-    // structured page inspection data via a pre-compiled function, with an
-    // optional returnExpression for extracting specific DOM values using a
-    // limited set of known accessors.
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
 
-    const scriptPromise = chrome.scripting.executeScript({
-      target: { tabId },
-      world,
-      func: (expr: string | null) => {
-        const pageInfo = {
-          title: document.title,
-          url: window.location.href,
-          origin: window.location.origin,
-          readyState: document.readyState,
-          characterSet: document.characterSet,
-          contentType: document.contentType,
-          cookieEnabled: navigator.cookieEnabled,
-          documentElementHTML: document.documentElement.outerHTML.slice(0, 500),
-        };
+    // Step 1: Inject the exec file into the tab's MAIN world (bypasses page CSP)
+    const injectPromise = (async () => {
+      await chrome.scripting.executeScript({
+        target: { tabId },
+        world: 'MAIN',
+        files: [`adapters/${execFile}`],
+      });
 
-        if (!expr) return pageInfo;
+      // Step 2: Read the result. For sync code, __lastExecResult is set
+      // immediately by the wrapper. For async code (Promises), the wrapper
+      // sets __lastExecAsync=true and resolves __lastExecResult when the
+      // Promise settles. Poll until the result is available.
+      const maxAsyncWait = 10_000;
+      const pollInterval = 50;
+      let elapsed = 0;
 
-        try {
-          const roots: Record<string, unknown> = {
-            document,
-            window,
-            location: window.location,
-            navigator,
-          };
+      while (elapsed <= maxAsyncWait) {
+        const results = await chrome.scripting.executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: () => {
+            const ot = (globalThis as Record<string, unknown>).__openTabs as
+              | {
+                  __lastExecResult?: { value?: unknown; error?: string };
+                  __lastExecAsync?: boolean;
+                }
+              | undefined;
+            if (!ot) return { pending: false, result: { error: '__openTabs not found' } };
 
-          // Defense-in-depth: reject property names that could traverse
-          // prototype chains (e.g., "constructor.constructor" → Function).
-          // This is not a security boundary (results are serialized, not
-          // executed), but prevents accidental exposure of internal objects.
-          const blockedProps = new Set(['__proto__', 'constructor', 'prototype']);
-          const maxDepth = 10;
+            const result = ot.__lastExecResult;
+            const isAsync = ot.__lastExecAsync === true;
 
-          const parts = expr.split('.');
-          if (parts.length > maxDepth + 1) {
-            return { ...pageInfo, expression: expr, expressionError: `Expression too deep (max ${maxDepth} levels)` };
-          }
-
-          const rootKey = parts[0];
-          if (!rootKey || !(rootKey in roots)) {
-            return { ...pageInfo, expression: expr, expressionError: `Unknown root: ${rootKey ?? '(empty)'}` };
-          }
-
-          let current: unknown = roots[rootKey];
-          for (let i = 1; i < parts.length; i++) {
-            if (current === null || current === undefined) break;
-            const part = parts[i];
-            if (!part) break;
-            if (blockedProps.has(part)) {
-              return { ...pageInfo, expression: expr, expressionError: `Property "${part}" is not allowed` };
+            // Result available (sync or async resolved) — read and clean up
+            if (result && ('value' in result || 'error' in result)) {
+              const captured = { ...result };
+              // Serialize non-primitive values
+              if (captured.value !== null && captured.value !== undefined && typeof captured.value === 'object') {
+                try {
+                  const json = JSON.stringify(captured.value);
+                  captured.value = json.length > 50_000 ? json.slice(0, 50_000) + '... (truncated)' : JSON.parse(json);
+                } catch {
+                  captured.value = String(captured.value);
+                }
+              }
+              // Clean up globals
+              delete ot.__lastExecResult;
+              delete ot.__lastExecAsync;
+              return { pending: false, result: captured };
             }
-            current = (current as Record<string, unknown>)[part];
-          }
 
-          let expressionValue: unknown;
-          if (current === null || current === undefined || typeof current !== 'object') {
-            expressionValue = current;
-          } else {
-            const str = JSON.stringify(current, null, 2);
-            expressionValue = str.length > 2000 ? str.slice(0, 2000) + '... (truncated)' : JSON.parse(str);
-          }
+            // Async code hasn't resolved yet — keep polling
+            if (isAsync) return { pending: true };
 
-          return { ...pageInfo, expression: expr, expressionValue };
-        } catch (e) {
-          return { ...pageInfo, expression: expr, expressionError: e instanceof Error ? e.message : String(e) };
+            // Sync code produced no __lastExecResult (should not happen)
+            return { pending: false, result: { error: 'No result captured' } };
+          },
+        });
+
+        const first = results[0] as { result?: { pending: boolean; result?: unknown } } | undefined;
+        const data = first?.result;
+
+        if (data && !data.pending) {
+          return { value: data.result };
         }
-      },
-      args: [returnExpression],
-    });
+
+        // Still pending — wait and retry
+        await new Promise(resolve => setTimeout(resolve, pollInterval));
+        elapsed += pollInterval;
+      }
+
+      // Async timed out — clean up and report error
+      await chrome.scripting
+        .executeScript({
+          target: { tabId },
+          world: 'MAIN',
+          func: () => {
+            const ot = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
+            if (ot) {
+              delete ot.__lastExecResult;
+              delete ot.__lastExecAsync;
+            }
+          },
+        })
+        .catch(() => {});
+
+      return { value: { error: `Async code did not resolve within ${maxAsyncWait}ms` } };
+    })();
 
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
       timeoutId = setTimeout(() => {
@@ -205,14 +223,14 @@ export const handleBrowserExecuteScript = async (
       }, SCRIPT_TIMEOUT_MS);
     });
 
-    let results: Awaited<typeof scriptPromise>;
+    let result: unknown;
     try {
-      results = await Promise.race([scriptPromise, timeoutPromise]);
+      result = await Promise.race([injectPromise, timeoutPromise]);
     } finally {
       clearTimeout(timeoutId);
     }
-    const result = results[0]?.result;
-    sendToServer({ jsonrpc: '2.0', result: { value: result }, id });
+
+    sendToServer({ jsonrpc: '2.0', result, id });
   } catch (err) {
     sendToServer({
       jsonrpc: '2.0',

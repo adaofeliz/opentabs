@@ -36,6 +36,9 @@ const ensureAdaptersDir = async (): Promise<void> => {
 /** Maximum incoming WebSocket message size (10MB) */
 const MAX_MESSAGE_SIZE = 10 * 1024 * 1024;
 
+/** Prefix for dynamically generated exec script files */
+const EXEC_FILE_PREFIX = '__exec-';
+
 /**
  * Send a JSON-serialized message to the extension WebSocket if connected.
  * Centralizes the null check on state.extensionWs so callers don't repeat it.
@@ -91,6 +94,7 @@ const cleanupStaleAdapterFiles = async (currentPluginNames: Set<string>): Promis
 
   const staleFiles = entries.filter(f => {
     if (!f.endsWith('.js') || f.endsWith('.js.tmp')) return false;
+    if (f.startsWith(EXEC_FILE_PREFIX)) return false; // Managed by cleanupStaleExecFiles
     const pluginName = f.slice(0, -3); // strip '.js'
     return !currentPluginNames.has(pluginName);
   });
@@ -654,6 +658,79 @@ const handleConfigSetAllToolsEnabled = (
   });
 };
 
+// ---------------------------------------------------------------------------
+// Dynamic exec file helpers — write/delete/cleanup for browser_execute_script
+// ---------------------------------------------------------------------------
+
+/**
+ * Write a dynamic exec script to the adapters/ directory.
+ * Wraps the user's code in an IIFE that captures the result (sync or async)
+ * into globalThis.__openTabs.__lastExecResult for the extension to read back.
+ *
+ * Returns the filename (relative to adapters/) for the extension to inject.
+ */
+const writeExecFile = async (execId: string, code: string): Promise<string> => {
+  await ensureAdaptersDir();
+  const filename = `${EXEC_FILE_PREFIX}${execId}.js`;
+  const adaptersDir = getAdaptersDir();
+  const finalPath = join(adaptersDir, filename);
+  const tmpPath = join(adaptersDir, `${filename}.tmp`);
+
+  // Wrap user code to capture sync/async results and errors.
+  // The wrapper stores results at globalThis.__openTabs.__lastExecResult.
+  // The extension reads this value after injection and cleans it up.
+  const wrapped = [
+    '(function() {',
+    '  var __ot = globalThis.__openTabs = globalThis.__openTabs || {};',
+    '  try {',
+    `    var __r = (function() { ${code} })();`,
+    '    if (__r && typeof __r === "object" && typeof __r.then === "function") {',
+    '      __ot.__lastExecAsync = true;',
+    '      __r.then(function(v) { __ot.__lastExecResult = { value: v }; })',
+    '        .catch(function(e) { __ot.__lastExecResult = { error: e instanceof Error ? e.message : String(e) }; });',
+    '    } else {',
+    '      __ot.__lastExecResult = { value: __r };',
+    '    }',
+    '  } catch (e) {',
+    '    __ot.__lastExecResult = { error: e instanceof Error ? e.message : String(e) };',
+    '  }',
+    '})();',
+  ].join('\n');
+
+  await Bun.write(tmpPath, wrapped);
+  await rename(tmpPath, finalPath);
+  return filename;
+};
+
+/** Delete a dynamic exec script file. Fire-and-forget — logs on failure. */
+const deleteExecFile = async (filename: string): Promise<void> => {
+  try {
+    await Bun.file(join(getAdaptersDir(), filename)).delete();
+  } catch {
+    log.warn(`Failed to delete exec file: ${filename}`);
+  }
+};
+
+/**
+ * Remove stale __exec-*.js files from the adapters directory.
+ * Called on server startup to clean up leftovers from crashed sessions.
+ */
+const cleanupStaleExecFiles = async (): Promise<void> => {
+  const adaptersDir = getAdaptersDir();
+  let entries: string[];
+  try {
+    entries = await readdir(adaptersDir);
+  } catch {
+    return;
+  }
+
+  const staleExecFiles = entries.filter(f => f.startsWith(EXEC_FILE_PREFIX) && f.endsWith('.js'));
+  if (staleExecFiles.length === 0) return;
+
+  await Promise.allSettled(staleExecFiles.map(f => Bun.file(join(adaptersDir, f)).delete()));
+  log.info(`Cleaned up ${staleExecFiles.length} stale exec file(s)`);
+};
+
 export type { McpCallbacks };
 export {
   sendSyncFull,
@@ -664,4 +741,7 @@ export {
   handleExtensionMessage,
   isDispatchError,
   writeAdapterFile,
+  writeExecFile,
+  deleteExecFile,
+  cleanupStaleExecFiles,
 };
