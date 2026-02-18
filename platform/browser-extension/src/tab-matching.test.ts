@@ -1,4 +1,4 @@
-import { findAllMatchingTabs, matchPattern, urlMatchesPatterns } from './tab-matching.js';
+import { findAllMatchingTabs, findMatchingTab, matchPattern, urlMatchesPatterns } from './tab-matching.js';
 import { beforeEach, describe, expect, test } from 'bun:test';
 import type { PluginMeta } from './types.js';
 
@@ -279,5 +279,28 @@ describe('findAllMatchingTabs', () => {
     const result = await findAllMatchingTabs(makePlugin(['bad-pattern', '*://good.com/*']));
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe(1);
+  });
+});
+
+describe('findMatchingTab', () => {
+  test('returns the highest-ranked matching tab when multiple tabs match', async () => {
+    const activeFocused = makeTab(1, { active: true, windowId: FOCUSED_WINDOW_ID });
+    const activeOther = makeTab(2, { active: true, windowId: OTHER_WINDOW_ID });
+    const inactiveUnfocused = makeTab(3, { active: false, windowId: OTHER_WINDOW_ID });
+
+    queryResults.set('*://example.com/*', [inactiveUnfocused, activeOther, activeFocused]);
+
+    const result = await findMatchingTab(makePlugin(['*://example.com/*']));
+    expect(result?.id).toBe(1);
+  });
+
+  test('returns null when no tabs match any pattern', async () => {
+    const result = await findMatchingTab(makePlugin(['*://example.com/*']));
+    expect(result).toBeNull();
+  });
+
+  test('returns null when patterns array is empty', async () => {
+    const result = await findMatchingTab(makePlugin([]));
+    expect(result).toBeNull();
   });
 });
