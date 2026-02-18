@@ -333,5 +333,5 @@ const scaffoldPlugin = async (args: ScaffoldArgs): Promise<string> => {
   return projectDir;
 };
 
-export { scaffoldPlugin, ScaffoldError, toTitleCase };
+export { scaffoldPlugin, ScaffoldError, toPascalCase, toTitleCase };
 export type { ScaffoldArgs };
