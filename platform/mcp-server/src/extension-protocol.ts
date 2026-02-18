@@ -681,11 +681,17 @@ const writeExecFile = async (execId: string, code: string): Promise<string> => {
   // Wrap user code to capture sync/async results and errors.
   // The wrapper stores results at globalThis.__openTabs.__lastExecResult.
   // The extension reads this value after injection and cleans it up.
+  //
+  // User code is passed as a JSON-escaped string literal to new Function(),
+  // preventing IIFE wrapper breakout attacks. The Function constructor
+  // parses the code in its own context — closing braces/parens in user
+  // code cannot break the wrapper syntax.
   const wrapped = [
     '(function() {',
     '  var __ot = globalThis.__openTabs = globalThis.__openTabs || {};',
     '  try {',
-    `    var __r = (function() { ${code} })();`,
+    `    var __userFn = new Function(${JSON.stringify(code)});`,
+    '    var __r = __userFn();',
     '    if (__r && typeof __r === "object" && typeof __r.then === "function") {',
     '      __ot.__lastExecAsync = true;',
     '      __r.then(function(v) { __ot.__lastExecResult = { value: v }; })',
