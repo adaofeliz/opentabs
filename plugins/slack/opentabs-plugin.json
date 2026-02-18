@@ -240,7 +240,7 @@
     },
     {
       "name": "read_thread",
-      "description": "Read replies in a Slack thread using conversations.replies API",
+      "description": "Read replies in a Slack thread. Returns all messages including the parent message, with optional pagination.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -932,7 +932,7 @@
     },
     {
       "name": "list_members",
-      "description": "List members of a Slack channel with optional pagination",
+      "description": "List member user IDs of a Slack channel with optional pagination. Returns user IDs only — use get_user_profile to resolve a specific user ID to a name/profile, or list_users to get all workspace users with names.",
       "input_schema": {
         "type": "object",
         "properties": {
@@ -1539,5 +1539,5 @@
       }
     }
   ],
-  "adapterHash": "ce11dda8ea62128ff85303663d7e08bedd506c34290785a8dd3479226d66c37a"
+  "adapterHash": "834825e7a91292c0478465e7e8a9f1e721061fd804374203c59e07fd6361059e"
 }

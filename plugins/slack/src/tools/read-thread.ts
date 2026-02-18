@@ -12,7 +12,8 @@ const replySchema = z.object({
 
 export const readThread = defineTool({
   name: 'read_thread',
-  description: 'Read replies in a Slack thread using conversations.replies API',
+  description:
+    'Read replies in a Slack thread. Returns all messages including the parent message, with optional pagination.',
   input: z.object({
     channel: z.string().min(1).describe('Channel ID containing the thread (e.g., C01234567)'),
     ts: z.string().min(1).describe('Timestamp of the parent message (thread_ts)'),

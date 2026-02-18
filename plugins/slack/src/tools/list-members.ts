@@ -4,7 +4,9 @@ import { z } from 'zod';
 
 export const listMembers = defineTool({
   name: 'list_members',
-  description: 'List members of a Slack channel with optional pagination',
+  description:
+    'List member user IDs of a Slack channel with optional pagination. Returns user IDs only — ' +
+    'use get_user_profile to resolve a specific user ID to a name/profile, or list_users to get all workspace users with names.',
   input: z.object({
     channel: z.string().min(1).describe('Channel ID to list members for (e.g., C01234567)'),
     limit: z
