@@ -50,6 +50,12 @@ const mockHandleBrowserTypeText = mock(
 const mockHandleBrowserSelectOption = mock(
   asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
 );
+const mockHandleBrowserWaitForElement = mock(
+  asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
+);
+const mockHandleBrowserQueryElements = mock(
+  asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
+);
 const mockHandleBrowserExecuteScript = mock(
   asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
 );
@@ -75,6 +81,8 @@ await mock.module('./browser-commands.js', () => ({
   handleBrowserClickElement: mockHandleBrowserClickElement,
   handleBrowserTypeText: mockHandleBrowserTypeText,
   handleBrowserSelectOption: mockHandleBrowserSelectOption,
+  handleBrowserWaitForElement: mockHandleBrowserWaitForElement,
+  handleBrowserQueryElements: mockHandleBrowserQueryElements,
   handleBrowserExecuteScript: mockHandleBrowserExecuteScript,
 }));
 
@@ -426,6 +434,8 @@ const resetRoutingMocks = (): void => {
   mockHandleBrowserClickElement.mockReset();
   mockHandleBrowserTypeText.mockReset();
   mockHandleBrowserSelectOption.mockReset();
+  mockHandleBrowserWaitForElement.mockReset();
+  mockHandleBrowserQueryElements.mockReset();
   mockHandleBrowserExecuteScript.mockReset();
 };
 
@@ -443,6 +453,8 @@ describe('handleServerMessage', () => {
     mockHandleBrowserClickElement.mockResolvedValue(undefined);
     mockHandleBrowserTypeText.mockResolvedValue(undefined);
     mockHandleBrowserSelectOption.mockResolvedValue(undefined);
+    mockHandleBrowserWaitForElement.mockResolvedValue(undefined);
+    mockHandleBrowserQueryElements.mockResolvedValue(undefined);
     mockHandleBrowserExecuteScript.mockResolvedValue(undefined);
   });
 
@@ -677,6 +689,31 @@ describe('handleServerMessage', () => {
 
       expect(mockHandleBrowserSelectOption).toHaveBeenCalledTimes(1);
       expect(mockHandleBrowserSelectOption).toHaveBeenCalledWith({ tabId: 17, selector: '#sel', value: 'b' }, 32);
+    });
+
+    test('dispatches browser.waitForElement to handleBrowserWaitForElement', () => {
+      handleServerMessage({
+        method: 'browser.waitForElement',
+        id: 33,
+        params: { tabId: 18, selector: '#delayed', timeout: 5000, visible: true },
+      });
+
+      expect(mockHandleBrowserWaitForElement).toHaveBeenCalledTimes(1);
+      expect(mockHandleBrowserWaitForElement).toHaveBeenCalledWith(
+        { tabId: 18, selector: '#delayed', timeout: 5000, visible: true },
+        33,
+      );
+    });
+
+    test('dispatches browser.queryElements to handleBrowserQueryElements', () => {
+      handleServerMessage({
+        method: 'browser.queryElements',
+        id: 34,
+        params: { tabId: 19, selector: 'input', limit: 50 },
+      });
+
+      expect(mockHandleBrowserQueryElements).toHaveBeenCalledTimes(1);
+      expect(mockHandleBrowserQueryElements).toHaveBeenCalledWith({ tabId: 19, selector: 'input', limit: 50 }, 34);
     });
 
     test('dispatches browser.executeScript to handleBrowserExecuteScript', () => {

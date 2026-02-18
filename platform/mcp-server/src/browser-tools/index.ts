@@ -11,10 +11,12 @@ import { getTabInfo } from './get-tab-info.js';
 import { listTabs } from './list-tabs.js';
 import { navigateTab } from './navigate-tab.js';
 import { openTab } from './open-tab.js';
+import { queryElements } from './query-elements.js';
 import { reloadExtension } from './reload-extension.js';
 import { screenshotTab } from './screenshot-tab.js';
 import { selectOption } from './select-option.js';
 import { typeText } from './type-text.js';
+import { waitForElement } from './wait-for-element.js';
 import type { BrowserToolDefinition } from './definition.js';
 
 const browserTools: BrowserToolDefinition[] = [
@@ -31,6 +33,8 @@ const browserTools: BrowserToolDefinition[] = [
   clickElement,
   typeText,
   selectOption,
+  waitForElement,
+  queryElements,
 ];
 
 export { browserTools };

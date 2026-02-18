@@ -8,9 +8,11 @@ import {
   handleBrowserListTabs,
   handleBrowserNavigateTab,
   handleBrowserOpenTab,
+  handleBrowserQueryElements,
   handleBrowserScreenshotTab,
   handleBrowserSelectOption,
   handleBrowserTypeText,
+  handleBrowserWaitForElement,
 } from './browser-commands.js';
 import { RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
 import { cleanupAdaptersInMatchingTabs, injectPluginIntoMatchingTabs } from './iife-injection.js';
@@ -265,6 +267,22 @@ const methodHandlers = new Map<string, MessageHandler>([
     (params, id) => {
       if (id !== undefined) {
         handleBrowserSelectOption(params, id).catch(console.error);
+      }
+    },
+  ],
+  [
+    'browser.waitForElement',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserWaitForElement(params, id).catch(console.error);
+      }
+    },
+  ],
+  [
+    'browser.queryElements',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserQueryElements(params, id).catch(console.error);
       }
     },
   ],

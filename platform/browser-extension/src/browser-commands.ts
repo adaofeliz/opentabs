@@ -453,6 +453,132 @@ export const handleBrowserSelectOption = async (
   }
 };
 
+export const handleBrowserWaitForElement = async (
+  params: Record<string, unknown>,
+  id: string | number,
+): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const selector = params.selector;
+    if (typeof selector !== 'string' || selector.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid selector parameter' }, id });
+      return;
+    }
+    const timeout = typeof params.timeout === 'number' ? params.timeout : 10000;
+    const visible = typeof params.visible === 'boolean' ? params.visible : false;
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (sel: string, tmo: number, vis: boolean) =>
+        new Promise<{ found?: boolean; tagName?: string; text?: string; error?: string }>(resolve => {
+          let elapsed = 0;
+          const poll = setInterval(() => {
+            const el = document.querySelector(sel);
+            if (el) {
+              const htmlEl = el as HTMLElement;
+              const isVisible = !vis || htmlEl.offsetParent !== null || getComputedStyle(htmlEl).display !== 'none';
+              if (isVisible) {
+                clearInterval(poll);
+                resolve({
+                  found: true,
+                  tagName: el.tagName.toLowerCase(),
+                  text: (el.textContent || '').trim().slice(0, 200),
+                });
+                return;
+              }
+            }
+            elapsed += 100;
+            if (elapsed >= tmo) {
+              clearInterval(poll);
+              resolve({ error: `Timeout waiting for element: ${sel} (${tmo}ms)` });
+            }
+          }, 100);
+        }),
+      args: [selector, timeout, visible],
+    });
+
+    const result = results[0]?.result as
+      | { error?: string; found?: boolean; tagName?: string; text?: string }
+      | undefined;
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+    if (result.error) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: result.error }, id });
+      return;
+    }
+    sendToServer({
+      jsonrpc: '2.0',
+      result: { found: result.found, tagName: result.tagName, text: result.text },
+      id,
+    });
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: err instanceof Error ? err.message : String(err) },
+      id,
+    });
+  }
+};
+
+export const handleBrowserQueryElements = async (
+  params: Record<string, unknown>,
+  id: string | number,
+): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const selector = params.selector;
+    if (typeof selector !== 'string' || selector.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid selector parameter' }, id });
+      return;
+    }
+    const limit = typeof params.limit === 'number' ? params.limit : 100;
+    const attributes = Array.isArray(params.attributes)
+      ? (params.attributes as unknown[]).filter((a): a is string => typeof a === 'string')
+      : ['id', 'class', 'href', 'src', 'type', 'name', 'value', 'placeholder'];
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (sel: string, lim: number, attrs: string[]) => {
+        const all = document.querySelectorAll(sel);
+        const elements = Array.from(all)
+          .slice(0, lim)
+          .map(el => ({
+            tagName: el.tagName.toLowerCase(),
+            text: (el.textContent || '').trim().slice(0, 200),
+            attributes: Object.fromEntries(attrs.filter(a => el.hasAttribute(a)).map(a => [a, el.getAttribute(a)])),
+          }));
+        return { count: all.length, elements };
+      },
+      args: [selector, limit, attributes],
+    });
+
+    const result = results[0]?.result as { count?: number; elements?: unknown[] } | undefined;
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+    sendToServer({ jsonrpc: '2.0', result: { count: result.count, elements: result.elements }, id });
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: err instanceof Error ? err.message : String(err) },
+      id,
+    });
+  }
+};
+
 export const handleBrowserExecuteScript = async (
   params: Record<string, unknown>,
   id: string | number,
