@@ -9,7 +9,9 @@ import { z } from 'zod';
 
 const openTab = defineBrowserTool({
   name: 'browser_open_tab',
-  description: 'Open a new browser tab with the specified URL.',
+  description:
+    'Open a new browser tab with the specified URL. Returns the new tab ID, ' +
+    'which can be used with browser_navigate_tab, browser_close_tab, and browser_execute_script.',
   input: z.object({
     url: safeUrl.describe('URL to open in a new tab'),
   }),
