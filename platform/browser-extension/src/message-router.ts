@@ -1,4 +1,5 @@
 import {
+  handleBrowserClickElement,
   handleBrowserCloseTab,
   handleBrowserExecuteScript,
   handleBrowserFocusTab,
@@ -8,6 +9,8 @@ import {
   handleBrowserNavigateTab,
   handleBrowserOpenTab,
   handleBrowserScreenshotTab,
+  handleBrowserSelectOption,
+  handleBrowserTypeText,
 } from './browser-commands.js';
 import { RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
 import { cleanupAdaptersInMatchingTabs, injectPluginIntoMatchingTabs } from './iife-injection.js';
@@ -238,6 +241,30 @@ const methodHandlers = new Map<string, MessageHandler>([
     (params, id) => {
       if (id !== undefined) {
         handleBrowserGetTabContent(params, id).catch(console.error);
+      }
+    },
+  ],
+  [
+    'browser.clickElement',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserClickElement(params, id).catch(console.error);
+      }
+    },
+  ],
+  [
+    'browser.typeText',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserTypeText(params, id).catch(console.error);
+      }
+    },
+  ],
+  [
+    'browser.selectOption',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserSelectOption(params, id).catch(console.error);
       }
     },
   ],

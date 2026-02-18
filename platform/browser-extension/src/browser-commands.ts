@@ -246,6 +246,213 @@ export const handleBrowserGetTabContent = async (
   }
 };
 
+export const handleBrowserClickElement = async (
+  params: Record<string, unknown>,
+  id: string | number,
+): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const selector = params.selector;
+    if (typeof selector !== 'string' || selector.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid selector parameter' }, id });
+      return;
+    }
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (sel: string) => {
+        const el = document.querySelector(sel);
+        if (!el) return { error: `Element not found: ${sel}` };
+        (el as HTMLElement).click();
+        return {
+          clicked: true,
+          tagName: el.tagName.toLowerCase(),
+          text: (el.textContent || '').trim().slice(0, 200),
+        };
+      },
+      args: [selector],
+    });
+
+    const result = results[0]?.result as
+      | { error?: string; clicked?: boolean; tagName?: string; text?: string }
+      | undefined;
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+    if (result.error) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: result.error }, id });
+      return;
+    }
+    sendToServer({
+      jsonrpc: '2.0',
+      result: { clicked: result.clicked, tagName: result.tagName, text: result.text },
+      id,
+    });
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: err instanceof Error ? err.message : String(err) },
+      id,
+    });
+  }
+};
+
+export const handleBrowserTypeText = async (params: Record<string, unknown>, id: string | number): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const selector = params.selector;
+    if (typeof selector !== 'string' || selector.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid selector parameter' }, id });
+      return;
+    }
+    const text = params.text;
+    if (typeof text !== 'string') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid text parameter' }, id });
+      return;
+    }
+    const clear = typeof params.clear === 'boolean' ? params.clear : true;
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (sel: string, txt: string, clr: boolean) => {
+        const el = document.querySelector(sel);
+        if (!el) return { error: `Element not found: ${sel}` };
+        const input = el as HTMLInputElement | HTMLTextAreaElement;
+        input.focus();
+        if (clr) {
+          input.value = '';
+        }
+        input.value = clr ? txt : input.value + txt;
+        input.dispatchEvent(new Event('input', { bubbles: true }));
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+        return {
+          typed: true,
+          tagName: el.tagName.toLowerCase(),
+          value: input.value,
+        };
+      },
+      args: [selector, text, clear],
+    });
+
+    const result = results[0]?.result as
+      | { error?: string; typed?: boolean; tagName?: string; value?: string }
+      | undefined;
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+    if (result.error) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: result.error }, id });
+      return;
+    }
+    sendToServer({ jsonrpc: '2.0', result: { typed: result.typed, tagName: result.tagName, value: result.value }, id });
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: err instanceof Error ? err.message : String(err) },
+      id,
+    });
+  }
+};
+
+export const handleBrowserSelectOption = async (
+  params: Record<string, unknown>,
+  id: string | number,
+): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const selector = params.selector;
+    if (typeof selector !== 'string' || selector.length === 0) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid selector parameter' }, id });
+      return;
+    }
+    const value = typeof params.value === 'string' ? params.value : undefined;
+    const label = typeof params.label === 'string' ? params.label : undefined;
+
+    if (value === undefined && label === undefined) {
+      sendToServer({
+        jsonrpc: '2.0',
+        error: { code: -32602, message: 'Either value or label must be provided' },
+        id,
+      });
+      return;
+    }
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (sel: string, val: string | undefined, lbl: string | undefined) => {
+        const el = document.querySelector(sel);
+        if (!el) return { error: `Element not found: ${sel}` };
+        if (el.tagName.toLowerCase() !== 'select') return { error: `Element is not a <select>: ${sel}` };
+        const select = el as HTMLSelectElement;
+        const options = Array.from(select.options);
+        let matchedIndex = -1;
+        for (let i = 0; i < options.length; i++) {
+          const opt = options[i];
+          if (!opt) continue;
+          const isMatch = val !== undefined ? opt.value === val : (opt.textContent || '').trim() === lbl;
+          if (isMatch) {
+            matchedIndex = i;
+            break;
+          }
+        }
+        if (matchedIndex === -1) {
+          const criterion = val !== undefined ? `value="${val}"` : `label="${String(lbl)}"`;
+          return { error: `Option not found: ${criterion}` };
+        }
+        select.selectedIndex = matchedIndex;
+        select.dispatchEvent(new Event('change', { bubbles: true }));
+        const selectedOpt = options[matchedIndex];
+        return {
+          selected: true,
+          value: selectedOpt ? selectedOpt.value : '',
+          label: selectedOpt ? (selectedOpt.textContent || '').trim() : '',
+        };
+      },
+      args: [selector, value, label],
+    });
+
+    const result = results[0]?.result as
+      | { error?: string; selected?: boolean; value?: string; label?: string }
+      | undefined;
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+    if (result.error) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: result.error }, id });
+      return;
+    }
+    sendToServer({
+      jsonrpc: '2.0',
+      result: { selected: result.selected, value: result.value, label: result.label },
+      id,
+    });
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: err instanceof Error ? err.message : String(err) },
+      id,
+    });
+  }
+};
+
 export const handleBrowserExecuteScript = async (
   params: Record<string, unknown>,
   id: string | number,
