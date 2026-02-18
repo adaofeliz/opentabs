@@ -293,6 +293,83 @@ export const handleBrowserGetPageHtml = async (params: Record<string, unknown>, 
   }
 };
 
+export const handleBrowserGetStorage = async (params: Record<string, unknown>, id: string | number): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const storageType = typeof params.storageType === 'string' ? params.storageType : 'local';
+    if (storageType !== 'local' && storageType !== 'session') {
+      sendToServer({
+        jsonrpc: '2.0',
+        error: { code: -32602, message: "storageType must be 'local' or 'session'" },
+        id,
+      });
+      return;
+    }
+    const key = typeof params.key === 'string' ? params.key : undefined;
+
+    const MAX_VALUE_LENGTH = 10000;
+    const MAX_RESPONSE_LENGTH = 500_000;
+
+    const results = await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: (type: string, k: string | null, maxVal: number, maxResp: number) => {
+        const storage = type === 'session' ? window.sessionStorage : window.localStorage;
+
+        if (k !== null) {
+          const value = storage.getItem(k);
+          return {
+            mode: 'single' as const,
+            key: k,
+            value: value !== null && value.length > maxVal ? value.slice(0, maxVal) + '... (truncated)' : value,
+          };
+        }
+
+        const entries: Array<{ key: string; value: string }> = [];
+        let totalLength = 0;
+        const keys = Object.keys(storage);
+        for (const entryKey of keys) {
+          const raw = storage.getItem(entryKey);
+          if (raw === null) continue;
+          const value = raw.length > maxVal ? raw.slice(0, maxVal) + '... (truncated)' : raw;
+          const entryLength = entryKey.length + value.length;
+          if (totalLength + entryLength > maxResp) break;
+          entries.push({ key: entryKey, value });
+          totalLength += entryLength;
+        }
+        return { mode: 'all' as const, entries, count: keys.length };
+      },
+      args: [storageType, key ?? null, MAX_VALUE_LENGTH, MAX_RESPONSE_LENGTH],
+    });
+
+    const result = results[0]?.result as
+      | { mode: 'single'; key: string; value: string | null }
+      | { mode: 'all'; entries: Array<{ key: string; value: string }>; count: number }
+      | undefined;
+
+    if (!result) {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'No result from script execution' }, id });
+      return;
+    }
+
+    if (result.mode === 'single') {
+      sendToServer({ jsonrpc: '2.0', result: { key: result.key, value: result.value }, id });
+    } else {
+      sendToServer({ jsonrpc: '2.0', result: { entries: result.entries, count: result.count }, id });
+    }
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: sanitizeErrorMessage(err instanceof Error ? err.message : String(err)) },
+      id,
+    });
+  }
+};
+
 export const handleBrowserClickElement = async (
   params: Record<string, unknown>,
   id: string | number,

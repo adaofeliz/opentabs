@@ -46,6 +46,7 @@ const ALLOWED_METHODS = new Set([
   'browser.screenshotTab',
   'browser.getTabContent',
   'browser.getPageHtml',
+  'browser.getStorage',
   'browser.clickElement',
   'browser.typeText',
   'browser.selectOption',

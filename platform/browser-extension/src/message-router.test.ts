@@ -41,6 +41,9 @@ const mockHandleBrowserGetTabContent = mock(
 const mockHandleBrowserGetPageHtml = mock(
   asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
 );
+const mockHandleBrowserGetStorage = mock(
+  asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
+);
 const mockHandleBrowserScreenshotTab = mock(
   asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
 );
@@ -97,6 +100,7 @@ await mock.module('./browser-commands.js', () => ({
   handleBrowserFocusTab: mockHandleBrowserFocusTab,
   handleBrowserGetTabContent: mockHandleBrowserGetTabContent,
   handleBrowserGetPageHtml: mockHandleBrowserGetPageHtml,
+  handleBrowserGetStorage: mockHandleBrowserGetStorage,
   handleBrowserGetTabInfo: mockHandleBrowserGetTabInfo,
   handleBrowserScreenshotTab: mockHandleBrowserScreenshotTab,
   handleBrowserClickElement: mockHandleBrowserClickElement,
@@ -460,6 +464,7 @@ const resetRoutingMocks = (): void => {
   mockHandleBrowserNavigateTab.mockReset();
   mockHandleBrowserGetTabContent.mockReset();
   mockHandleBrowserGetPageHtml.mockReset();
+  mockHandleBrowserGetStorage.mockReset();
   mockHandleBrowserScreenshotTab.mockReset();
   mockHandleBrowserClickElement.mockReset();
   mockHandleBrowserTypeText.mockReset();
@@ -488,6 +493,7 @@ describe('handleServerMessage', () => {
     mockHandleBrowserNavigateTab.mockResolvedValue(undefined);
     mockHandleBrowserGetTabContent.mockResolvedValue(undefined);
     mockHandleBrowserGetPageHtml.mockResolvedValue(undefined);
+    mockHandleBrowserGetStorage.mockResolvedValue(undefined);
     mockHandleBrowserScreenshotTab.mockResolvedValue(undefined);
     mockHandleBrowserClickElement.mockResolvedValue(undefined);
     mockHandleBrowserTypeText.mockResolvedValue(undefined);
@@ -696,6 +702,17 @@ describe('handleServerMessage', () => {
 
       expect(mockHandleBrowserGetPageHtml).toHaveBeenCalledTimes(1);
       expect(mockHandleBrowserGetPageHtml).toHaveBeenCalledWith({ tabId: 14, selector: 'html', maxLength: 200000 }, 29);
+    });
+
+    test('dispatches browser.getStorage to handleBrowserGetStorage', () => {
+      handleServerMessage({
+        method: 'browser.getStorage',
+        id: 50,
+        params: { tabId: 25, storageType: 'local' },
+      });
+
+      expect(mockHandleBrowserGetStorage).toHaveBeenCalledTimes(1);
+      expect(mockHandleBrowserGetStorage).toHaveBeenCalledWith({ tabId: 25, storageType: 'local' }, 50);
     });
 
     test('dispatches browser.screenshotTab to handleBrowserScreenshotTab', () => {
