@@ -2,6 +2,9 @@
 // Types
 // ---------------------------------------------------------------------------
 
+/** Maximum character length for request bodies before truncation. */
+const MAX_BODY_LENGTH = 102_400;
+
 interface CapturedRequest {
   url: string;
   method: string;
@@ -9,6 +12,7 @@ interface CapturedRequest {
   statusText?: string;
   requestHeaders?: Record<string, string>;
   responseHeaders?: Record<string, string>;
+  requestBody?: string;
   mimeType?: string;
   timestamp: number;
 }
@@ -70,6 +74,10 @@ const stringProp = (obj: Record<string, unknown>, key: string, fallback: string)
   return typeof val === 'string' ? val : fallback;
 };
 
+/** Truncate a string to MAX_BODY_LENGTH, appending a suffix if truncated. */
+const truncateBody = (body: string): string =>
+  body.length > MAX_BODY_LENGTH ? body.slice(0, MAX_BODY_LENGTH) + '... (truncated)' : body;
+
 chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: string, params?: object) => {
   const p = params as Record<string, unknown> | undefined;
   const tabId = source.tabId;
@@ -87,10 +95,13 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     // Apply URL filter — skip requests that don't match
     if (state.urlFilter && !url.includes(state.urlFilter)) return;
 
+    const postData = typeof request.postData === 'string' ? request.postData : undefined;
+
     state.pendingRequests.set(requestId, {
       url,
       method: stringProp(request, 'method', 'GET'),
       requestHeaders: headersToRecord(request.headers),
+      requestBody: postData ? truncateBody(postData) : undefined,
       timestamp: Date.now(),
     });
   } else if (method === 'Network.responseReceived') {
@@ -108,6 +119,7 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
       statusText: typeof response.statusText === 'string' ? response.statusText : undefined,
       requestHeaders: pending.requestHeaders,
       responseHeaders: headersToRecord(response.headers),
+      requestBody: pending.requestBody,
       mimeType: typeof response.mimeType === 'string' ? response.mimeType : undefined,
       timestamp: pending.timestamp ?? Date.now(),
     };

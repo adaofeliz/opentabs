@@ -10,7 +10,8 @@ const enableNetworkCapture = defineBrowserTool({
   name: 'browser_enable_network_capture',
   description:
     'Start capturing network requests and responses for a browser tab using the Chrome DevTools Protocol. ' +
-    'Captures request URL, method, status, headers, and timing. Retrieve captured data with browser_get_network_requests. ' +
+    'Captures request URL, method, status, headers, request bodies (POST data), and timing. ' +
+    'Retrieve captured data with browser_get_network_requests. ' +
     'Only one capture session per tab — call browser_disable_network_capture first to restart.',
   input: z.object({
     tabId: z.number().int().positive().describe('Tab ID to capture network requests for'),
