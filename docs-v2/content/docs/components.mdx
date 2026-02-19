@@ -187,6 +187,34 @@ This page demonstrates Fumadocs MDX components styled with the RetroUI neobrutal
   </Step>
 </Steps>
 
+## File Tree
+
+<Files>
+  <Folder name="platform" defaultOpen>
+    <Folder name="mcp-server" defaultOpen>
+      <File name="index.ts" />
+      <File name="discovery.ts" />
+      <File name="config.ts" />
+    </Folder>
+    <Folder name="browser-extension">
+      <File name="background.ts" />
+      <File name="manifest.json" />
+    </Folder>
+    <Folder name="plugin-sdk">
+      <File name="index.ts" />
+      <File name="cli.ts" />
+    </Folder>
+  </Folder>
+  <Folder name="plugins">
+    <Folder name="slack">
+      <File name="index.ts" />
+      <File name="opentabs-plugin.json" />
+    </Folder>
+  </Folder>
+  <File name="package.json" />
+  <File name="tsconfig.json" />
+</Files>
+
 ### Tabs with Custom Values
 
 <Tabs items={['Installation', 'Configuration', 'Usage']}>

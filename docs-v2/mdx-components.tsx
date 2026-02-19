@@ -7,6 +7,7 @@ import type { CodeBlockProps } from 'fumadocs-ui/components/codeblock';
 import { RetroTabs, RetroTab } from '@/components/retro-tabs';
 import { RetroAccordions, RetroAccordion } from '@/components/retro-accordion';
 import { RetroSteps, RetroStep } from '@/components/retro-steps';
+import { RetroFiles, RetroFile, RetroFolder } from '@/components/retro-files';
 
 // Mapping from Fumadocs callout type to RetroUI Alert status color classes
 const calloutStatusClasses: Record<string, string> = {
@@ -168,6 +169,10 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     // Steps — CSS counter-based numbered steps with RetroUI primary color indicators
     Steps: RetroSteps,
     Step: RetroStep,
+    // File tree — Card-like container (border-2, shadow-md) with primary color folder icons
+    Files: RetroFiles,
+    File: RetroFile,
+    Folder: RetroFolder,
     ...components,
   };
 }
