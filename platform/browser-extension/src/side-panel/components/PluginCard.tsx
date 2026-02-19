@@ -103,7 +103,7 @@ const PluginCard = ({
   return (
     <Accordion.Item value={plugin.name}>
       <AccordionPrimitive.Header className="flex">
-        <AccordionPrimitive.Trigger className="font-head flex flex-1 cursor-pointer items-start gap-2 px-3 py-2 focus:outline-hidden [&[data-state=open]>svg]:rotate-180">
+        <AccordionPrimitive.Trigger className="font-head flex flex-1 cursor-pointer items-center gap-2 px-3 py-2 focus:outline-hidden [&[data-state=open]>svg]:rotate-180">
           <Tooltip.Provider>
             <Tooltip>
               <Tooltip.Trigger asChild>
