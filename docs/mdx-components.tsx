@@ -152,12 +152,12 @@ export function getMDXComponents(components?: MDXComponents): MDXComponents {
     ),
     th: ({ className, ...props }: ComponentPropsWithoutRef<'th'>) => (
       <th
-        className={cn('text-primary-foreground h-10 px-4 text-left align-middle font-medium md:h-12', className)}
+        className={cn('text-primary-foreground h-12 px-4 text-left align-middle font-medium', className)}
         {...props}
       />
     ),
     td: ({ className, ...props }: ComponentPropsWithoutRef<'td'>) => (
-      <td className={cn('p-2 align-middle md:p-3', className)} {...props} />
+      <td className={cn('px-4 py-3 align-middle', className)} {...props} />
     ),
     // Fumadocs MDX special components — overridden with RetroUI styling
     Callout: RetroCallout,
