@@ -1,13 +1,11 @@
+import { isValidPluginName } from './constants.js';
 import { getAllPluginMeta } from './plugin-storage.js';
 import { urlMatchesPatterns } from './tab-matching.js';
-
-/** Matches the NAME_REGEX from @opentabs-dev/shared — duplicated here as defense-in-depth */
-const SAFE_PLUGIN_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** Names reserved for platform use — rejected at the injection layer as defense-in-depth */
 const RESERVED_NAMES = new Set(['system', 'browser', 'opentabs', 'extension', 'config', 'plugin', 'tool', 'mcp']);
 
-const isSafePluginName = (name: string): boolean => SAFE_PLUGIN_NAME.test(name) && !RESERVED_NAMES.has(name);
+const isSafePluginName = (name: string): boolean => isValidPluginName(name) && !RESERVED_NAMES.has(name);
 
 /** Check if an adapter for the given plugin is already injected in a tab */
 const isAdapterPresent = async (tabId: number, pluginName: string): Promise<boolean> => {

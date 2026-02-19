@@ -29,7 +29,7 @@ import {
   handleBrowserTypeText,
   handleBrowserWaitForElement,
 } from './browser-commands.js';
-import { RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
+import { isValidPluginName, RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
 import { cleanupAdaptersInMatchingTabs, injectPluginIntoMatchingTabs } from './iife-injection.js';
 import { forwardToSidePanel, sendToServer } from './messaging.js';
 import { getAllPluginMeta, removePlugin, removePluginsBatch, storePluginsBatch } from './plugin-storage.js';
@@ -105,7 +105,7 @@ const validatePluginPayload = (raw: unknown): ValidatedPluginPayload | null => {
   // that don't match the expected plugin name format (lowercase alphanumeric
   // with hyphens). This prevents a compromised MCP server from injecting
   // arbitrary file paths via crafted plugin names.
-  if (/[/\\]|\.\./.test(obj.name) || !/^[a-z0-9]+(-[a-z0-9]+)*$/.test(obj.name)) {
+  if (/[/\\]|\.\./.test(obj.name) || !isValidPluginName(obj.name)) {
     console.warn(`[opentabs] Rejecting plugin payload: unsafe name "${obj.name}"`);
     return null;
   }
@@ -621,7 +621,7 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
     return;
   }
 
-  if (!/^[a-z0-9]+(-[a-z0-9]+)*$/.test(pluginName)) {
+  if (!isValidPluginName(pluginName)) {
     sendToServer({
       jsonrpc: '2.0',
       error: { code: -32602, message: `Invalid plugin name format: "${pluginName}"` },

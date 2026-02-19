@@ -4,6 +4,7 @@ import { Footer } from './components/Footer.js';
 import { Header } from './components/Header.js';
 import { PluginList } from './components/PluginList.js';
 import { VersionMismatchBanner } from './components/VersionMismatchBanner.js';
+import { VALID_PLUGIN_NAME } from '../constants.js';
 import { SIDE_PANEL_PROTOCOL_VERSION } from '@opentabs-dev/shared';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import type { PluginState } from './bridge.js';
@@ -11,7 +12,6 @@ import type { InternalMessage } from '../types.js';
 import type { TabState } from '@opentabs-dev/shared';
 
 const validTabStates: ReadonlySet<string> = new Set<TabState>(['closed', 'unavailable', 'ready']);
-const VALID_PLUGIN_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 const App = () => {
   const [connected, setConnected] = useState(false);

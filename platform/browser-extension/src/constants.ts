@@ -22,3 +22,7 @@ export const SCRIPT_TIMEOUT_MS = 25_000;
 export const IS_READY_TIMEOUT_MS = 5_000;
 /** Delay before chrome.runtime.reload() to allow the WebSocket response to flush */
 export const RELOAD_FLUSH_DELAY_MS = 100;
+/** Matches lowercase alphanumeric plugin names with optional hyphen separators (e.g., "slack", "e2e-test") */
+export const VALID_PLUGIN_NAME = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+/** Validate a plugin name against the expected format */
+export const isValidPluginName = (name: string): boolean => VALID_PLUGIN_NAME.test(name);
