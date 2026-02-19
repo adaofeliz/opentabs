@@ -106,7 +106,7 @@ const PluginCard = ({
   return (
     <Accordion.Item value={plugin.name}>
       <AccordionPrimitive.Header className="flex">
-        <AccordionPrimitive.Trigger className="font-head flex flex-1 cursor-pointer items-center gap-2 px-3 py-2 focus:outline-hidden [&[data-state=open]>svg]:rotate-180">
+        <AccordionPrimitive.Trigger className="font-head flex flex-1 cursor-pointer items-center gap-2 px-3 py-2.5 focus:outline-hidden [&[data-state=open]>svg]:rotate-180">
           <Tooltip.Provider>
             <Tooltip>
               <Tooltip.Trigger asChild>
@@ -145,7 +145,7 @@ const PluginCard = ({
 
       <TabStateHint plugin={plugin} />
 
-      <Accordion.Content className="border-border border-t px-0">
+      <Accordion.Content className="border-border border-t">
         {toolFilter && (
           <div className="text-muted-foreground mb-1 px-3 text-xs">
             {visibleTools.length} of {plugin.tools.length} tools
