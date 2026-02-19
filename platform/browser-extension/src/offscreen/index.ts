@@ -328,6 +328,21 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
     case 'ws:setUrl': {
       void (async () => {
         const rawUrl = message.url;
+
+        // Validate URL format and protocol before using it
+        try {
+          const parsed = new URL(rawUrl);
+          if (parsed.protocol !== 'ws:' && parsed.protocol !== 'wss:') {
+            console.warn(`[opentabs:offscreen] Rejected ws:setUrl with invalid protocol: ${parsed.protocol}`);
+            sendResponse({ ok: true });
+            return;
+          }
+        } catch {
+          console.warn('[opentabs:offscreen] Rejected ws:setUrl: invalid URL format');
+          sendResponse({ ok: true });
+          return;
+        }
+
         const httpBase = rawUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
         let resolvedUrl = rawUrl;
         try {
