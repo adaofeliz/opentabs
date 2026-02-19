@@ -5,6 +5,26 @@
 /** Maximum character length for request bodies before truncation. */
 const MAX_BODY_LENGTH = 102_400;
 
+/** Headers whose values are replaced with '[REDACTED]' before returning to MCP clients. */
+const SENSITIVE_HEADERS = new Set([
+  'authorization',
+  'cookie',
+  'set-cookie',
+  'x-csrf-token',
+  'x-xsrf-token',
+  'proxy-authorization',
+]);
+
+/** Replace sensitive header values with '[REDACTED]', preserving keys. */
+const scrubHeaders = (headers?: Record<string, string>): Record<string, string> | undefined => {
+  if (!headers) return undefined;
+  const scrubbed: Record<string, string> = {};
+  for (const [k, v] of Object.entries(headers)) {
+    scrubbed[k] = SENSITIVE_HEADERS.has(k.toLowerCase()) ? '[REDACTED]' : v;
+  }
+  return scrubbed;
+};
+
 interface CapturedRequest {
   url: string;
   method: string;
@@ -283,7 +303,11 @@ export const getRequests = (tabId: number, clear: boolean = false): CapturedRequ
   const state = captures.get(tabId);
   if (!state) return [];
 
-  const requests = [...state.requests];
+  const requests = state.requests.map(req => ({
+    ...req,
+    requestHeaders: scrubHeaders(req.requestHeaders),
+    responseHeaders: scrubHeaders(req.responseHeaders),
+  }));
   if (clear) {
     state.requests = [];
     state.requestIdToIndex.clear();
