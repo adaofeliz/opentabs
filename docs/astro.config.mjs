@@ -11,6 +11,7 @@ export default defineConfig({
         Footer: './src/overrides/Footer.astro',
         Pagination: './src/overrides/Pagination.astro',
         SiteTitle: './src/overrides/SiteTitle.astro',
+        Hero: './src/overrides/Hero.astro',
       },
       social: [
         {

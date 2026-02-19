@@ -1,12 +1,83 @@
 ---
-title: Welcome to OpenTabs
+title: OpenTabs
 description: Give AI agents access to web applications through your authenticated browser session.
+template: splash
+hero:
+  title: OpenTabs
+  tagline: Give AI agents access to web applications through your authenticated browser session.
+  actions:
+    - text: Get Started
+      link: /guide/getting-started/
+    - text: GitHub
+      link: https://github.com/opentabs-dev/opentabs
 ---
 
-OpenTabs is an open-source platform that lets AI agents interact with web applications through browser-authenticated sessions.
+<div class="features-grid">
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">🔌</p>
+    <h3 class="font-head text-lg text-card-foreground">Plugin Architecture</h3>
+    <p class="text-muted-foreground text-sm">Extend OpenTabs with plugins for any web application. Each plugin defines tools that AI agents can use through MCP.</p>
+  </div>
 
-## Get Started
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">🔐</p>
+    <h3 class="font-head text-lg text-card-foreground">Your Session, Your Access</h3>
+    <p class="text-muted-foreground text-sm">Uses your authenticated browser sessions. No API tokens to manage, no bot users to provision, no OAuth flows to configure.</p>
+  </div>
 
-- [Getting Started](/guide/getting-started/) — Install and set up OpenTabs in 5 minutes
-- [What is OpenTabs?](/guide/what-is-opentabs/) — Learn about the platform
-- [How It Works](/guide/how-it-works/) — Understand the architecture
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">🤖</p>
+    <h3 class="font-head text-lg text-card-foreground">MCP Native</h3>
+    <p class="text-muted-foreground text-sm">Works with any MCP-compatible AI agent — Claude Code, Cursor, and more. Tools appear automatically.</p>
+  </div>
+
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">⚡</p>
+    <h3 class="font-head text-lg text-card-foreground">Hot Reload</h3>
+    <p class="text-muted-foreground text-sm">Change plugin code, rebuild, and tools update instantly. No server restarts, no reconnections needed.</p>
+  </div>
+
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">🧩</p>
+    <h3 class="font-head text-lg text-card-foreground">Build Your Own</h3>
+    <p class="text-muted-foreground text-sm">Create plugins with the OpenTabs SDK. Define tools with Zod schemas, write adapter code, and ship as an npm package.</p>
+  </div>
+
+  <div class="feature-card border-2 rounded shadow-md transition-all hover:shadow-none bg-card">
+    <p class="feature-icon">🌐</p>
+    <h3 class="font-head text-lg text-card-foreground">Chrome Extension</h3>
+    <p class="text-muted-foreground text-sm">Lightweight Manifest V3 extension injects adapters into matching tabs and dispatches tool calls to the right page context.</p>
+  </div>
+</div>
+
+<style>
+{`
+  .features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+    gap: 1.5rem;
+    max-width: 64rem;
+    margin: 3rem auto 0;
+    padding: 0 1rem;
+  }
+
+  .feature-card {
+    padding: 1.5rem;
+    border-color: var(--border);
+  }
+
+  .feature-icon {
+    font-size: 2rem;
+    margin: 0 0 0.75rem;
+    line-height: 1;
+  }
+
+  .feature-card h3 {
+    margin: 0 0 0.5rem;
+  }
+
+  .feature-card p:last-child {
+    margin: 0;
+  }
+`}
+</style>

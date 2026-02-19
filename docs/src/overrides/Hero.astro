@@ -1,0 +1,60 @@
+---
+const { data } = Astro.locals.starlightRoute.entry;
+const hero = data.hero;
+const title = hero?.title ?? data.title;
+const tagline = hero?.tagline;
+const actions = hero?.actions ?? [];
+---
+
+<div class="hero-container">
+  <div class="hero-content">
+    <h1 class="font-head text-5xl md:text-7xl text-foreground">{title}</h1>
+    {tagline && <p class="text-xl md:text-2xl text-muted-foreground max-w-2xl">{tagline}</p>}
+    {
+      actions.length > 0 && (
+        <div class="hero-actions">
+          {actions.map((action, i) => (
+            <a
+              href={action.link}
+              class:list={[
+                'font-head transition-all rounded outline-hidden cursor-pointer duration-200 font-medium inline-flex justify-center items-center shadow-md hover:shadow active:shadow-none border-2 border-black hover:translate-y-1 active:translate-y-2 active:translate-x-1 px-6 py-3 text-lg no-underline',
+                i === 0
+                  ? 'bg-primary text-primary-foreground hover:bg-primary-hover'
+                  : 'bg-transparent text-foreground',
+              ]}
+            >
+              {action.text}
+            </a>
+          ))}
+        </div>
+      )
+    }
+  </div>
+</div>
+
+<style>
+  .hero-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    padding: 4rem 1rem;
+    gap: 2rem;
+  }
+
+  .hero-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 1.5rem;
+    max-width: 48rem;
+  }
+
+  .hero-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+</style>
