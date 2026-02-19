@@ -277,9 +277,13 @@ const handleBuild = async (options: { watch?: boolean }): Promise<void> => {
   const distDir = join(projectDir, 'dist');
   let debounceTimer: ReturnType<typeof setTimeout> | null = null;
   let building = false;
+  let pendingRebuild = false;
 
   const rebuild = async () => {
-    if (building) return;
+    if (building) {
+      pendingRebuild = true;
+      return;
+    }
     building = true;
     console.log('');
     console.log(pc.dim(`[${formatTimestamp()}] Change detected, rebuilding...`));
@@ -289,8 +293,13 @@ const handleBuild = async (options: { watch?: boolean }): Promise<void> => {
       console.error(
         pc.red(`[${formatTimestamp()}] Rebuild failed: ${err instanceof Error ? err.message : String(err)}`),
       );
+    } finally {
+      building = false;
+      if (pendingRebuild) {
+        pendingRebuild = false;
+        void rebuild();
+      }
     }
-    building = false;
   };
 
   let watcher: FSWatcher;
