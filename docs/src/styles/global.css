@@ -78,9 +78,52 @@
   --border: #3a3a3a;
 }
 
-/* Body font */
+/* Body — RetroUI base styles */
 body {
   font-family: var(--font-sans);
+  background: var(--background);
+  color: var(--foreground);
+}
+
+/* RetroUI scrollbar — Firefox */
+html {
+  scrollbar-width: auto;
+  scrollbar-color: var(--muted) var(--foreground);
+}
+
+/* RetroUI sidebar scrollbar — thin, appears on hover */
+.sidebar-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  transition: scrollbar-color 0.3s ease;
+}
+
+.sidebar-scroll:hover {
+  scrollbar-color: var(--primary) transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar {
+  width: 2px;
+  height: 2px;
+}
+
+.sidebar-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.sidebar-scroll::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 2px;
+}
+
+/* RetroUI text-outlined utility */
+.text-outlined {
+  letter-spacing: 2px;
+  text-shadow:
+    0px 0px 0 var(--primary),
+    0px 0px 0 var(--primary),
+    4px 4px 0 var(--primary),
+    4px 4px 0 var(--primary);
 }
 
 /* Override Starlight CSS variables to align with RetroUI tokens */
@@ -136,7 +179,7 @@ body {
   --sl-color-bg: var(--background);
   --sl-color-bg-nav: var(--background);
   --sl-color-bg-sidebar: var(--background);
-  --sl-color-bg-inline-code: #f0f0f0;
+  --sl-color-bg-inline-code: var(--muted);
   --sl-color-hairline-light: var(--border);
   --sl-color-hairline: var(--border);
   --sl-color-hairline-shade: var(--border);
