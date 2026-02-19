@@ -40,12 +40,14 @@ const methodTimestamps = new Map<string, number[]>();
 /**
  * Check whether a request for the given method is allowed under the rate limit.
  * Returns true if the request is allowed, false if it should be rejected.
+ *
+ * @param now - Optional timestamp override (milliseconds). Defaults to Date.now().
+ *              Exposed for deterministic testing without global Date mocks.
  */
-export const checkRateLimit = (method: string): boolean => {
+export const checkRateLimit = (method: string, now: number = Date.now()): boolean => {
   if (EXEMPT_METHODS.has(method)) return true;
 
   const config = METHOD_LIMITS.get(method) ?? DEFAULT_LIMIT;
-  const now = Date.now();
   const cutoff = now - config.windowMs;
 
   // Get existing timestamps and prune expired entries
@@ -59,4 +61,9 @@ export const checkRateLimit = (method: string): boolean => {
   timestamps.push(now);
   methodTimestamps.set(method, timestamps);
   return true;
+};
+
+/** Clear all rate limiter state. Exposed for test isolation. */
+export const resetRateLimiter = (): void => {
+  methodTimestamps.clear();
 };
