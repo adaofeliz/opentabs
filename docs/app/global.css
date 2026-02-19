@@ -200,6 +200,7 @@ body {
   color: var(--foreground);
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  margin-bottom: 0.75rem;
 }
 
 /* TOC items container: 2px border instead of default thin border */
@@ -208,10 +209,17 @@ body {
   border-inline-start-color: var(--border);
 }
 
-/* Active TOC heading: text-primary + font-semibold */
+/* TOC links: smooth transition on hover/active state changes */
+#nd-toc a {
+  transition: color 150ms, background-color 150ms, padding-left 150ms;
+}
+
+/* Active TOC heading: text-primary + font-semibold + subtle highlight */
 #nd-toc [data-active='true'] {
   color: var(--primary);
   font-weight: 600;
+  background-color: color-mix(in srgb, var(--primary) 15%, transparent);
+  padding-left: 0.5rem;
 }
 
 /* Inactive TOC headings: hover to foreground */
