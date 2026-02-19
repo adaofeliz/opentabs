@@ -151,8 +151,12 @@ const compileToolValidator = (
  * Called after state.plugins or state.browserTools changes (during reload).
  */
 const rebuildToolLookups = (state: ServerState): void => {
-  // Single Ajv instance for all plugin tool schemas
-  const ajv = new AjvValidator({ allErrors: true });
+  // Single Ajv instance for all plugin tool schemas.
+  // allErrors: false stops validation on first error to limit combinatorial work.
+  // Schemas are pre-validated at discovery time, but untrusted community plugins
+  // could submit pathological schemas with deeply nested oneOf/anyOf — stopping
+  // early bounds the validation cost per tool call.
+  const ajv = new AjvValidator({ allErrors: false });
 
   // Plugin tool lookup: prefixed name → { pluginName, toolName, validate }
   const toolLookup = new Map<string, ToolLookupEntry>();
@@ -270,7 +274,25 @@ const registerMcpHandlers = (server: McpServerInstance, state: ServerState): voi
       };
     }
 
-    const valid = lookup.validate(args);
+    // Wrap validation in try-catch: compiled Ajv validators can throw on
+    // pathological input (e.g., regex catastrophic backtracking from a
+    // community plugin's pattern keyword). Normal schemas complete in
+    // microseconds; this guard catches the unexpected edge case.
+    let valid: boolean;
+    try {
+      valid = lookup.validate(args);
+    } catch (err) {
+      log.warn(`Schema validation threw for tool "${toolName}":`, err);
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: `Tool "${toolName}" validation failed unexpectedly. The tool's schema may be invalid.`,
+          },
+        ],
+        isError: true,
+      };
+    }
     if (!valid) {
       return {
         content: [
