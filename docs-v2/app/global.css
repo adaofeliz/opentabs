@@ -171,6 +171,40 @@ body {
   background-color: var(--border);
 }
 
+/* ===== RetroUI Table of Contents Overrides ===== */
+
+/* TOC container: left border separates it from page content */
+#nd-toc {
+  border-left: 2px solid var(--border);
+}
+
+/* TOC title ("On this page"): Archivo Black, uppercase */
+#toc-title {
+  font-family: var(--font-head);
+  font-size: 0.875rem;
+  font-weight: 400;
+  color: var(--foreground);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* TOC items container: 2px border instead of default thin border */
+#nd-toc .border-s {
+  border-inline-start-width: 2px;
+  border-inline-start-color: var(--border);
+}
+
+/* Active TOC heading: text-primary + font-semibold */
+#nd-toc [data-active='true'] {
+  color: var(--primary);
+  font-weight: 600;
+}
+
+/* Inactive TOC headings: hover to foreground */
+#nd-toc a:not([data-active='true']):hover {
+  color: var(--foreground);
+}
+
 /* ===== RetroUI Steps component — CSS counter-based step numbering */
 .retro-steps {
   counter-reset: retro-step;
