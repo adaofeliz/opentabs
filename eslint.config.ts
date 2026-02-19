@@ -39,6 +39,7 @@ const config: Linter.Config[] = [
       'playwright-report/**',
       'test-results/**',
       'plugins/**',
+      'docs/**',
     ],
   },
   // Main TypeScript/TSX rules

@@ -38,7 +38,7 @@ const config: KnipConfig = {
     },
   },
   tags: ['+@public'],
-  ignore: ['**/dist/**', 'plugins/**'],
+  ignore: ['**/dist/**', 'plugins/**', 'docs/**'],
   ignoreExportsUsedInFile: true,
 };
 
