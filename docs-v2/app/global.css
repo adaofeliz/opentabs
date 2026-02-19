@@ -135,6 +135,42 @@ body {
   border-width: 2px;
 }
 
+/* Active sidebar link: full primary yellow bg with black text (RetroUI active state).
+ * Overrides Fumadocs' default bg-fd-primary/10 + text-fd-primary (light tint).
+ * Applies to both desktop sidebar (#nd-sidebar) and mobile drawer (#nd-sidebar-mobile). */
+#nd-sidebar [data-active='true'],
+#nd-sidebar-mobile [data-active='true'] {
+  background-color: var(--primary);
+  color: var(--primary-foreground);
+  font-weight: 600;
+}
+
+/* Sidebar section dividers: 2px border lines */
+#nd-sidebar .border-t {
+  border-top-width: 2px;
+}
+
+/* Sidebar section headers (SidebarSeparator renders as <p>): font-head uppercase.
+ * Applies to both desktop sidebar and mobile drawer. */
+#nd-sidebar p,
+#nd-sidebar-mobile p {
+  font-family: var(--font-head);
+  font-size: 0.8125rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+/* Mobile drawer: border-l-2 on the left side */
+#nd-sidebar-mobile {
+  border-left-width: 2px;
+}
+
+/* Sidebar folder content left border line: border-border color already set via fd mapping,
+ * but ensure the pseudo-element uses border-border */
+#nd-sidebar [data-radix-collapsible-content]::before {
+  background-color: var(--border);
+}
+
 /* ===== RetroUI Steps component — CSS counter-based step numbering */
 .retro-steps {
   counter-reset: retro-step;
