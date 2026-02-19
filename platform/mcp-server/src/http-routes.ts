@@ -290,10 +290,15 @@ const createHandleFetch =
             removeSession();
           };
 
-          sessionServer = await createMcpServer(state);
-          sessionServers.push(sessionServer);
-          await sessionServer.connect(transport);
-          return transport.handleRequest(req, { parsedBody: body });
+          try {
+            sessionServer = await createMcpServer(state);
+            sessionServers.push(sessionServer);
+            await sessionServer.connect(transport);
+            return await transport.handleRequest(req, { parsedBody: body });
+          } catch (err) {
+            removeSession();
+            throw err;
+          }
         }
 
         return Response.json(
