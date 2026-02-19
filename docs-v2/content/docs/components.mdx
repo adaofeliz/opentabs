@@ -71,3 +71,56 @@ This page demonstrates Fumadocs MDX components styled with the RetroUI neobrutal
   <Card title="Extensions" icon="🔌" description="Extend OpenTabs with the plugin system." href="/docs" />
   <Card title="Security" icon="🔒" description="All traffic goes through your own browser session." href="/docs" />
 </Cards>
+
+## Tabs
+
+<Tabs items={['JavaScript', 'TypeScript', 'Python']}>
+  <Tab>
+    ```js
+    const greet = (name) => `Hello, ${name}!`;
+    console.log(greet('World'));
+    ```
+  </Tab>
+  <Tab>
+    ```ts
+    const greet = (name: string): string => `Hello, ${name}!`;
+    console.log(greet('World'));
+    ```
+  </Tab>
+  <Tab>
+    ```py
+    def greet(name: str) -> str:
+        return f"Hello, {name}!"
+
+    print(greet("World"))
+    ```
+  </Tab>
+</Tabs>
+
+### Tabs with Custom Values
+
+<Tabs items={['Installation', 'Configuration', 'Usage']}>
+  <Tab>
+    Install the package using your preferred package manager:
+
+    ```bash
+    bun install @opentabs/sdk
+    ```
+  </Tab>
+  <Tab>
+    Create a configuration file at `~/.opentabs/config.json`:
+
+    ```json
+    {
+      "plugins": ["./path/to/my-plugin"]
+    }
+    ```
+  </Tab>
+  <Tab>
+    Start the MCP server and load the extension:
+
+    ```bash
+    bun --hot platform/mcp-server/dist/index.js
+    ```
+  </Tab>
+</Tabs>
