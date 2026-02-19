@@ -418,7 +418,15 @@ describe('EXTENSION_COPY_EXCLUDE_PATTERN', () => {
     });
   });
 
-  describe('tsconfig exclusions (require path separator prefix)', () => {
+  describe('tsconfig exclusions', () => {
+    test('matches tsconfig.json at root', () => {
+      expect(pattern.test('tsconfig.json')).toBe(true);
+    });
+
+    test('matches tsconfig.test.json at root', () => {
+      expect(pattern.test('tsconfig.test.json')).toBe(true);
+    });
+
     test('matches tsconfig.json in subdirectory', () => {
       expect(pattern.test('sub/tsconfig.json')).toBe(true);
     });

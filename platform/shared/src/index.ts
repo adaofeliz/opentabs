@@ -247,7 +247,8 @@ export const isBlockedUrlScheme = (url: string): boolean => {
 };
 
 /** Matches paths to exclude when copying the browser extension to ~/.opentabs/extension/ */
-export const EXTENSION_COPY_EXCLUDE_PATTERN = /(?:^|[\\/])(?:node_modules|src|\.git)(?:[\\/]|$)|[\\/]tsconfig[^/\\]*/;
+export const EXTENSION_COPY_EXCLUDE_PATTERN =
+  /(?:^|[\\/])(?:node_modules|src|\.git)(?:[\\/]|$)|(?:^|[\\/])tsconfig[^/\\]*/;
 
 // ---------------------------------------------------------------------------
 // Plugin name validation
