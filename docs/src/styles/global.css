@@ -355,3 +355,31 @@ starlight-menu-button button:hover {
 .starlight-aside__title {
   font-family: var(--font-head);
 }
+
+/* Table of contents (right sidebar) — left border on desktop */
+@media (min-width: 72rem) {
+  .right-sidebar {
+    border-left: 2px solid var(--border);
+  }
+}
+
+/* TOC heading — RetroUI font-head (Archivo Black) */
+.right-sidebar-panel h2,
+starlight-toc h2 {
+  font-family: var(--font-head);
+}
+
+/* TOC links — hover:text-primary transition */
+starlight-toc a {
+  transition: color 0.2s ease;
+}
+
+starlight-toc a:hover {
+  color: var(--primary) !important;
+}
+
+/* TOC active link — primary color with bold weight */
+starlight-toc a[aria-current='true'] {
+  color: var(--primary) !important;
+  font-weight: 600;
+}
