@@ -71,6 +71,7 @@ const FALLBACK_CONFIG: OpentabsConfig = {
   plugins: [],
   tools: {},
   secret: undefined,
+  npmPlugins: [],
 };
 
 /**
