@@ -53,6 +53,17 @@ export interface BgGetConnectionStateMessage {
   type: 'bg:getConnectionState';
 }
 
+/** Background → Offscreen: request log entries from the offscreen LogCollector */
+export interface BgGetLogsMessage {
+  type: 'bg:getLogs';
+  options?: {
+    level?: 'log' | 'warn' | 'error' | 'info';
+    source?: 'background' | 'offscreen' | 'side-panel';
+    since?: number;
+    limit?: number;
+  };
+}
+
 /** Background → Side panel: WebSocket connection state update */
 export interface SpConnectionStateMessage {
   type: 'sp:connectionState';
@@ -75,6 +86,7 @@ export type InternalMessage =
   | WsSetUrlMessage
   | BgSendMessage
   | BgGetConnectionStateMessage
+  | BgGetLogsMessage
   | SpConnectionStateMessage
   | SpRelayMessage;
 

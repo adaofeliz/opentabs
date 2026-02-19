@@ -14,7 +14,11 @@
  */
 
 import { ALL_ALLOWED_METHODS } from '../known-methods.js';
+import { installLogCollector } from '../log-collector.js';
 import type { InternalMessage, WsStateMessage, WsDataMessage } from '../types.js';
+
+/** Capture console output in a ring buffer for retrieval by debugging tools */
+const offscreenLogCollector = installLogCollector('offscreen');
 
 const DEFAULT_MCP_SERVER_URL = 'ws://localhost:9515/ws';
 const INITIAL_BACKOFF_MS = 1000;
@@ -373,6 +377,14 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
       })();
       // Async sendResponse — tell Chrome to keep the message channel open
       return true;
+    }
+
+    case 'bg:getLogs': {
+      sendResponse({
+        entries: offscreenLogCollector.getEntries(message.options),
+        stats: offscreenLogCollector.getStats(),
+      });
+      break;
     }
 
     // Messages handled by the background script or side panel — not processed here.
