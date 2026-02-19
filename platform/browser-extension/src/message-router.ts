@@ -15,6 +15,7 @@ import {
   handleBrowserGetTabContent,
   handleBrowserGetTabInfo,
   handleBrowserGetResourceContent,
+  handleBrowserHandleDialog,
   handleBrowserListResources,
   handleBrowserListTabs,
   handleBrowserHoverElement,
@@ -480,6 +481,16 @@ const methodHandlers = new Map<string, MessageHandler>([
       if (id !== undefined) {
         handleBrowserHoverElement(params, id).catch((err: unknown) =>
           console.warn('[opentabs] browser.hoverElement handler failed:', err),
+        );
+      }
+    },
+  ],
+  [
+    'browser.handleDialog',
+    (params, id) => {
+      if (id !== undefined) {
+        handleBrowserHandleDialog(params, id).catch((err: unknown) =>
+          console.warn('[opentabs] browser.handleDialog handler failed:', err),
         );
       }
     },

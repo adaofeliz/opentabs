@@ -97,6 +97,9 @@ const mockHandleBrowserScroll = mock(
 const mockHandleBrowserHoverElement = mock(
   asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
 );
+const mockHandleBrowserHandleDialog = mock(
+  asyncNoop as (params: Record<string, unknown>, id: string | number) => Promise<void>,
+);
 
 await mock.module('./messaging.js', () => ({
   sendToServer: mockSendToServer,
@@ -137,6 +140,7 @@ await mock.module('./browser-commands.js', () => ({
   handleBrowserPressKey: mockHandleBrowserPressKey,
   handleBrowserScroll: mockHandleBrowserScroll,
   handleBrowserHoverElement: mockHandleBrowserHoverElement,
+  handleBrowserHandleDialog: mockHandleBrowserHandleDialog,
 }));
 
 // Chrome API stubs for modules that are NOT mocked (plugin-storage, iife-injection,
@@ -504,6 +508,7 @@ const resetRoutingMocks = (): void => {
   mockHandleBrowserGetResourceContent.mockReset();
   mockHandleBrowserScroll.mockReset();
   mockHandleBrowserHoverElement.mockReset();
+  mockHandleBrowserHandleDialog.mockReset();
 };
 
 describe('handleServerMessage', () => {
@@ -533,6 +538,7 @@ describe('handleServerMessage', () => {
     mockHandleBrowserGetResourceContent.mockResolvedValue(undefined);
     mockHandleBrowserScroll.mockResolvedValue(undefined);
     mockHandleBrowserHoverElement.mockResolvedValue(undefined);
+    mockHandleBrowserHandleDialog.mockResolvedValue(undefined);
   });
 
   describe('sync.full routing', () => {
@@ -976,6 +982,17 @@ describe('handleServerMessage', () => {
 
       expect(mockHandleBrowserHoverElement).toHaveBeenCalledTimes(1);
       expect(mockHandleBrowserHoverElement).toHaveBeenCalledWith({ tabId: 10, selector: '#hover-target' }, 47);
+    });
+
+    test('dispatches browser.handleDialog to handleBrowserHandleDialog', () => {
+      handleServerMessage({
+        method: 'browser.handleDialog',
+        id: 48,
+        params: { tabId: 10, action: 'accept' },
+      });
+
+      expect(mockHandleBrowserHandleDialog).toHaveBeenCalledTimes(1);
+      expect(mockHandleBrowserHandleDialog).toHaveBeenCalledWith({ tabId: 10, action: 'accept' }, 48);
     });
   });
 

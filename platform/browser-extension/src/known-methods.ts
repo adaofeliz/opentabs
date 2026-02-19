@@ -41,6 +41,7 @@ export const DISPATCH_METHODS = [
   'browser.pressKey',
   'browser.scroll',
   'browser.hoverElement',
+  'browser.handleDialog',
   'extension.reload',
 ] as const;
 

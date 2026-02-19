@@ -1521,6 +1521,87 @@ export const handleBrowserHoverElement = async (
   }
 };
 
+export const handleBrowserHandleDialog = async (
+  params: Record<string, unknown>,
+  id: string | number,
+): Promise<void> => {
+  try {
+    const tabId = params.tabId;
+    if (typeof tabId !== 'number') {
+      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid tabId parameter' }, id });
+      return;
+    }
+    const action = params.action;
+    if (action !== 'accept' && action !== 'dismiss') {
+      sendToServer({
+        jsonrpc: '2.0',
+        error: { code: -32602, message: "action must be 'accept' or 'dismiss'" },
+        id,
+      });
+      return;
+    }
+    const accept = action === 'accept';
+    const promptText = typeof params.promptText === 'string' ? params.promptText : undefined;
+
+    const alreadyAttached = isCapturing(tabId);
+    if (!alreadyAttached) {
+      try {
+        await chrome.debugger.attach({ tabId }, '1.3');
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        sendToServer({
+          jsonrpc: '2.0',
+          error: {
+            code: -32603,
+            message: msg.includes('Another debugger')
+              ? 'Failed to attach debugger — another debugger (e.g., DevTools) is already attached. ' +
+                'Close DevTools or enable network capture first (browser_enable_network_capture) ' +
+                'so this tool can reuse the existing debugger session.'
+              : `Failed to attach debugger: ${sanitizeErrorMessage(msg)}`,
+          },
+          id,
+        });
+        return;
+      }
+    }
+
+    try {
+      await chrome.debugger.sendCommand({ tabId }, 'Page.enable');
+      await chrome.debugger.sendCommand({ tabId }, 'Page.handleJavaScriptDialog', {
+        accept,
+        ...(promptText !== undefined ? { promptText } : {}),
+      });
+
+      sendToServer({
+        jsonrpc: '2.0',
+        result: { handled: true, action },
+        id,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isNoDialog = msg.includes('No dialog is showing') || msg.includes('no dialog');
+      sendToServer({
+        jsonrpc: '2.0',
+        error: {
+          code: -32603,
+          message: isNoDialog ? 'No JavaScript dialog is currently open on this tab' : sanitizeErrorMessage(msg),
+        },
+        id,
+      });
+    } finally {
+      if (!alreadyAttached) {
+        await chrome.debugger.detach({ tabId }).catch(() => {});
+      }
+    }
+  } catch (err) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: -32603, message: sanitizeErrorMessage(err instanceof Error ? err.message : String(err)) },
+      id,
+    });
+  }
+};
+
 export const handleBrowserListResources = async (
   params: Record<string, unknown>,
   id: string | number,
