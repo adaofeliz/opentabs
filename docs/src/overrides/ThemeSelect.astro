@@ -1,0 +1,40 @@
+---
+import DefaultThemeSelect from '@astrojs/starlight/components/ThemeSelect.astro';
+---
+
+<div class="retro-theme-select">
+  <DefaultThemeSelect {...Astro.props} />
+</div>
+
+<style>
+  .retro-theme-select :global(starlight-theme-select label) {
+    border: 2px solid var(--border);
+    border-radius: 0;
+    box-shadow: var(--shadow-sm);
+    background: var(--background);
+    padding: 0 0.25rem;
+    transition: all 0.2s ease;
+    cursor: pointer;
+  }
+
+  .retro-theme-select :global(starlight-theme-select label:hover) {
+    box-shadow: none;
+    transform: translateY(1px);
+  }
+
+  .retro-theme-select :global(starlight-theme-select label:active) {
+    transform: translateY(2px);
+  }
+
+  .retro-theme-select :global(starlight-theme-select select) {
+    font-family: var(--font-head);
+    font-size: 0.75rem;
+    cursor: pointer;
+  }
+
+  .retro-theme-select :global(starlight-theme-select option) {
+    background: var(--background);
+    color: var(--foreground);
+    border-radius: 0;
+  }
+</style>

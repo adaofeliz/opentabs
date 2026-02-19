@@ -12,6 +12,7 @@ export default defineConfig({
         Pagination: './src/overrides/Pagination.astro',
         SiteTitle: './src/overrides/SiteTitle.astro',
         Hero: './src/overrides/Hero.astro',
+        ThemeSelect: './src/overrides/ThemeSelect.astro',
       },
       social: [
         {
