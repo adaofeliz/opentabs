@@ -1,18 +1,14 @@
 import { Empty } from './retro/Empty.js';
 import { Loader } from './retro/Loader.js';
-import { Unplug } from 'lucide-react';
 
 const DisconnectedState = () => (
-  <Empty>
+  <Empty className="border-destructive/60">
     <Empty.Content>
-      <Empty.Icon>
-        <Unplug className="text-muted-foreground h-12 w-12" />
-      </Empty.Icon>
-      <Empty.Title>Not Connected</Empty.Title>
-      <Empty.Separator />
+      <Empty.Title>Cannot Reach MCP Server</Empty.Title>
+      <Empty.Separator className="bg-destructive" />
       <Empty.Description>Start the MCP server:</Empty.Description>
-      <code className="border-border bg-muted rounded border-2 px-3 py-2 font-mono text-sm">
-        bun --hot platform/mcp-server/dist/index.js
+      <code className="border-destructive/40 bg-destructive/10 rounded border-2 px-3 py-2 font-mono text-sm">
+        opentabs dev
       </code>
     </Empty.Content>
   </Empty>

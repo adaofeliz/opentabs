@@ -228,7 +228,7 @@ const App = () => {
           <PluginList plugins={plugins} activeTools={activeTools} setPlugins={setPlugins} toolFilter={toolFilter} />
         )}
       </main>
-      <Footer connected={connected} />
+      <Footer />
     </div>
   );
 };
