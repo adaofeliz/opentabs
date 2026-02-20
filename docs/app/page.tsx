@@ -74,11 +74,11 @@ export default function HomePage() {
         <div className="mx-auto max-w-5xl">
           <h2 className="font-head mb-2 text-3xl font-semibold">Everything you need</h2>
           <p className="text-muted-foreground mb-12 font-sans">A complete platform for AI-powered web automation.</p>
-          <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 sm:gap-6 lg:grid-cols-3">
             {features.map(feature => (
               <div
                 key={feature.title}
-                className="border-border bg-card flex h-full flex-col gap-3 rounded border-2 p-6 shadow-md transition-all hover:translate-y-0.5 hover:shadow">
+                className="border-border bg-card flex h-full flex-col gap-3 rounded border-2 p-4 shadow-sm transition-all hover:translate-y-0.5 hover:shadow sm:p-6 sm:shadow-md">
                 <div className="text-4xl">{feature.icon}</div>
                 <h3 className="font-head text-lg font-medium">{feature.title}</h3>
                 <p className="text-muted-foreground font-sans text-sm leading-relaxed">{feature.description}</p>
@@ -92,7 +92,7 @@ export default function HomePage() {
       <section className="border-border bg-muted/30 border-b-2 px-4 py-12 sm:px-6 sm:py-16 md:py-20">
         <div className="mx-auto max-w-5xl">
           <h2 className="font-head mb-12 text-3xl font-semibold">How it works</h2>
-          <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div className="grid grid-cols-1 gap-4 sm:gap-6 md:grid-cols-3">
             {[
               {
                 step: '01',
@@ -110,8 +110,8 @@ export default function HomePage() {
                 desc: 'Use the Plugin SDK to define new tools for any website. Publish as an npm package for the community.',
               },
             ].map(({ step, title, desc }) => (
-              <div key={step} className="border-border bg-card rounded border-2 p-6 shadow-md">
-                <div className="font-head border-border bg-primary mb-4 inline-flex size-12 items-center justify-center rounded border-2 text-xl font-bold">
+              <div key={step} className="border-border bg-card rounded border-2 p-4 shadow-sm sm:p-6 sm:shadow-md">
+                <div className="font-head border-border bg-primary mb-4 inline-flex size-10 items-center justify-center rounded border-2 text-lg font-bold sm:size-12 sm:text-xl">
                   {step}
                 </div>
                 <h3 className="font-head mb-2 text-lg font-medium">{title}</h3>
