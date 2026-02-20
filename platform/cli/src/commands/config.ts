@@ -2,7 +2,7 @@
  * `opentabs config` command — view and manage configuration.
  */
 
-import { getConfigDir, getConfigPath, readConfig } from '../config.js';
+import { atomicWriteConfig, getConfigDir, getConfigPath, readConfig } from '../config.js';
 import pc from 'picocolors';
 import { existsSync, mkdirSync } from 'node:fs';
 import type { Command } from 'commander';
@@ -37,7 +37,7 @@ const handleConfigInit = async (options: ConfigInitOptions): Promise<void> => {
   mkdirSync(configDir, { recursive: true });
 
   const config = { plugins: [], tools: {}, secret: crypto.randomUUID() };
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + '\n');
+  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
 
   console.log(pc.green(`Config created at ${configPath}`));
 };
@@ -135,7 +135,7 @@ const handleConfigSet = async (key: string, value: string): Promise<void> => {
   const enabled = value === 'enabled';
   tools[toolName] = enabled;
 
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + '\n');
+  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
 
   const indicator = enabled ? pc.green('enabled') : pc.red('disabled');
   console.log(`${toolName}: ${indicator}`);

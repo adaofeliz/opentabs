@@ -6,7 +6,7 @@
  * `@opentabs-dev/*` npm packages. There is no monorepo special-casing.
  */
 
-import { getConfigPath, readConfig } from './config.js';
+import { atomicWriteConfig, getConfigPath, readConfig } from './config.js';
 import { validatePluginName, validateUrlPattern } from '@opentabs-dev/plugin-sdk';
 import pc from 'picocolors';
 import { existsSync, mkdirSync } from 'node:fs';
@@ -261,7 +261,7 @@ const autoRegisterPlugin = async (projectDir: string): Promise<boolean> => {
   if (plugins.includes(pluginPath)) return true;
 
   plugins.push(pluginPath);
-  await Bun.write(configPath, JSON.stringify(config, null, 2) + '\n');
+  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
   return true;
 };
 
