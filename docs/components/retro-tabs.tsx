@@ -143,7 +143,10 @@ const RetroTab = ({ value, className, ...props }: RetroTabProps) => {
     <RadixTabs.Content
       value={escapeValue(resolved)}
       forceMount
-      className={cn('border-border mt-0 w-full border-2 p-4 font-sans data-[state=inactive]:hidden', className)}
+      className={cn(
+        'border-border mt-0 w-full border-x-2 border-b-2 p-4 font-sans data-[state=inactive]:hidden',
+        className,
+      )}
       {...props}
     />
   );
