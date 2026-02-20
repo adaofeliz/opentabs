@@ -8,7 +8,7 @@ const Header = ({ connected }: { connected: boolean }) => (
       <h1 className="font-head text-foreground text-sm tracking-tight">OpenTabs</h1>
     </div>
     {connected ? (
-      <Badge variant="surface" size="sm">
+      <Badge variant="default" size="sm">
         Connected
       </Badge>
     ) : (
