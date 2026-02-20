@@ -68,7 +68,7 @@ const generatePackageJson = async (args: ScaffoldArgs): Promise<string> => {
     files: ['dist', 'opentabs-plugin.json'],
     scripts: {
       build: 'tsc && opentabs build',
-      dev: 'bun run build --watch',
+      dev: 'tsc --watch --preserveWatchOutput & opentabs build --watch',
       'type-check': 'tsc --noEmit',
       lint: 'eslint src/',
       'lint:fix': 'eslint src/ --fix',
