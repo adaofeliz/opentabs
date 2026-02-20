@@ -25,13 +25,15 @@ export const RetroPageBreadcrumb = () => {
               <Link
                 href={item.url}
                 className={cn(
-                  'hover:text-foreground font-medium transition-colors',
+                  'hover:text-foreground max-w-[200px] truncate py-1 font-medium transition-colors max-sm:max-w-[120px]',
                   i === items.length - 1 && 'text-foreground font-semibold',
                 )}>
                 {item.name}
               </Link>
             ) : (
-              <span aria-current="page" className="text-foreground truncate font-semibold">
+              <span
+                aria-current="page"
+                className="text-foreground max-w-[200px] truncate py-1 font-semibold max-sm:max-w-[120px]">
                 {item.name}
               </span>
             )}
