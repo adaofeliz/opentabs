@@ -8,7 +8,7 @@ import type { HTMLAttributes, ReactNode } from 'react';
 
 const RetroFiles = ({ className, ...props }: HTMLAttributes<HTMLDivElement>) => (
   <div
-    className={cn('not-prose border-border bg-card overflow-x-auto border-2 p-2 ps-3 shadow-md', className)}
+    className={cn('not-prose border-border bg-card overflow-x-auto rounded border-2 p-2 ps-3 shadow-md', className)}
     {...props}
   />
 );
