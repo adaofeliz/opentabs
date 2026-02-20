@@ -1,0 +1,168 @@
+---
+title: Architecture
+description: How the MCP server, Chrome extension, and plugins work together to give AI agents access to web applications.
+lastUpdated: 2026-02-20
+---
+
+OpenTabs has three core components: the **MCP server**, the **Chrome extension**, and **plugins**. They communicate over two protocols — MCP Streamable HTTP (AI agent ↔ server) and WebSocket with JSON-RPC 2.0 (server ↔ extension).
+
+```
+┌─────────────┐  Streamable HTTP  ┌─────────────┐  WebSocket  ┌──────────────────┐
+│  AI Agent   │ ←───────────────→ │ MCP Server  │ ←─────────→ │ Chrome Extension │
+│(Claude Code)│  POST /mcp        │ :9515       │  /ws        │   (Background)   │
+└─────────────┘                   └──────┬──────┘             └────────┬─────────┘
+                                         │                             │
+                                  ┌──────▼──────┐            ┌────────▼─────────┐
+                                  │   Plugin    │            │  Adapter IIFEs   │
+                                  │  Discovery  │            │  (per plugin,    │
+                                  │ (npm + local│            │   injected into  │
+                                  │  paths)     │            │   matching tabs) │
+                                  └─────────────┘            └────────┬─────────┘
+                                                                      │ MAIN world
+                                                             ┌────────▼─────────┐
+                                                             │   Web App DOM    │
+                                                             │ (user's session) │
+                                                             └──────────────────┘
+```
+
+## MCP Server
+
+The MCP server (`platform/mcp-server`) runs on `localhost:9515` by default (configurable via the `PORT` environment variable). It has two main responsibilities:
+
+1. **Plugin discovery** — reads local plugin paths from `~/.opentabs/config.json` and scans `node_modules` for npm packages matching `opentabs-plugin-*`. For each plugin, it loads the `opentabs-plugin.json` manifest and the `dist/adapter.iife.js` bundle.
+
+2. **Tool dispatch** — registers plugin tools as MCP tools (prefixed as `<plugin>_<tool>`) and dispatches tool calls to the Chrome extension via WebSocket. Input is validated against pre-compiled JSON Schema (Ajv) before dispatch.
+
+### HTTP Endpoints
+
+| Endpoint | Method | Auth | Description |
+| --- | --- | --- | --- |
+| `/mcp` | POST/GET/DELETE | Bearer token | MCP Streamable HTTP transport. AI agents connect here. |
+| `/ws` | WebSocket | Sec-WebSocket-Protocol | Chrome extension WebSocket connection. |
+| `/ws-info` | GET | Bearer token | Returns WebSocket URL and auth secret for extension bootstrap. |
+| `/health` | GET | None | Server status: plugins, tools, uptime, reload count. |
+| `/reload` | POST | Bearer token | Trigger config and plugin rediscovery. |
+| `/extension/reload` | POST | Bearer token | Send reload signal to the extension via WebSocket. |
+
+### Hot Reload
+
+The server runs under `bun --hot`. When compiled files change, Bun re-evaluates all modules while the process stays alive. The server uses a `globalThis`-based state pattern (`HotState` on `globalThis.__opentabs_hot_state__`) so that the HTTP server instance is created once and reused across reloads, while handler logic is recreated with fresh closures on each reload.
+
+A file watcher monitors local plugin directories for changes to `opentabs-plugin.json` and `dist/adapter.iife.js`. When a change is detected, the server re-reads the files and sends a `plugin.update` notification to the extension — no server restart or extension reload needed.
+
+## Chrome Extension
+
+The Chrome extension (`platform/browser-extension`) is a Manifest V3 extension with a service worker, offscreen document, and side panel.
+
+### Persistent WebSocket
+
+MV3 service workers can be suspended by the browser at any time. To maintain a persistent WebSocket connection, the extension uses an **offscreen document** — a hidden HTML page with a stable execution context. The offscreen document:
+
+- Establishes the WebSocket connection to `ws://localhost:9515/ws`
+- Authenticates via the `Sec-WebSocket-Protocol` header (keeps the secret out of URLs and logs)
+- Runs ping/pong keepalive every 15 seconds with a 5-second timeout to detect zombie connections caused by server hot reloads
+- Reconnects with exponential backoff (1s → 2s → 4s → ... → 30s cap)
+
+### Adapter Injection
+
+Plugins are injected into matching browser tabs as self-contained IIFE bundles. The injection uses `chrome.scripting.executeScript()` with the `files` option and `world: 'MAIN'`:
+
+1. A tab loads and reaches `status === 'complete'`
+2. The background script queries matching tabs by URL pattern
+3. For each matching tab without an adapter, it injects the plugin's IIFE file from `~/.opentabs/extension/adapters/<plugin>.js`
+4. The adapter registers itself at `globalThis.__openTabs.adapters[pluginName]`
+
+File-based injection bypasses page Content Security Policy (CSP), which is essential for working with sites that have strict CSP headers.
+
+### Tool Dispatch
+
+When the server sends a `tool.dispatch` request:
+
+1. The background script finds matching tabs using the plugin's URL patterns
+2. Tabs are ranked: active tab in focused window (rank 3) > active tab in any window (rank 2) > any tab in focused window (rank 1) > other tabs (rank 0)
+3. For each tab in rank order, the extension:
+   - Re-validates the tab URL (prevents TOCTOU race conditions from navigation)
+   - Calls `adapter.isReady()` — skips to the next tab if false
+   - Calls `tool.handle(input)` in the page's MAIN world context
+4. The result flows back through the WebSocket to the server and then to the AI agent
+
+If the highest-ranked tab is unavailable, the extension falls back to the next matching tab. Tool execution has a 60-second timeout.
+
+## Wire Protocol
+
+All server ↔ extension communication uses **JSON-RPC 2.0** over WebSocket. Messages have a 10 MB size limit.
+
+### Key Message Types
+
+**Server → Extension:**
+
+| Method | Purpose |
+| --- | --- |
+| `sync.full` | Full plugin list sent on connection |
+| `plugin.update` | Plugin metadata changed (file watcher detected changes) |
+| `plugin.uninstall` | Plugin removed from discovery |
+| `tool.dispatch` | Execute a plugin tool on a matching tab |
+| `tool.invocationStart` | Tool execution started (side panel animation) |
+| `tool.invocationEnd` | Tool execution completed (duration, success flag) |
+| `browser.*` | Built-in browser tool commands (36 tools) |
+| `pong` | Keepalive response |
+
+**Extension → Server:**
+
+| Method | Purpose |
+| --- | --- |
+| `tab.syncAll` | Full tab state for all plugins (sent on connect/reconnect) |
+| `tab.stateChanged` | Single plugin's tab state changed |
+| `config.getState` | Fetch config state for side panel |
+| `config.setToolEnabled` | Enable/disable a single tool |
+| `config.setAllToolsEnabled` | Enable/disable all tools in a plugin |
+| `ping` | Keepalive probe |
+
+### Timeouts
+
+- **Tool dispatch**: 30 seconds (server-side). The MCP Streamable HTTP response is held open until the tool completes or times out.
+- **Extension script execution**: 60 seconds.
+- **Readiness probe** (`isReady()`): 5 seconds.
+- **Keepalive ping/pong**: 15-second interval, 5-second timeout.
+
+## Security
+
+### Authentication
+
+- **MCP endpoint** (`/mcp`): Bearer token in the `Authorization` header. The token is the `secret` value from `~/.opentabs/config.json` (a 64-character hex string auto-generated on first server run).
+- **WebSocket** (`/ws`): Auth via `Sec-WebSocket-Protocol` header — the client sends `['opentabs', '<secret>']`, and the server validates the secret and echoes `'opentabs'` as the accepted subprotocol.
+- **Admin endpoints** (`/reload`, `/extension/reload`, `/ws-info`): Bearer token required, plus rate limiting (10 requests/minute) as fallback protection.
+
+### CORS Protection
+
+The server rejects any HTTP request that includes an `Origin` header, unless it matches `chrome-extension://`. Legitimate MCP clients (Claude Code, Cursor, etc.) do not send Origin headers. This prevents DNS rebinding attacks where a malicious website tries to access the local server.
+
+### Adapter Integrity
+
+The `opentabs build` CLI computes a SHA-256 hash of the adapter IIFE and appends it as `__adapterHash`. The extension verifies this hash after injection to detect partial file writes or tampering.
+
+### Output Sanitization
+
+Tool outputs are recursively sanitized to remove dangerous keys (`__proto__`, `constructor`, `prototype`) that could cause prototype pollution. Error messages are sanitized to strip internal file paths, IP addresses, and URLs before returning them to clients.
+
+### Prompt Injection Detection
+
+During plugin discovery, tool descriptions are scanned for references to browser tool names. Matches are logged as potential prompt injection attempts (where a plugin tool description tries to influence the AI agent's behavior toward built-in browser tools). This is a warning — plugins are not blocked.
+
+### Trust Tiers
+
+Plugins are classified by source and the trust tier is prefixed to tool descriptions shown to AI agents:
+
+| Tier | Source | Description Prefix |
+| --- | --- | --- |
+| Official | `@opentabs-dev/*` npm scope | `[Official]` |
+| Community | Any other npm package | `[Community plugin — unverified]` |
+| Local | Filesystem path | `[Local plugin]` |
+
+## Hot Reload Summary
+
+| Component | Reload Method | Trigger |
+| --- | --- | --- |
+| MCP Server | `bun --hot` (automatic) | Compiled `.js` files change in `dist/` |
+| Plugin adapters | File watcher (automatic) | `opentabs-plugin.json` or `dist/adapter.iife.js` changes |
+| Chrome extension | Manual reload from `chrome://extensions` | Any extension source file changes |
