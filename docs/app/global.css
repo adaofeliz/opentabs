@@ -532,4 +532,17 @@ code {
     padding-left: max(1rem, env(safe-area-inset-left, 0px));
     padding-right: max(1rem, env(safe-area-inset-right, 0px));
   }
+
+  /* Prevent pull-to-refresh gesture on mobile docs pages. Desktop retains
+   * normal overscroll behavior (elastic bounce, history navigation). */
+  body {
+    overscroll-behavior-y: none;
+  }
+
+  /* Safe-area insets for the main content area on landscape mobile.
+   * Prevents content from being hidden behind notch/sensor housing. */
+  #nd-page {
+    padding-left: max(1rem, env(safe-area-inset-left, 0px));
+    padding-right: max(1rem, env(safe-area-inset-right, 0px));
+  }
 }
