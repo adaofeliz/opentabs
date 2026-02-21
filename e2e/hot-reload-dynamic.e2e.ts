@@ -270,19 +270,17 @@ test.describe.serial('File watcher — manifest changes', () => {
       // The dynamic_tool should NOT be present yet (not in manifest)
       expect(toolsBefore.map(t => t.name)).not.toContain('e2e-test_dynamic_tool');
 
-      // Modify the manifest to add a new tool
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{
-          name: string;
-          displayName: string;
-          description: string;
-          icon: string;
-          input_schema: Record<string, unknown>;
-          output_schema: Record<string, unknown>;
-        }>;
-      };
-      manifest.tools.push({
+      // Modify dist/tools.json to add a new tool
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const tools = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{
+        name: string;
+        displayName: string;
+        description: string;
+        icon: string;
+        input_schema: Record<string, unknown>;
+        output_schema: Record<string, unknown>;
+      }>;
+      tools.push({
         name: 'dynamic_tool',
         displayName: 'Dynamic Tool',
         description: 'Dynamically added via file watcher',
@@ -295,7 +293,7 @@ test.describe.serial('File watcher — manifest changes', () => {
           additionalProperties: false,
         },
       });
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(tools, null, 2), 'utf-8');
 
       // Poll until the new tool appears in tools/list (replaces waitForLog + sleep)
       const toolsAfter = await waitForToolList(
@@ -334,13 +332,11 @@ test.describe.serial('File watcher — manifest changes', () => {
       const toolsBefore = await client.listTools();
       expect(toolsBefore.map(t => t.name)).toContain('e2e-test_echo');
 
-      // Remove the echo tool from the manifest
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{ name: string }>;
-      };
-      manifest.tools = manifest.tools.filter(t => t.name !== 'echo');
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      // Remove the echo tool from dist/tools.json
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const tools = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{ name: string }>;
+      const filteredTools = tools.filter(t => t.name !== 'echo');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(filteredTools, null, 2), 'utf-8');
 
       // Poll until echo tool disappears from tools/list
       const toolsAfter = await waitForToolList(
@@ -629,19 +625,17 @@ test.describe('File watcher + hot reload combined', () => {
     try {
       await client.initialize();
 
-      // 1. File watcher change: add a tool via manifest
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{
-          name: string;
-          displayName: string;
-          description: string;
-          icon: string;
-          input_schema: Record<string, unknown>;
-          output_schema: Record<string, unknown>;
-        }>;
-      };
-      manifest.tools.push({
+      // 1. File watcher change: add a tool via dist/tools.json
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const tools = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{
+        name: string;
+        displayName: string;
+        description: string;
+        icon: string;
+        input_schema: Record<string, unknown>;
+        output_schema: Record<string, unknown>;
+      }>;
+      tools.push({
         name: 'fw_tool',
         displayName: 'Fw Tool',
         description: 'Added by file watcher',
@@ -654,7 +648,7 @@ test.describe('File watcher + hot reload combined', () => {
           additionalProperties: false,
         },
       });
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(tools, null, 2), 'utf-8');
 
       // Poll until fw_tool appears in tools/list
       await waitForToolList(
@@ -826,16 +820,14 @@ test.describe.serial('File watcher — tool metadata changes', () => {
       if (!echoBefore) throw new Error('echo tool not found');
       const originalDesc = echoBefore.description;
 
-      // Modify the echo tool's description in the manifest
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{ name: string; description: string }>;
-      };
-      const echoTool = manifest.tools.find(t => t.name === 'echo');
+      // Modify the echo tool's description in dist/tools.json
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const tools = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{ name: string; description: string }>;
+      const echoTool = tools.find(t => t.name === 'echo');
       expect(echoTool).toBeDefined();
-      if (!echoTool) throw new Error('echo tool not found in manifest');
+      if (!echoTool) throw new Error('echo tool not found in tools.json');
       echoTool.description = 'UPDATED: Echo a message back with new description';
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(tools, null, 2), 'utf-8');
 
       // Poll until the description changes in tools/list
       const toolsAfter = await waitForToolList(
@@ -886,12 +878,12 @@ test.describe('File watcher — corrupted manifest', () => {
       const e2eCountBefore = toolsBefore.filter(t => t.name.startsWith('e2e-test_')).length;
       expect(e2eCountBefore).toBeGreaterThan(0);
 
-      // Write invalid JSON to the manifest
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      fs.writeFileSync(manifestPath, '{ invalid json ???', 'utf-8');
+      // Write invalid JSON to dist/tools.json
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      fs.writeFileSync(toolsJsonPath, '{ invalid json ???', 'utf-8');
 
       // Wait for the file watcher to detect and attempt to process the change
-      await waitForLog(server, 'Failed to read manifest', 10_000);
+      await waitForLog(server, 'Invalid JSON', 10_000);
 
       // Server should still be alive and healthy
       const health = await server.health();
@@ -992,10 +984,12 @@ test.describe('Hot reload — no extension connected', () => {
     const toolsAfter = await mcpClient.listTools();
     expect(toolsAfter.length).toBe(toolsBefore.length);
 
-    // Logs should NOT contain any errors about extension
-    const logsJoined = mcpServer.logs.join('\n');
-    expect(logsJoined).not.toContain('Error');
-    expect(logsJoined).not.toContain('error');
+    // Logs should NOT contain any error-level messages about extension.
+    // Note: "0 error(s)" in discovery summary is informational, not an error.
+    const errorLogs = mcpServer.logs.filter(
+      line => line.includes('[ERROR]') || line.includes('Error:') || line.includes('ECONNREFUSED'),
+    );
+    expect(errorLogs).toHaveLength(0);
   });
 });
 
@@ -1027,20 +1021,21 @@ test.describe.serial('File watcher — input_schema changes', () => {
       expect(echoBefore).toBeDefined();
       if (!echoBefore) throw new Error('echo tool not found');
 
-      // Modify the echo tool's input_schema in the manifest — add a new property
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{ name: string; input_schema: Record<string, unknown> }>;
-      };
-      const echoTool = manifest.tools.find(t => t.name === 'echo');
+      // Modify the echo tool's input_schema in dist/tools.json — add a new property
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const tools = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{
+        name: string;
+        input_schema: Record<string, unknown>;
+      }>;
+      const echoTool = tools.find(t => t.name === 'echo');
       expect(echoTool).toBeDefined();
-      if (!echoTool) throw new Error('echo tool not found in manifest');
+      if (!echoTool) throw new Error('echo tool not found in tools.json');
 
       // Add a new optional "prefix" property to the schema
       const props = (echoTool.input_schema.properties ?? {}) as Record<string, unknown>;
       props['prefix'] = { type: 'string', description: 'Optional prefix for the echo' };
       echoTool.input_schema.properties = props;
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(tools, null, 2), 'utf-8');
 
       // Poll until the input_schema changes in tools/list
       const toolsAfter = await waitForToolList(
@@ -1102,23 +1097,18 @@ test.describe.serial('File watcher — restart after hot reload', () => {
       // 1. Verify file watcher works BEFORE hot reload
       await waitForLog(server, 'File watcher: Watching', 10_000);
 
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{
-          name: string;
-          description: string;
-          icon: string;
-          input_schema: Record<string, unknown>;
-          output_schema: Record<string, unknown>;
-        }>;
-      };
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const toolsBefore2 = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{
+        name: string;
+        description: string;
+      }>;
 
       // Modify description of echo tool — file watcher should detect it
-      const echoTool = manifest.tools.find(t => t.name === 'echo');
+      const echoTool = toolsBefore2.find(t => t.name === 'echo');
       expect(echoTool).toBeDefined();
-      if (!echoTool) throw new Error('echo tool not found in manifest');
+      if (!echoTool) throw new Error('echo tool not found in tools.json');
       echoTool.description = 'BEFORE-RELOAD: modified description';
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(toolsBefore2, null, 2), 'utf-8');
 
       // Poll until the description changes
       const toolsMid = await waitForToolList(
@@ -1133,7 +1123,7 @@ test.describe.serial('File watcher — restart after hot reload', () => {
       );
       const echoMid = toolsMid.find(t => t.name === 'e2e-test_echo');
       expect(echoMid).toBeDefined();
-      if (!echoMid) throw new Error('echo tool not found after first manifest update');
+      if (!echoMid) throw new Error('echo tool not found after first tools.json update');
 
       // 2. Trigger hot reload — this stops old file watchers and starts new ones
       server.logs.length = 0;
@@ -1143,20 +1133,18 @@ test.describe.serial('File watcher — restart after hot reload', () => {
       // Verify file watchers were restarted
       await waitForLog(server, 'File watcher: Watching', 10_000);
 
-      // 3. Modify the manifest AGAIN after hot reload — the new file watcher
+      // 3. Modify tools.json AGAIN after hot reload — the new file watcher
       //    should detect this change. Add a new tool to be sure.
       server.logs.length = 0;
-      const manifestAfter = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        tools: Array<{
-          name: string;
-          displayName: string;
-          description: string;
-          icon: string;
-          input_schema: Record<string, unknown>;
-          output_schema: Record<string, unknown>;
-        }>;
-      };
-      manifestAfter.tools.push({
+      const toolsAfterReload = JSON.parse(fs.readFileSync(toolsJsonPath, 'utf-8')) as Array<{
+        name: string;
+        displayName: string;
+        description: string;
+        icon: string;
+        input_schema: Record<string, unknown>;
+        output_schema: Record<string, unknown>;
+      }>;
+      toolsAfterReload.push({
         name: 'post_reload_tool',
         displayName: 'Post Reload Tool',
         description: 'Added after hot reload to verify file watcher restart',
@@ -1169,7 +1157,7 @@ test.describe.serial('File watcher — restart after hot reload', () => {
           additionalProperties: false,
         },
       });
-      fs.writeFileSync(manifestPath, JSON.stringify(manifestAfter, null, 2), 'utf-8');
+      fs.writeFileSync(toolsJsonPath, JSON.stringify(toolsAfterReload, null, 2), 'utf-8');
 
       // Poll until the new tool appears (new file watcher after hot reload should detect this)
       await waitForToolList(
@@ -1192,17 +1180,17 @@ test.describe.serial('File watcher — restart after hot reload', () => {
 // File watcher — version change propagation
 // ---------------------------------------------------------------------------
 
-test.describe.serial('File watcher — version change propagation', () => {
-  test('version change in manifest preserves all tools', async () => {
+test.describe.serial('File watcher — tools.json rewrite preserves all tools', () => {
+  test('rewriting tools.json preserves all tools', async () => {
     const { pluginDir, tmpDir } = copyE2eTestPlugin();
-    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-fw-version-'));
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-fw-rewrite-'));
 
     const prefixedToolNames = readPluginToolNames();
-    const tools: Record<string, boolean> = {};
+    const toolConfig: Record<string, boolean> = {};
     for (const t of prefixedToolNames) {
-      tools[t] = true;
+      toolConfig[t] = true;
     }
-    writeTestConfig(configDir, { plugins: [pluginDir], tools });
+    writeTestConfig(configDir, { plugins: [pluginDir], tools: toolConfig });
 
     const server = await startMcpServer(configDir, true);
     const client = createMcpClient(server.port, server.secret);
@@ -1219,20 +1207,15 @@ test.describe.serial('File watcher — version change propagation', () => {
       // Wait for file watcher to be ready before modifying files
       await waitForLog(server, 'File watcher: Watching', 10_000);
 
-      // Change the version in the manifest
-      const manifestPath = path.join(pluginDir, 'opentabs-plugin.json');
-      const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-        version: string;
-        tools: Array<{ name: string }>;
-      };
-      const originalVersion = manifest.version;
-      manifest.version = '99.99.99';
-      fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2), 'utf-8');
+      // Re-write tools.json (same content, triggers file watcher)
+      const toolsJsonPath = path.join(pluginDir, 'dist', 'tools.json');
+      const toolsContent = fs.readFileSync(toolsJsonPath, 'utf-8');
+      fs.writeFileSync(toolsJsonPath, toolsContent, 'utf-8');
 
-      // Wait for file watcher to detect the manifest change
-      await waitForLog(server, 'Manifest updated for', 10_000);
+      // Wait for file watcher to detect the tools.json change
+      await waitForLog(server, 'tools.json updated for', 10_000);
 
-      // All tools should still be present after the version change
+      // All tools should still be present after the rewrite
       const toolsAfter = await client.listTools();
       const e2eToolsAfter = toolsAfter.filter(t => t.name.startsWith('e2e-test_'));
       expect(e2eToolsAfter.length).toBe(countBefore);
@@ -1248,9 +1231,6 @@ test.describe.serial('File watcher — version change propagation', () => {
       if (!health) throw new Error('health returned null');
       expect(health.status).toBe('ok');
       expect(health.plugins).toBe(1);
-
-      // Verify the version actually changed (not the same as original)
-      expect(manifest.version).not.toBe(originalVersion);
     } finally {
       await client.close();
       await server.kill();

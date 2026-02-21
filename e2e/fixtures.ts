@@ -115,15 +115,13 @@ interface OpentabsConfig {
  * parallel tests clobber each other's config.
  */
 /**
- * Read tool names from the e2e-test plugin manifest instead of hardcoding.
+ * Read tool names from the e2e-test plugin's dist/tools.json instead of hardcoding.
  * Returns prefixed tool names (e.g., 'e2e-test_echo').
  */
 const readPluginToolNames = (): string[] => {
-  const manifestPath = path.join(E2E_TEST_PLUGIN_DIR, 'opentabs-plugin.json');
-  const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-    tools: Array<{ name: string }>;
-  };
-  return manifest.tools.map(t => `e2e-test_${t.name}`);
+  const toolsPath = path.join(E2E_TEST_PLUGIN_DIR, 'dist', 'tools.json');
+  const tools = JSON.parse(fs.readFileSync(toolsPath, 'utf-8')) as Array<{ name: string }>;
+  return tools.map(t => `e2e-test_${t.name}`);
 };
 
 const createTestConfigDir = (): string => {
@@ -181,8 +179,9 @@ interface MinimalToolDef {
 }
 
 /**
- * Create a minimal plugin directory with a valid opentabs-plugin.json and
- * a no-op adapter IIFE. Returns the absolute path to the plugin directory.
+ * Create a minimal plugin directory with a valid package.json (opentabs field),
+ * dist/tools.json, and a no-op adapter IIFE. Returns the absolute path to the
+ * plugin directory.
  *
  * The plugin is fully discoverable by the MCP server but its adapter does
  * nothing useful — sufficient for tools/list verification and config tests.
@@ -196,31 +195,41 @@ const createMinimalPlugin = (
   const pluginDir = path.join(parentDir, pluginName);
   fs.mkdirSync(path.join(pluginDir, 'dist'), { recursive: true });
 
-  const manifest = {
-    name: pluginName,
+  // package.json with opentabs field — the npm package name follows the convention
+  const npmName = pluginName.startsWith('opentabs-plugin-') ? pluginName : `opentabs-plugin-${pluginName}`;
+  const packageJson = {
+    name: npmName,
     version: '0.0.1',
-    displayName: `Test ${pluginName}`,
-    description: `Minimal test plugin: ${pluginName}`,
-    url_patterns: urlPatterns,
-    tools: tools.map(t => ({
-      name: t.name,
-      displayName: t.name
-        .split(/[_-]/)
-        .map(w => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' '),
-      description: t.description,
-      icon: 'wrench',
-      input_schema: { type: 'object', properties: {}, additionalProperties: false },
-      output_schema: {
-        type: 'object',
-        properties: { ok: { type: 'boolean' } },
-        required: ['ok'],
-        additionalProperties: false,
-      },
-    })),
+    type: 'module',
+    main: 'dist/adapter.iife.js',
+    opentabs: {
+      displayName: `Test ${pluginName}`,
+      description: `Minimal test plugin: ${pluginName}`,
+      urlPatterns,
+    },
   };
 
-  fs.writeFileSync(path.join(pluginDir, 'opentabs-plugin.json'), JSON.stringify(manifest, null, 2), 'utf-8');
+  fs.writeFileSync(path.join(pluginDir, 'package.json'), JSON.stringify(packageJson, null, 2), 'utf-8');
+
+  // dist/tools.json — tool definitions
+  const toolDefs = tools.map(t => ({
+    name: t.name,
+    displayName: t.name
+      .split(/[_-]/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' '),
+    description: t.description,
+    icon: 'wrench',
+    input_schema: { type: 'object', properties: {}, additionalProperties: false },
+    output_schema: {
+      type: 'object',
+      properties: { ok: { type: 'boolean' } },
+      required: ['ok'],
+      additionalProperties: false,
+    },
+  }));
+
+  fs.writeFileSync(path.join(pluginDir, 'dist', 'tools.json'), JSON.stringify(toolDefs, null, 2), 'utf-8');
 
   const iife = [
     '(function() {',

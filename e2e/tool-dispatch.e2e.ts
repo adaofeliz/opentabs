@@ -697,15 +697,15 @@ test.describe('Adapter injection', () => {
 
     const page = await openTestAppTab(extensionContext, testServer.url, mcpServer, testServer);
 
-    // Read expected hash from the e2e-test plugin manifest
-    const manifestPath = path.join(E2E_TEST_PLUGIN_DIR, 'opentabs-plugin.json');
-    const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8')) as {
-      adapterHash?: string;
-    };
-    const expectedHash = manifest.adapterHash;
+    // Read expected hash from the embedded hash-setter in the adapter IIFE
+    const iifePath = path.join(E2E_TEST_PLUGIN_DIR, 'dist', 'adapter.iife.js');
+    const iifeContent = fs.readFileSync(iifePath, 'utf-8');
+    const hashMatch = iifeContent.match(/\.__adapterHash="([0-9a-f]{64})"/);
+    expect(hashMatch).not.toBeNull();
+    const expectedHash = hashMatch?.[1];
     expect(expectedHash).toBeDefined();
     expect(typeof expectedHash).toBe('string');
-    expect((expectedHash as string).length).toBeGreaterThan(0);
+    expect((expectedHash as string).length).toBe(64);
 
     // Read actual hash from the injected adapter in the page
     const actualHash = await page.evaluate(() => {

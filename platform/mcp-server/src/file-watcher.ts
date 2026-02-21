@@ -2,11 +2,11 @@
  * File watcher for local plugins.
  *
  * Watches local plugin directories (from config.json plugins array) for changes
- * to opentabs-plugin.json and dist/adapter.iife.js. On change:
+ * to dist/tools.json and dist/adapter.iife.js. On change:
  * - IIFE change → re-read, send plugin.update to extension
- * - Manifest change → re-read manifest AND IIFE, re-register MCP tools, notify MCP clients.
- *   Both files are re-read on manifest change because `bun run build` typically produces
- *   both a new manifest and a new IIFE simultaneously. Re-reading the IIFE here avoids
+ * - tools.json change → re-read tools AND IIFE, re-register MCP tools, notify MCP clients.
+ *   Both files are re-read on tools.json change because `bun run build` typically produces
+ *   both new tools and a new IIFE simultaneously. Re-reading the IIFE here avoids
  *   a brief race where the extension has new tool definitions pointing at old adapter code.
  *
  * Only watches local plugins — not npm-installed packages.
@@ -21,14 +21,14 @@
  */
 
 import { getConfigDir } from './config.js';
-import { loadPluginFromDir } from './discovery-legacy.js';
+import { loadPlugin } from './loader.js';
 import { log } from './logger.js';
-import { parseManifest } from './manifest-schema.js';
 import { buildRegistry } from './registry.js';
-import { validateUrlPattern } from '@opentabs-dev/shared';
+import { isOk } from '@opentabs-dev/shared';
 import { statSync, watch } from 'node:fs';
 import { join } from 'node:path';
 import type { ServerState, FileWatcherEntry } from './state.js';
+import type { ManifestTool } from '@opentabs-dev/shared';
 import type { FSWatcher } from 'node:fs';
 
 /** Polling interval for mtime-based fallback detection (ms) */
@@ -201,72 +201,85 @@ const handleIifeChange = async (
 };
 
 /**
- * Handle a manifest file change for a local plugin.
+ * Parse a tools.json file contents into validated ManifestTool[].
+ * Returns null if parsing fails.
+ */
+const parseToolsJson = (raw: string, filePath: string): ManifestTool[] | null => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    log.error(`File watcher: Invalid JSON in ${filePath}`);
+    return null;
+  }
+
+  if (!Array.isArray(parsed)) {
+    log.error(`File watcher: ${filePath} is not an array`);
+    return null;
+  }
+
+  const tools: ManifestTool[] = [];
+  for (const t of parsed) {
+    if (typeof t !== 'object' || t === null) continue;
+    const obj = t as Record<string, unknown>;
+    if (typeof obj.name !== 'string' || typeof obj.description !== 'string') continue;
+    const displayName = typeof obj.displayName === 'string' ? obj.displayName : obj.name;
+    const icon = typeof obj.icon === 'string' ? obj.icon : 'wrench';
+    const inputSchema =
+      typeof obj.input_schema === 'object' && obj.input_schema !== null
+        ? (obj.input_schema as Record<string, unknown>)
+        : ({ type: 'object', properties: {} } as Record<string, unknown>);
+    const outputSchema =
+      typeof obj.output_schema === 'object' && obj.output_schema !== null
+        ? (obj.output_schema as Record<string, unknown>)
+        : ({ type: 'object', properties: {} } as Record<string, unknown>);
+    tools.push({
+      name: obj.name,
+      displayName,
+      description: obj.description,
+      icon,
+      input_schema: inputSchema,
+      output_schema: outputSchema,
+    });
+  }
+  return tools;
+};
+
+/**
+ * Handle a dist/tools.json file change for a local plugin.
  *
  * Also re-reads the IIFE from disk because `bun run build` typically updates
- * both manifest and IIFE simultaneously. Without this, the manifest watcher
+ * both tools.json and IIFE simultaneously. Without this, the tools.json watcher
  * would send a plugin.update with the old IIFE, and the extension would
  * briefly have new tool definitions pointing at stale adapter code until
  * the IIFE watcher fires separately.
  */
-const handleManifestChange = async (
+const handleToolsJsonChange = async (
   state: ServerState,
   pluginName: string,
   pluginDir: string,
   callbacks: FileWatcherCallbacks,
 ): Promise<void> => {
-  const manifestPath = join(pluginDir, 'opentabs-plugin.json');
+  const toolsJsonPath = join(pluginDir, 'dist', 'tools.json');
 
-  if (!(await fileExists(manifestPath))) {
-    log.warn(`File watcher: Manifest not found at ${manifestPath} — skipping`);
+  if (!(await fileExists(toolsJsonPath))) {
+    log.warn(`File watcher: tools.json not found at ${toolsJsonPath} — skipping`);
     return;
   }
 
   try {
-    const raw = await readFileWithRetry(manifestPath);
-    const manifest = parseManifest(raw, manifestPath);
-
-    const manifestBare = manifest.name.replace(/^opentabs-plugin-/, '');
-    if (manifestBare !== pluginName) {
-      log.warn(
-        `File watcher: Manifest name "${manifest.name}" does not match expected plugin "${pluginName}" — skipping`,
-      );
-      return;
-    }
+    const raw = await readFileWithRetry(toolsJsonPath);
+    const tools = parseToolsJson(raw, toolsJsonPath);
+    if (!tools) return;
 
     const plugin = state.registry.plugins.get(pluginName);
     if (!plugin) {
-      log.warn(`File watcher: Plugin "${pluginName}" not found in state — skipping manifest update`);
+      log.warn(`File watcher: Plugin "${pluginName}" not found in state — skipping tools.json update`);
       return;
     }
 
-    // Validate URL patterns, filtering out any invalid ones
-    const validPatterns = manifest.url_patterns.filter(p => {
-      const error = validateUrlPattern(p);
-      if (error) {
-        log.warn(`File watcher: Plugin "${pluginName}" has invalid URL pattern "${p}": ${error}`);
-        return false;
-      }
-      return true;
-    });
-    if (validPatterns.length === 0) {
-      log.warn(`File watcher: Plugin "${pluginName}" has no valid URL patterns — skipping update`);
-      return;
-    }
-
-    // Update plugin metadata
-    plugin.version = manifest.version;
-    plugin.displayName = manifest.displayName;
-    plugin.urlPatterns = validPatterns;
-    plugin.adapterHash = manifest.adapterHash;
-    plugin.tools = manifest.tools.map(t => ({
-      name: t.name,
-      displayName: t.displayName,
-      description: t.description,
-      icon: t.icon,
-      input_schema: t.input_schema,
-      output_schema: t.output_schema,
-    }));
+    // Update tool definitions
+    plugin.tools = tools;
 
     // Re-read IIFE from disk so the extension has the latest adapter code.
     // Use the hash embedded in the IIFE rather than recomputing from the full
@@ -287,24 +300,24 @@ const handleManifestChange = async (
       }
     }
 
-    // Update mtimes for polling fallback (both manifest and IIFE were re-read)
+    // Update mtimes for polling fallback (both tools.json and IIFE were re-read)
     const entry = findEntry(state, pluginDir);
     if (entry) {
-      recordMtime(entry, manifestPath);
+      recordMtime(entry, toolsJsonPath);
       recordMtime(entry, iifePath);
     }
 
-    log.info(`File watcher: Manifest updated for "${pluginName}" — re-registering MCP tools`);
+    log.info(`File watcher: tools.json updated for "${pluginName}" — re-registering MCP tools`);
 
     callbacks.onManifestChanged(pluginName);
   } catch (err) {
-    log.error(`File watcher: Failed to read manifest for "${pluginName}":`, err);
+    log.error(`File watcher: Failed to read tools.json for "${pluginName}":`, err);
   }
 };
 
 /**
  * Handle a file change in a pending plugin directory (one that failed initial
- * discovery). Attempts full discovery via loadPluginFromDir; on success, adds
+ * discovery). Attempts full discovery via loadPlugin; on success, adds
  * the plugin to state and invokes onPluginDiscovered so MCP tools are
  * re-registered and the extension is synced.
  */
@@ -313,40 +326,37 @@ const handlePendingPluginChange = async (
   pluginDir: string,
   callbacks: FileWatcherCallbacks,
 ): Promise<void> => {
-  try {
-    const plugin = await loadPluginFromDir(pluginDir, 'local', null, pluginDir);
+  const result = await loadPlugin(pluginDir, 'local');
+  if (!isOk(result)) return; // Discovery still failing — keep watching silently
 
-    // Plugin loaded successfully — add to registry
-    if (state.registry.plugins.has(plugin.name)) {
-      log.warn(
-        `File watcher: Pending plugin "${plugin.name}" at ${pluginDir} conflicts with existing plugin — skipping`,
-      );
-      return;
-    }
+  const plugin = result.value;
 
-    // Build a new registry that includes the newly discovered plugin
-    const updatedPlugins = [...state.registry.plugins.values(), plugin];
-    state.registry = buildRegistry(updatedPlugins, [...state.registry.failures]);
-
-    // Update mtimes for polling fallback
-    const entry = findEntry(state, pluginDir);
-    if (entry) {
-      recordMtime(entry, join(pluginDir, 'opentabs-plugin.json'));
-      recordMtime(entry, join(pluginDir, 'dist', 'adapter.iife.js'));
-    }
-
-    log.info(`File watcher: Discovered pending plugin "${plugin.name}" at ${pluginDir}`);
-
-    callbacks.onPluginDiscovered(plugin.name);
-  } catch {
-    // Discovery still failing — keep watching silently
+  // Plugin loaded successfully — add to registry
+  if (state.registry.plugins.has(plugin.name)) {
+    log.warn(`File watcher: Pending plugin "${plugin.name}" at ${pluginDir} conflicts with existing plugin — skipping`);
+    return;
   }
+
+  // Build a new registry that includes the newly discovered plugin
+  const updatedPlugins = [...state.registry.plugins.values(), plugin];
+  state.registry = buildRegistry(updatedPlugins, [...state.registry.failures]);
+
+  // Update mtimes for polling fallback
+  const entry = findEntry(state, pluginDir);
+  if (entry) {
+    recordMtime(entry, join(pluginDir, 'dist', 'tools.json'));
+    recordMtime(entry, join(pluginDir, 'dist', 'adapter.iife.js'));
+  }
+
+  log.info(`File watcher: Discovered pending plugin "${plugin.name}" at ${pluginDir}`);
+
+  callbacks.onPluginDiscovered(plugin.name);
 };
 
 /**
  * Set up file watching for a pending plugin directory (one that failed initial
- * discovery). Watches for manifest and IIFE changes, and attempts full
- * discovery on each change.
+ * discovery). Watches for tools.json and IIFE changes in dist/, and attempts
+ * full discovery on each change.
  */
 const watchPendingPlugin = (
   state: ServerState,
@@ -357,33 +367,10 @@ const watchPendingPlugin = (
   const distDir = join(pluginDir, 'dist');
   const gen = state.fileWatcherGeneration;
 
-  // Watch plugin directory for manifest creation/changes
-  try {
-    const manifestWatcher = watch(pluginDir, (_eventType, filename) => {
-      if (filename !== 'opentabs-plugin.json') return;
-
-      const key = `${pluginDir}:pending`;
-      const existing = state.fileWatcherTimers.get(key);
-      if (existing) clearTimeout(existing);
-
-      state.fileWatcherTimers.set(
-        key,
-        setTimeout(() => {
-          state.fileWatcherTimers.delete(key);
-          if (state.fileWatcherGeneration !== gen) return;
-          void handlePendingPluginChange(state, pluginDir, callbacks);
-        }, 200),
-      );
-    });
-    watchers.push(manifestWatcher);
-  } catch (err) {
-    log.warn(`File watcher: Could not watch pending plugin dir at ${pluginDir}:`, err);
-  }
-
-  // Watch dist directory for IIFE creation/changes
+  // Watch dist directory for tools.json and IIFE creation/changes
   try {
     const distWatcher = watch(distDir, (_eventType, filename) => {
-      if (filename !== 'adapter.iife.js') return;
+      if (filename !== 'tools.json' && filename !== 'adapter.iife.js') return;
 
       const key = `${pluginDir}:pending`;
       const existing = state.fileWatcherTimers.get(key);
@@ -400,7 +387,7 @@ const watchPendingPlugin = (
     });
     watchers.push(distWatcher);
   } catch {
-    // dist/ may not exist yet — the manifest watcher will still catch changes
+    // dist/ may not exist yet — will be watched once plugin is rebuilt
   }
 
   return { pluginDir, pluginName: `(pending:${pluginDir})`, watchers, lastSeenMtimes: new Map() };
@@ -408,6 +395,12 @@ const watchPendingPlugin = (
 
 /**
  * Set up file watching for a single local plugin directory.
+ *
+ * Watches the dist/ subdirectory for tools.json and adapter.iife.js changes.
+ * Uses directory-level watching (not file-level) because on macOS, file-level
+ * fs.watch() via kqueue fails to deliver events after a close + recreate cycle
+ * (which happens on every hot reload). Directory-level watching uses FSEvents
+ * on macOS and reliably delivers events across watcher restarts.
  */
 const watchPlugin = (
   state: ServerState,
@@ -419,50 +412,36 @@ const watchPlugin = (
   const distDir = join(pluginDir, 'dist');
   const gen = state.fileWatcherGeneration;
 
-  // Watch plugin directory for manifest changes.
-  // Uses directory-level watching (not file-level) because on macOS, file-level
-  // fs.watch() via kqueue fails to deliver events after a close + recreate cycle
-  // (which happens on every hot reload). Directory-level watching uses FSEvents
-  // on macOS and reliably delivers events across watcher restarts.
-  try {
-    const manifestWatcher = watch(pluginDir, (_eventType, filename) => {
-      if (filename !== 'opentabs-plugin.json') return;
-
-      const key = `${pluginDir}:manifest`;
-      const existing = state.fileWatcherTimers.get(key);
-      if (existing) clearTimeout(existing);
-
-      state.fileWatcherTimers.set(
-        key,
-        setTimeout(() => {
-          state.fileWatcherTimers.delete(key);
-          if (state.fileWatcherGeneration !== gen) return;
-          void handleManifestChange(state, pluginName, pluginDir, callbacks);
-        }, 200),
-      );
-    });
-    watchers.push(manifestWatcher);
-  } catch (err) {
-    log.warn(`File watcher: Could not watch plugin dir at ${pluginDir}:`, err);
-  }
-
-  // Watch dist directory for IIFE changes
+  // Watch dist directory for tools.json and IIFE changes
   try {
     const distWatcher = watch(distDir, (_eventType, filename) => {
-      if (filename !== 'adapter.iife.js') return;
+      if (filename === 'tools.json') {
+        const key = `${pluginDir}:tools`;
+        const existing = state.fileWatcherTimers.get(key);
+        if (existing) clearTimeout(existing);
 
-      const key = `${pluginDir}:iife`;
-      const existing = state.fileWatcherTimers.get(key);
-      if (existing) clearTimeout(existing);
+        state.fileWatcherTimers.set(
+          key,
+          setTimeout(() => {
+            state.fileWatcherTimers.delete(key);
+            if (state.fileWatcherGeneration !== gen) return;
+            void handleToolsJsonChange(state, pluginName, pluginDir, callbacks);
+          }, 200),
+        );
+      } else if (filename === 'adapter.iife.js') {
+        const key = `${pluginDir}:iife`;
+        const existing = state.fileWatcherTimers.get(key);
+        if (existing) clearTimeout(existing);
 
-      state.fileWatcherTimers.set(
-        key,
-        setTimeout(() => {
-          state.fileWatcherTimers.delete(key);
-          if (state.fileWatcherGeneration !== gen) return;
-          void handleIifeChange(state, pluginName, pluginDir, callbacks);
-        }, 200),
-      );
+        state.fileWatcherTimers.set(
+          key,
+          setTimeout(() => {
+            state.fileWatcherTimers.delete(key);
+            if (state.fileWatcherGeneration !== gen) return;
+            void handleIifeChange(state, pluginName, pluginDir, callbacks);
+          }, 200),
+        );
+      }
     });
     watchers.push(distWatcher);
   } catch (err) {
@@ -552,26 +531,26 @@ const startMtimePolling = (state: ServerState, callbacks: FileWatcherCallbacks):
 
     state.mtimeLastPollAt = Date.now();
 
-    // Poll plugin files (manifest + IIFE)
+    // Poll plugin files (tools.json + IIFE)
     for (const entry of state.fileWatcherEntries) {
-      const manifestPath = join(entry.pluginDir, 'opentabs-plugin.json');
+      const toolsJsonPath = join(entry.pluginDir, 'dist', 'tools.json');
       const iifePath = join(entry.pluginDir, 'dist', 'adapter.iife.js');
 
       const isPending = entry.pluginName.startsWith('(pending:');
 
-      // Check manifest mtime
-      const manifestMtime = getFileMtimeMs(manifestPath);
-      const lastManifestMtime = entry.lastSeenMtimes.get(manifestPath);
-      if (manifestMtime !== null && lastManifestMtime !== undefined && manifestMtime > lastManifestMtime) {
+      // Check tools.json mtime
+      const toolsMtime = getFileMtimeMs(toolsJsonPath);
+      const lastToolsMtime = entry.lastSeenMtimes.get(toolsJsonPath);
+      if (toolsMtime !== null && lastToolsMtime !== undefined && toolsMtime > lastToolsMtime) {
         log.info(
-          `Mtime poll: Detected change to ${manifestPath} (old=${lastManifestMtime}, new=${manifestMtime}) — fs.watch may be stale`,
+          `Mtime poll: Detected change to ${toolsJsonPath} (old=${lastToolsMtime}, new=${toolsMtime}) — fs.watch may be stale`,
         );
         recordPollDetection(state);
-        entry.lastSeenMtimes.set(manifestPath, manifestMtime);
+        entry.lastSeenMtimes.set(toolsJsonPath, toolsMtime);
         if (isPending) {
           void handlePendingPluginChange(state, entry.pluginDir, callbacks);
         } else {
-          void handleManifestChange(state, entry.pluginName, entry.pluginDir, callbacks);
+          void handleToolsJsonChange(state, entry.pluginName, entry.pluginDir, callbacks);
         }
       }
 
@@ -644,7 +623,7 @@ const startFileWatching = (
     state.fileWatcherEntries.push(entry);
 
     // Record initial mtimes for mtime polling fallback
-    recordMtime(entry, join(srcPath, 'opentabs-plugin.json'));
+    recordMtime(entry, join(srcPath, 'dist', 'tools.json'));
     recordMtime(entry, join(srcPath, 'dist', 'adapter.iife.js'));
 
     log.info(`File watcher: Watching "${plugin.name}" at ${srcPath}`);
@@ -666,7 +645,7 @@ const startFileWatching = (
     state.fileWatcherEntries.push(entry);
 
     // Record initial mtimes for mtime polling fallback
-    recordMtime(entry, join(pluginPath, 'opentabs-plugin.json'));
+    recordMtime(entry, join(pluginPath, 'dist', 'tools.json'));
     recordMtime(entry, join(pluginPath, 'dist', 'adapter.iife.js'));
 
     pendingCount++;
@@ -717,4 +696,4 @@ const stopFileWatching = (state: ServerState): void => {
 };
 
 export type { FileWatcherCallbacks };
-export { handleManifestChange, startConfigWatching, startFileWatching, stopFileWatching };
+export { handleToolsJsonChange, startConfigWatching, startFileWatching, stopFileWatching };
