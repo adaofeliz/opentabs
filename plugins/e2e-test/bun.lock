@@ -8,7 +8,7 @@
         "@opentabs-dev/plugin-sdk": "file:../../platform/plugin-sdk",
       },
       "devDependencies": {
-        "@opentabs-dev/cli": "file:../../platform/cli",
+        "@opentabs-dev/plugin-tools": "file:../../platform/plugin-tools",
         "eslint": "^9.39.2",
         "eslint-config-prettier": "^10.1.8",
         "eslint-plugin-prettier": "^5.5.5",
@@ -24,8 +24,8 @@
     },
   },
   "overrides": {
-    "@opentabs-dev/cli": "file:../../platform/cli",
     "@opentabs-dev/plugin-sdk": "file:../../platform/plugin-sdk",
+    "@opentabs-dev/plugin-tools": "file:../../platform/plugin-tools",
     "@opentabs-dev/shared": "file:../../platform/shared",
   },
   "packages": {
@@ -55,9 +55,9 @@
 
     "@humanwhocodes/retry": ["@humanwhocodes/retry@0.4.3", "", {}, "sha512-bV0Tgo9K4hfPCek+aMAn81RppFKv2ySDQeMoSZuvTASywNTnVJCArCZE2FWqpvIatKu7VMRLWlR1EazvVhDyhQ=="],
 
-    "@opentabs-dev/cli": ["@opentabs-dev/cli@file:../../platform/cli", { "dependencies": { "@opentabs-dev/plugin-sdk": "^0.0.9", "@opentabs-dev/shared": "^0.0.9", "commander": "^14.0.3", "picocolors": "^1.1.1", "zod": "^4.3.6" }, "devDependencies": { "bun-types": "^1.3.9" }, "bin": { "opentabs": "./dist/cli.js" } }],
-
     "@opentabs-dev/plugin-sdk": ["@opentabs-dev/plugin-sdk@file:../../platform/plugin-sdk", { "dependencies": { "@opentabs-dev/shared": "^0.0.9" }, "devDependencies": { "bun-types": "^1.3.9", "lucide-react": "^0.574.0" }, "peerDependencies": { "zod": "^4.0.0" } }],
+
+    "@opentabs-dev/plugin-tools": ["@opentabs-dev/plugin-tools@file:../../platform/plugin-tools", { "dependencies": { "@opentabs-dev/plugin-sdk": "^0.0.9", "@opentabs-dev/shared": "^0.0.9", "commander": "^14.0.3", "picocolors": "^1.1.1", "zod": "^4.3.6" }, "devDependencies": { "bun-types": "^1.3.9" }, "bin": { "opentabs-plugin": "./dist/cli.js" } }],
 
     "@pkgr/core": ["@pkgr/core@0.2.9", "", {}, "sha512-QNqXyfVS2wm9hweSYD2O7F0G06uurj9kZ96TRQE5Y9hU7+tgdZwIkbAKc5Ocy1HxEY2kuDQa6cQ1WRs/O5LFKA=="],
 
@@ -269,11 +269,11 @@
 
     "@eslint-community/eslint-utils/eslint-visitor-keys": ["eslint-visitor-keys@3.4.3", "", {}, "sha512-wpc+LXeiyiisxPlEkUzU6svyS1frIO3Mgxj1fdy7Pm8Ygzguax2N3Fa/D/ag1WqbOprdI+uY6wMUl8/a2G+iag=="],
 
-    "@opentabs-dev/cli/@opentabs-dev/plugin-sdk": ["@opentabs-dev/plugin-sdk@file:../../platform/plugin-sdk", {}],
-
-    "@opentabs-dev/cli/@opentabs-dev/shared": ["@opentabs-dev/shared@file:../../platform/shared", {}],
-
     "@opentabs-dev/plugin-sdk/@opentabs-dev/shared": ["@opentabs-dev/shared@file:../../platform/shared", {}],
+
+    "@opentabs-dev/plugin-tools/@opentabs-dev/plugin-sdk": ["@opentabs-dev/plugin-sdk@file:../../platform/plugin-sdk", {}],
+
+    "@opentabs-dev/plugin-tools/@opentabs-dev/shared": ["@opentabs-dev/shared@file:../../platform/shared", {}],
 
     "@typescript-eslint/eslint-plugin/ignore": ["ignore@7.0.5", "", {}, "sha512-Hs59xBNfUIunMFgWAbGX5cq6893IbWg4KnrjbYwX3tx0ztorVgTDA6B2sxf8ejHJ4wz8BqGUMYlnzNBer5NvGg=="],
 

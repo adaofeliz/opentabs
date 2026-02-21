@@ -22,8 +22,8 @@
     "dist"
   ],
   "scripts": {
-    "build": "tsc && opentabs build",
-    "dev": "tsc --watch --preserveWatchOutput & opentabs build --watch",
+    "build": "tsc && opentabs-plugin build",
+    "dev": "tsc --watch --preserveWatchOutput & opentabs-plugin build --watch",
     "type-check": "tsc --noEmit",
     "lint": "eslint src/",
     "lint:fix": "eslint src/ --fix",
@@ -39,10 +39,10 @@
   "overrides": {
     "@opentabs-dev/shared": "file:../../platform/shared",
     "@opentabs-dev/plugin-sdk": "file:../../platform/plugin-sdk",
-    "@opentabs-dev/cli": "file:../../platform/cli"
+    "@opentabs-dev/plugin-tools": "file:../../platform/plugin-tools"
   },
   "devDependencies": {
-    "@opentabs-dev/cli": "file:../../platform/cli",
+    "@opentabs-dev/plugin-tools": "file:../../platform/plugin-tools",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
