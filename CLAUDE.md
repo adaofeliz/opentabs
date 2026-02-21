@@ -120,6 +120,8 @@ opentabs/
 
 **Tab state machine**: Each plugin has three tab states: `closed` (no matching tab), `unavailable` (tab exists but `isReady()` returns false), and `ready` (tab exists and authenticated). The extension reports state changes to the MCP server.
 
+**Side panel empty states**: When the side panel has 0 plugins, it distinguishes first-time users from returning users via a `hasEverHadPlugins` flag persisted in `chrome.storage.local`. First-time users see an onboarding view (welcome message, setup checklist, install instructions). Returning users who removed all plugins see a simpler empty state with just reinstall instructions. The flag is set to `true` when plugin count first exceeds 0. Connection state takes priority — if the WebSocket is disconnected, the disconnected state is shown regardless of plugin count.
+
 **Lifecycle hooks**: Plugins can optionally implement lifecycle hooks on the `OpenTabsPlugin` base class. All hooks are wired automatically by the `opentabs-plugin build` command in the generated IIFE wrapper — plugin authors only need to implement the methods.
 
 - `onActivate()` — called once after the adapter is registered on `globalThis.__openTabs.adapters`
