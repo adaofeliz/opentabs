@@ -1,6 +1,12 @@
 import { testApi } from './test-api.js';
 import { createItem } from './tools/create-item.js';
 import { echo } from './tools/echo.js';
+import { errorAuth } from './tools/error-auth.js';
+import { errorInternal } from './tools/error-internal.js';
+import { errorNotFound } from './tools/error-not-found.js';
+import { errorRateLimited } from './tools/error-rate-limited.js';
+import { errorTimeout } from './tools/error-timeout.js';
+import { errorValidation } from './tools/error-validation.js';
 import { failingTool } from './tools/failing-tool.js';
 import { getStatus } from './tools/get-status.js';
 import { greet } from './tools/greet.js';
@@ -27,6 +33,12 @@ class E2eTestPlugin extends OpenTabsPlugin {
     getStatus,
     createItem,
     failingTool,
+    errorAuth,
+    errorRateLimited,
+    errorNotFound,
+    errorValidation,
+    errorTimeout,
+    errorInternal,
     logLevels,
     sdkWaitForSelector,
     sdkFetchJson,
