@@ -1,6 +1,7 @@
 "use client";
 import React from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { GithubIcon, MoonIcon, SunIcon } from "lucide-react";
 import HamburgerMenu from "./HamburgerMenu";
 import { Button } from "@/components/retroui";
@@ -18,9 +19,15 @@ export default function TopNav() {
           <div className="shrink-0">
             <Link
               href="/"
-              className="text-black font-head text-2xl flex items-end"
+              className="font-head text-2xl flex items-center gap-2"
             >
-              <div className="text-foreground">OpenTabs</div>
+              <Image
+                src="/icon.svg"
+                alt="OpenTabs logo"
+                width={36}
+                height={36}
+              />
+              <span className="text-foreground">OpenTabs</span>
             </Link>
           </div>
 
