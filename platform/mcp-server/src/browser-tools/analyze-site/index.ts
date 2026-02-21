@@ -65,10 +65,18 @@ const executeInTab = async (state: ServerState, tabId: number, code: string): Pr
   const execId = crypto.randomUUID();
   const filename = await writeExecFile(execId, code);
   try {
-    return await dispatchToExtension(state, 'browser.executeScript', {
+    const result = (await dispatchToExtension(state, 'browser.executeScript', {
       tabId,
       execFile: filename,
-    });
+    })) as { value?: { value?: unknown; error?: string } } | undefined;
+
+    // Unwrap the nested result from browser.executeScript:
+    // The extension returns { value: { value: <actual>, error?: <msg> } }
+    const inner = result?.value;
+    if (inner?.error) {
+      throw new Error(`Script execution error: ${inner.error}`);
+    }
+    return inner?.value ?? null;
   } finally {
     void deleteExecFile(filename);
   }
@@ -800,8 +808,8 @@ const analyzeSite = async (
   waitSeconds: number = DEFAULT_WAIT_SECONDS,
 ): Promise<SiteAnalysis> => {
   // Step 1: Open a new tab
-  const openResult = (await dispatchToExtension(state, 'browser.openTab', { url })) as { tabId: number };
-  const tabId = openResult.tabId;
+  const openResult = (await dispatchToExtension(state, 'browser.openTab', { url })) as { id: number };
+  const tabId = openResult.id;
 
   try {
     // Step 2: Enable network capture
@@ -813,45 +821,38 @@ const analyzeSite = async (
     // Step 3: Wait for page load and API calls
     await new Promise(resolve => setTimeout(resolve, waitSeconds * 1000));
 
-    // Step 4: Run detection scripts in the page context (parallel execution)
-    const [
-      csrfTokens,
-      globalsAuth,
-      frameworkProbes,
-      spaSsrProbe,
-      globalsScan,
-      forms,
-      interactiveElements,
-      dataAttributes,
-      storageKeys,
-      storageEntries,
-      pageTitle,
-    ] = await Promise.all([
-      executeInTab(state, tabId, CSRF_SCRIPT) as Promise<CsrfDomToken[]>,
-      executeInTab(state, tabId, GLOBALS_AUTH_SCRIPT) as Promise<GlobalEntry[]>,
-      executeInTab(state, tabId, FRAMEWORK_PROBE_SCRIPT) as Promise<FrameworkProbe[]>,
-      executeInTab(state, tabId, SPA_SSR_PROBE_SCRIPT) as Promise<{
-        hasSingleRootElement: boolean;
-        usesPushState: boolean;
-        hasNextData: boolean;
-        hasNuxtData: boolean;
-        hasHydrationMarkers: boolean;
-      }>,
-      executeInTab(state, tabId, GLOBALS_SCAN_SCRIPT) as Promise<GlobalProperty[]>,
-      executeInTab(state, tabId, FORMS_SCRIPT) as Promise<FormInput[]>,
-      executeInTab(state, tabId, INTERACTIVE_ELEMENTS_SCRIPT) as Promise<InteractiveElementInput[]>,
-      executeInTab(state, tabId, DATA_ATTRIBUTES_SCRIPT) as Promise<string[]>,
-      executeInTab(state, tabId, STORAGE_KEYS_SCRIPT) as Promise<{
-        cookieNames: string[];
-        localStorageKeys: string[];
-        sessionStorageKeys: string[];
-      }>,
-      executeInTab(state, tabId, STORAGE_ENTRIES_SCRIPT) as Promise<{
-        localEntries: StorageEntry[];
-        sessionEntries: StorageEntry[];
-      }>,
-      executeInTab(state, tabId, 'return document.title') as Promise<string>,
-    ]);
+    // Step 4: Run detection scripts in the page context sequentially.
+    // Sequential execution avoids the extension's per-method rate limit
+    // (max 10 browser.executeScript calls per second) and is reliable
+    // since each script completes quickly (~5-50ms in page context).
+    const csrfTokens = (await executeInTab(state, tabId, CSRF_SCRIPT)) as CsrfDomToken[];
+    const globalsAuth = (await executeInTab(state, tabId, GLOBALS_AUTH_SCRIPT)) as GlobalEntry[];
+    const frameworkProbes = (await executeInTab(state, tabId, FRAMEWORK_PROBE_SCRIPT)) as FrameworkProbe[];
+    const spaSsrProbe = (await executeInTab(state, tabId, SPA_SSR_PROBE_SCRIPT)) as {
+      hasSingleRootElement: boolean;
+      usesPushState: boolean;
+      hasNextData: boolean;
+      hasNuxtData: boolean;
+      hasHydrationMarkers: boolean;
+    };
+    const globalsScan = (await executeInTab(state, tabId, GLOBALS_SCAN_SCRIPT)) as GlobalProperty[];
+    const forms = (await executeInTab(state, tabId, FORMS_SCRIPT)) as FormInput[];
+    const interactiveElements = (await executeInTab(
+      state,
+      tabId,
+      INTERACTIVE_ELEMENTS_SCRIPT,
+    )) as InteractiveElementInput[];
+    const dataAttributes = (await executeInTab(state, tabId, DATA_ATTRIBUTES_SCRIPT)) as string[];
+    const storageKeys = (await executeInTab(state, tabId, STORAGE_KEYS_SCRIPT)) as {
+      cookieNames: string[];
+      localStorageKeys: string[];
+      sessionStorageKeys: string[];
+    };
+    const storageEntries = (await executeInTab(state, tabId, STORAGE_ENTRIES_SCRIPT)) as {
+      localEntries: StorageEntry[];
+      sessionEntries: StorageEntry[];
+    };
+    const pageTitle = (await executeInTab(state, tabId, 'return document.title')) as string;
 
     // Step 5: Get captured network requests
     const networkResult = (await dispatchToExtension(state, 'browser.getNetworkRequests', {
@@ -866,7 +867,10 @@ const analyzeSite = async (
     await dispatchToExtension(state, 'browser.disableNetworkCapture', { tabId });
 
     // Step 7: Get cookies via extension API (includes HttpOnly cookies)
-    const cookies = ((await dispatchToExtension(state, 'browser.getCookies', { url })) ?? []) as CookieEntry[];
+    const cookieResult = (await dispatchToExtension(state, 'browser.getCookies', { url })) as {
+      cookies?: CookieEntry[];
+    } | null;
+    const cookies: CookieEntry[] = cookieResult?.cookies ?? [];
 
     // Step 8: Run detection modules
     const auth = detectAuth({

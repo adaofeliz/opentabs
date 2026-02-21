@@ -38,6 +38,7 @@ const EXTENSION_DIR = path.join(ROOT, 'platform/browser-extension');
 const SERVER_DIST_DIR = path.join(ROOT, 'platform/mcp-server/dist');
 const TEST_SERVER_ENTRY = path.join(ROOT, 'e2e/test-server.ts');
 const STRICT_CSP_SERVER_ENTRY = path.join(ROOT, 'e2e/strict-csp-test-server.ts');
+const ANALYZE_SITE_SERVER_ENTRY = path.join(ROOT, 'e2e/analyze-site-test-server.ts');
 const E2E_TEST_PLUGIN_DIR = path.join(ROOT, 'plugins/e2e-test');
 
 // ---------------------------------------------------------------------------
@@ -620,6 +621,9 @@ const startTestServer = (): Promise<TestServer> => startServerProcess(TEST_SERVE
 
 const startStrictCspServer = (): Promise<TestServer> =>
   startServerProcess(STRICT_CSP_SERVER_ENTRY, 'Strict-CSP server');
+
+const startAnalyzeSiteServer = (): Promise<TestServer> =>
+  startServerProcess(ANALYZE_SITE_SERVER_ENTRY, 'Analyze-site server');
 
 // ---------------------------------------------------------------------------
 // Extension context — per-test copy with correct MCP port
@@ -1313,6 +1317,7 @@ export {
   createMcpClient,
   startTestServer,
   startStrictCspServer,
+  startAnalyzeSiteServer,
   startMcpServer,
   createExtensionCopy,
   launchExtensionContext,

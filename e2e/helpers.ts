@@ -240,6 +240,7 @@ export const BROWSER_TOOL_NAMES = [
   'extension_force_reconnect',
   'browser_get_page_html',
   'browser_get_storage',
+  'plugin_analyze_site',
 ];
 
 // ---------------------------------------------------------------------------

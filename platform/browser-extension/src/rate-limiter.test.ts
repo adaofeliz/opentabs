@@ -48,8 +48,8 @@ describe('checkRateLimit', () => {
       expect(checkRateLimit('browser.enableNetworkCapture', now)).toBe(false);
     });
 
-    test('browser.executeScript allows 10 per second', () => {
-      for (let i = 0; i < 10; i++) {
+    test('browser.executeScript allows 15 per second', () => {
+      for (let i = 0; i < 15; i++) {
         expect(checkRateLimit('browser.executeScript', now)).toBe(true);
       }
       expect(checkRateLimit('browser.executeScript', now)).toBe(false);

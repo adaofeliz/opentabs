@@ -18,7 +18,7 @@ const METHOD_LIMITS: ReadonlyMap<string, RateLimitConfig> = new Map([
   // Expensive operations — tight limits
   ['browser.screenshotTab', { maxRequests: 2, windowMs: 1_000 }],
   ['browser.enableNetworkCapture', { maxRequests: 2, windowMs: 1_000 }],
-  ['browser.executeScript', { maxRequests: 10, windowMs: 1_000 }],
+  ['browser.executeScript', { maxRequests: 15, windowMs: 1_000 }],
 
   // Tool dispatch — allow bursts of sequential/concurrent tool calls from agents
   ['tool.dispatch', { maxRequests: 30, windowMs: 1_000 }],
