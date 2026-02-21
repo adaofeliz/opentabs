@@ -9,6 +9,9 @@
  *   side panel App.tsx detects sync.full and calls loadPlugins → config.getState →
  *   MCP server responds → side panel re-renders plugin cards
  *
+ * POST /reload (triggered by `opentabs-plugin build`) uses the same
+ * performConfigReload → sync.full pipeline, so these tests cover both paths.
+ *
  * The side panel is opened by navigating to its chrome-extension:// URL in a
  * regular tab. The App.tsx listener handles ws:message with sync.full as a
  * fallback notification (in addition to the primary sp:serverMessage path),
