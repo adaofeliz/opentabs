@@ -310,14 +310,14 @@ Reflect.deleteProperty(adapters, ${name});
 if (typeof plugin.onToolInvocationStart === 'function' || typeof plugin.onToolInvocationEnd === 'function') {
   for (const tool of plugin.tools) {
     const origHandle = tool.handle;
-    tool.handle = async function(params: any) {
+    tool.handle = async function(params: any, context: any) {
       const startTime = performance.now();
       if (typeof plugin.onToolInvocationStart === 'function') {
         try { plugin.onToolInvocationStart(tool.name); } catch (e) { console.warn('[OpenTabs] onToolInvocationStart failed:', e); }
       }
       let success = true;
       try {
-        return await origHandle.call(this, params);
+        return await origHandle.call(this, params, context);
       } catch (err) {
         success = false;
         throw err;

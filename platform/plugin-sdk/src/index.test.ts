@@ -9,7 +9,7 @@ import {
 } from './index.js';
 import { describe, expect, test } from 'bun:test';
 import { z } from 'zod';
-import type { ErrorCategory, LucideIconName } from './index.js';
+import type { ErrorCategory, LucideIconName, ToolHandlerContext, ProgressOptions } from './index.js';
 
 describe('ToolError', () => {
   test('constructor sets message, code, and name', () => {
@@ -189,6 +189,128 @@ describe('defineTool', () => {
     expect(tool.input).toBe(input);
     expect(tool.output).toBe(output);
     expect(typeof tool.handle).toBe('function');
+  });
+});
+
+describe('ToolHandlerContext', () => {
+  const input = z.object({ value: z.number() });
+  const output = z.object({ result: z.number() });
+
+  test('defineTool accepts a handler with no context parameter', () => {
+    const tool = defineTool({
+      name: 'no_context',
+      displayName: 'No Context',
+      description: 'Tool without context',
+      icon: 'wrench',
+      input,
+      output,
+      handle: params => Promise.resolve({ result: params.value * 2 }),
+    });
+    expect(typeof tool.handle).toBe('function');
+  });
+
+  test('defineTool accepts a handler with an optional context parameter', () => {
+    const tool = defineTool({
+      name: 'with_context',
+      displayName: 'With Context',
+      description: 'Tool with context',
+      icon: 'wrench',
+      input,
+      output,
+      handle: (params, context?) => {
+        context?.reportProgress({ progress: 1, total: 1 });
+        return Promise.resolve({ result: params.value * 2 });
+      },
+    });
+    expect(typeof tool.handle).toBe('function');
+  });
+
+  test('handle can be called without context (backward-compatible)', async () => {
+    const tool = defineTool({
+      name: 'compat',
+      displayName: 'Compat',
+      description: 'Backward-compatible tool',
+      icon: 'wrench',
+      input,
+      output,
+      handle: params => Promise.resolve({ result: params.value + 1 }),
+    });
+    const result = await tool.handle({ value: 5 });
+    expect(result).toEqual({ result: 6 });
+  });
+
+  test('handle can be called with a context object', async () => {
+    const progressCalls: ProgressOptions[] = [];
+    const ctx: ToolHandlerContext = {
+      reportProgress: opts => {
+        progressCalls.push(opts);
+      },
+    };
+
+    const tool = defineTool({
+      name: 'progress_tool',
+      displayName: 'Progress Tool',
+      description: 'Tool that reports progress',
+      icon: 'wrench',
+      input,
+      output,
+      handle: (params, context?) => {
+        context?.reportProgress({ progress: 1, total: 3, message: 'Step 1' });
+        context?.reportProgress({ progress: 2, total: 3, message: 'Step 2' });
+        context?.reportProgress({ progress: 3, total: 3, message: 'Done' });
+        return Promise.resolve({ result: params.value });
+      },
+    });
+
+    const result = await tool.handle({ value: 42 }, ctx);
+    expect(result).toEqual({ result: 42 });
+    expect(progressCalls).toEqual([
+      { progress: 1, total: 3, message: 'Step 1' },
+      { progress: 2, total: 3, message: 'Step 2' },
+      { progress: 3, total: 3, message: 'Done' },
+    ]);
+  });
+
+  test('reportProgress is fire-and-forget (does not affect result)', async () => {
+    const ctx: ToolHandlerContext = {
+      reportProgress: () => {
+        throw new Error('progress handler error');
+      },
+    };
+
+    const tool = defineTool({
+      name: 'resilient',
+      displayName: 'Resilient',
+      description: 'Tool with failing progress',
+      icon: 'wrench',
+      input,
+      output,
+      handle: (params, context?) => {
+        try {
+          context?.reportProgress({ progress: 1, total: 1 });
+        } catch {
+          // fire-and-forget: tool continues despite progress errors
+        }
+        return Promise.resolve({ result: params.value });
+      },
+    });
+
+    const result = await tool.handle({ value: 7 }, ctx);
+    expect(result).toEqual({ result: 7 });
+  });
+
+  test('ProgressOptions accepts progress and total without message', () => {
+    const opts: ProgressOptions = { progress: 5, total: 10 };
+    expect(opts.progress).toBe(5);
+    expect(opts.total).toBe(10);
+    expect(opts.message).toBeUndefined();
+  });
+
+  test('ProgressOptions accepts progress, total, and message', () => {
+    const opts: ProgressOptions = { progress: 3, total: 10, message: 'Processing...' };
+    expect(opts.progress).toBe(3);
+    expect(opts.total).toBe(10);
+    expect(opts.message).toBe('Processing...');
   });
 });
 

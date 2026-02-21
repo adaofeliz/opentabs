@@ -11,6 +11,26 @@ export type { LucideIconName } from './lucide-icon-names.js';
 export { LUCIDE_ICON_NAMES } from './lucide-icon-names.js';
 
 // ---------------------------------------------------------------------------
+// Progress reporting
+// ---------------------------------------------------------------------------
+
+/** Options for reporting incremental progress during long-running tool operations. */
+export interface ProgressOptions {
+  /** Current progress value (e.g., 3 of 10 items processed). */
+  progress: number;
+  /** Total expected value (e.g., 10 items total). */
+  total: number;
+  /** Optional human-readable message describing the current step. */
+  message?: string;
+}
+
+/** Context object injected into tool handlers at runtime by the adapter. */
+export interface ToolHandlerContext {
+  /** Report incremental progress during a long-running operation. Fire-and-forget. */
+  reportProgress(opts: ProgressOptions): void;
+}
+
+// ---------------------------------------------------------------------------
 // Tool definitions
 // ---------------------------------------------------------------------------
 
@@ -30,8 +50,8 @@ export interface ToolDefinition<
   input: TInput;
   /** Zod schema describing the tool output shape. Used for manifest generation and MCP tool registration. */
   output: TOutput;
-  /** Execute the tool. Runs in the browser page context. Input is pre-validated. */
-  handle(params: z.infer<TInput>): Promise<z.infer<TOutput>>;
+  /** Execute the tool. Runs in the browser page context. Input is pre-validated. Context is injected by the adapter runtime. */
+  handle(params: z.infer<TInput>, context?: ToolHandlerContext): Promise<z.infer<TOutput>>;
 }
 
 /** Type-safe factory — identity function that provides generic inference */
