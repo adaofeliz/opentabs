@@ -55,6 +55,8 @@ export interface RegisteredPlugin {
   sourcePath?: string;
   /** Original npm package name (e.g., 'opentabs-plugin-slack') — only for npm-installed plugins */
   npmPackageName?: string;
+  /** SDK version the plugin was built with (from tools.json sdkVersion field). Undefined for old plugins. */
+  sdkVersion?: string;
 }
 
 /** Tab mapping entry for a plugin */

@@ -1,4 +1,4 @@
-import { loadPlugin, pluginNameFromPackage, validateTools } from './loader.js';
+import { checkSdkCompatibility, loadPlugin, parseMajorMinor, pluginNameFromPackage, validateTools } from './loader.js';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -268,5 +268,118 @@ describe('loadPlugin', () => {
     if (!result.ok) {
       expect(result.error).toContain('URL pattern');
     }
+  });
+
+  test('extracts sdkVersion from manifest object format', async () => {
+    const pluginDir = join(tmpDir, 'with-sdk');
+    mkdirSync(join(pluginDir, 'dist'), { recursive: true });
+    writeFileSync(join(pluginDir, 'package.json'), JSON.stringify(validPackageJson()));
+    writeFileSync(
+      join(pluginDir, 'dist', 'tools.json'),
+      JSON.stringify({ sdkVersion: '0.0.16', tools: validTools(), resources: [], prompts: [] }),
+    );
+    writeFileSync(join(pluginDir, 'dist', 'adapter.iife.js'), '(function(){})()');
+
+    const result = await loadPlugin(pluginDir, 'local', 'local');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sdkVersion).toBe('0.0.16');
+  });
+
+  test('sets sdkVersion to undefined for legacy tools.json format (plain array)', async () => {
+    const pluginDir = join(tmpDir, 'no-sdk');
+    writePlugin(pluginDir, validPackageJson());
+
+    const result = await loadPlugin(pluginDir, 'local', 'local');
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.sdkVersion).toBeUndefined();
+  });
+
+  test('returns Err for plugin with newer SDK version than server', async () => {
+    const pluginDir = join(tmpDir, 'new-sdk');
+    mkdirSync(join(pluginDir, 'dist'), { recursive: true });
+    writeFileSync(join(pluginDir, 'package.json'), JSON.stringify(validPackageJson()));
+    writeFileSync(
+      join(pluginDir, 'dist', 'tools.json'),
+      JSON.stringify({ sdkVersion: '99.0.0', tools: validTools(), resources: [], prompts: [] }),
+    );
+    writeFileSync(join(pluginDir, 'dist', 'adapter.iife.js'), '(function(){})()');
+
+    const result = await loadPlugin(pluginDir, 'local', 'local');
+
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain('SDK');
+      expect(result.error).toContain('99.0.0');
+      expect(result.error).toContain('Rebuild the plugin');
+    }
+  });
+});
+
+describe('parseMajorMinor', () => {
+  test('parses valid semver into [major, minor]', () => {
+    expect(parseMajorMinor('1.2.3')).toEqual([1, 2]);
+    expect(parseMajorMinor('0.0.16')).toEqual([0, 0]);
+    expect(parseMajorMinor('10.20.30')).toEqual([10, 20]);
+  });
+
+  test('returns null for invalid version strings', () => {
+    expect(parseMajorMinor('not-a-version')).toBeNull();
+    expect(parseMajorMinor('')).toBeNull();
+    expect(parseMajorMinor('1.2')).toBeNull();
+  });
+
+  test('handles semver with pre-release suffix', () => {
+    expect(parseMajorMinor('1.2.3-beta.1')).toEqual([1, 2]);
+  });
+});
+
+describe('checkSdkCompatibility', () => {
+  test('compatible when plugin sdkVersion is undefined', () => {
+    const result = checkSdkCompatibility(undefined, '0.0.16');
+    expect(result.compatible).toBe(true);
+    expect(result.error).toBeUndefined();
+  });
+
+  test('compatible when plugin major.minor equals server major.minor', () => {
+    const result = checkSdkCompatibility('0.0.16', '0.0.16');
+    expect(result.compatible).toBe(true);
+  });
+
+  test('compatible when plugin major.minor is older than server', () => {
+    const result = checkSdkCompatibility('0.0.10', '0.0.16');
+    expect(result.compatible).toBe(true);
+  });
+
+  test('compatible with different patch versions (same major.minor)', () => {
+    const result = checkSdkCompatibility('1.2.3', '1.2.99');
+    expect(result.compatible).toBe(true);
+  });
+
+  test('incompatible when plugin minor is newer than server', () => {
+    const result = checkSdkCompatibility('0.1.0', '0.0.16');
+    expect(result.compatible).toBe(false);
+    expect(result.error).toContain('SDK 0.1.0');
+    expect(result.error).toContain('SDK 0.0.16');
+  });
+
+  test('incompatible when plugin major is newer than server', () => {
+    const result = checkSdkCompatibility('2.0.0', '1.5.0');
+    expect(result.compatible).toBe(false);
+    expect(result.error).toContain('SDK 2.0.0');
+    expect(result.error).toContain('SDK 1.5.0');
+  });
+
+  test('compatible when plugin version is unparseable', () => {
+    const result = checkSdkCompatibility('garbage', '0.0.16');
+    expect(result.compatible).toBe(true);
+  });
+
+  test('compatible when server version is unparseable', () => {
+    const result = checkSdkCompatibility('0.0.16', 'garbage');
+    expect(result.compatible).toBe(true);
   });
 });

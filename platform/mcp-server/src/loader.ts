@@ -11,6 +11,7 @@
 
 import { browserTools } from './browser-tools/index.js';
 import { log } from './logger.js';
+import { sdkVersion as serverSdkVersion } from './sdk-version.js';
 import { err, ok, parsePluginPackageJson, validatePluginName, validateUrlPattern } from '@opentabs-dev/shared';
 import { join } from 'node:path';
 import type { PluginSource } from './state.js';
@@ -35,6 +36,8 @@ interface LoadedPlugin {
   readonly sourcePath: string;
   readonly adapterHash: string | undefined;
   readonly npmPackageName: string | undefined;
+  /** SDK version the plugin was built with (from tools.json sdkVersion field). Undefined for old plugins. */
+  readonly sdkVersion: string | undefined;
 }
 
 /**
@@ -156,6 +159,55 @@ const computeHash = async (content: string): Promise<string> => {
 };
 
 /**
+ * Parse a semver string into [major, minor] components.
+ * Returns null if the string is not a valid semver-like version.
+ */
+const parseMajorMinor = (version: string): [number, number] | null => {
+  const match = version.match(/^(\d+)\.(\d+)\.\d+/);
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2])];
+};
+
+/**
+ * Check SDK version compatibility between a plugin and the server.
+ *
+ * Compatibility rule: the plugin's sdkVersion major.minor must be <= the
+ * server's SDK major.minor. A plugin built with a newer SDK than the server
+ * might use APIs the server doesn't have. A plugin built with an older SDK
+ * is assumed backward-compatible.
+ */
+const checkSdkCompatibility = (
+  pluginSdkVersion: string | undefined,
+  currentServerSdkVersion: string,
+): { compatible: boolean; error?: string } => {
+  if (pluginSdkVersion === undefined) {
+    return { compatible: true };
+  }
+
+  const pluginMM = parseMajorMinor(pluginSdkVersion);
+  if (!pluginMM) {
+    return { compatible: true };
+  }
+
+  const serverMM = parseMajorMinor(currentServerSdkVersion);
+  if (!serverMM) {
+    return { compatible: true };
+  }
+
+  const [pluginMajor, pluginMinor] = pluginMM;
+  const [serverMajor, serverMinor] = serverMM;
+
+  if (pluginMajor > serverMajor || (pluginMajor === serverMajor && pluginMinor > serverMinor)) {
+    return {
+      compatible: false,
+      error: `Plugin built with SDK ${pluginSdkVersion}, server has SDK ${currentServerSdkVersion}`,
+    };
+  }
+
+  return { compatible: true };
+};
+
+/**
  * Load a plugin from a resolved directory.
  *
  * Reads package.json (validated via parsePluginPackageJson), dist/adapter.iife.js,
@@ -250,6 +302,19 @@ const loadPlugin = async (
   const prompts: ManifestPrompt[] =
     manifestObj && Array.isArray(manifestObj.prompts) ? (manifestObj.prompts as ManifestPrompt[]) : [];
 
+  // Extract sdkVersion and check compatibility
+  const pluginSdkVersion =
+    manifestObj && typeof manifestObj.sdkVersion === 'string' ? manifestObj.sdkVersion : undefined;
+
+  if (pluginSdkVersion === undefined) {
+    log.warn(`Plugin "${pluginName}" does not declare sdkVersion — skipping compatibility check`);
+  } else {
+    const compat = checkSdkCompatibility(pluginSdkVersion, serverSdkVersion);
+    if (!compat.compatible && compat.error) {
+      return err(`${compat.error}. Rebuild the plugin: cd ${dir} && bun install && bun run build`);
+    }
+  }
+
   // Warn about browser tool references in tool descriptions (prompt injection detection)
   for (const match of checkBrowserToolReferences(tools)) {
     log.warn(
@@ -275,8 +340,16 @@ const loadPlugin = async (
     sourcePath: dir,
     adapterHash,
     npmPackageName: pkg.name,
+    sdkVersion: pluginSdkVersion,
   });
 };
 
-export { checkBrowserToolReferences, loadPlugin, pluginNameFromPackage, validateTools };
+export {
+  checkBrowserToolReferences,
+  checkSdkCompatibility,
+  loadPlugin,
+  parseMajorMinor,
+  pluginNameFromPackage,
+  validateTools,
+};
 export type { LoadedPlugin };
