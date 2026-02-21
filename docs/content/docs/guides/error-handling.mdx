@@ -1,0 +1,419 @@
+---
+title: Error Handling
+description: Use structured errors so AI agents can distinguish retryable failures from permanent ones and make intelligent retry decisions.
+lastUpdated: 2026-02-21
+---
+
+When a tool fails, how you report the error determines whether the AI agent retries intelligently, gives up, or tells the user something unhelpful. OpenTabs provides `ToolError` — a structured error class that carries machine-readable metadata through the entire dispatch chain to the AI agent.
+
+## The Problem with Unstructured Errors
+
+If your tool throws a plain `Error`, the AI agent sees a generic failure message with no context:
+
+```
+Tool dispatch error: Request failed
+```
+
+The agent doesn't know if this is temporary (retry might work) or permanent (don't bother). It doesn't know if the user needs to re-authenticate, or if the input was wrong. It guesses — and often guesses poorly.
+
+## ToolError
+
+`ToolError` adds three pieces of metadata to every error:
+
+- **`category`** — what kind of failure (`auth`, `rate_limit`, `not_found`, `validation`, `timeout`, `internal`)
+- **`retryable`** — whether retrying might succeed
+- **`retryAfterMs`** — how long to wait before retrying (optional)
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+throw new ToolError('Channel not found', 'CHANNEL_NOT_FOUND', {
+  category: 'not_found',
+  retryable: false,
+});
+```
+
+The AI agent receives both a human-readable message and a machine-readable JSON block:
+
+```
+[ERROR code=CHANNEL_NOT_FOUND category=not_found retryable=false] Channel not found
+
+```json
+{"code":"CHANNEL_NOT_FOUND","category":"not_found","retryable":false}
+```
+```
+
+This tells the agent exactly what happened and what to do next.
+
+## Factory Methods
+
+Instead of constructing `ToolError` directly, use the static factory methods. They set the right category, code, and retryable flag automatically.
+
+### `ToolError.auth(message)`
+
+The user isn't authenticated, or the session expired. Not retryable — the user needs to log in.
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle() {
+  const token = getLocalStorage('auth_token');
+  if (!token) {
+    throw ToolError.auth('Not logged in — open the app and sign in first');
+  }
+  // ...
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>`AUTH_ERROR`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`auth`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`false`</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+### `ToolError.notFound(message, code?)`
+
+The requested resource doesn't exist. Not retryable. Accepts an optional domain-specific code (defaults to `NOT_FOUND`).
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle({ channelName }: { channelName: string }) {
+  const channel = findChannel(channelName);
+  if (!channel) {
+    throw ToolError.notFound(
+      `Channel #${channelName} not found`,
+      'CHANNEL_NOT_FOUND',
+    );
+  }
+  // ...
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>Custom or `NOT_FOUND`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`not_found`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`false`</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+### `ToolError.rateLimited(message, retryAfterMs?)`
+
+The API is rate limiting requests. Retryable — the agent should wait and try again.
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle() {
+  const response = await fetch('/api/search', { credentials: 'include' });
+  if (response.status === 429) {
+    const retryAfter = response.headers.get('Retry-After');
+    const delayMs = retryAfter ? parseInt(retryAfter, 10) * 1000 : 5000;
+    throw ToolError.rateLimited('Too many requests — try again shortly', delayMs);
+  }
+  // ...
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>`RATE_LIMITED`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`rate_limit`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`true`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryAfterMs`</Table.Cell>
+      <Table.Cell>Custom (milliseconds)</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+### `ToolError.validation(message)`
+
+The input is invalid. Not retryable with the same input — the agent needs to fix the parameters.
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle({ emoji }: { emoji: string }) {
+  if (emoji.length > 50) {
+    throw ToolError.validation('Emoji name must be 50 characters or fewer');
+  }
+  // ...
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>`VALIDATION_ERROR`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`validation`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`false`</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+### `ToolError.timeout(message)`
+
+The operation took too long. Retryable — transient network or server slowness.
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle() {
+  try {
+    const data = await fetchJSON('/api/report', {
+      signal: AbortSignal.timeout(10_000),
+    });
+    return data;
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'TimeoutError') {
+      throw ToolError.timeout('Report generation timed out after 10 seconds');
+    }
+    throw err;
+  }
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>`TIMEOUT`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`timeout`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`true`</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+### `ToolError.internal(message)`
+
+Something unexpected broke. Not retryable — this is a bug in the plugin.
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+async function handle() {
+  const el = document.querySelector('.dashboard');
+  if (!el) {
+    throw ToolError.internal('Dashboard container not found — page structure may have changed');
+  }
+  // ...
+}
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Property</Table.Head>
+      <Table.Head>Value</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`code`</Table.Cell>
+      <Table.Cell>`INTERNAL_ERROR`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`category`</Table.Cell>
+      <Table.Cell>`internal`</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`retryable`</Table.Cell>
+      <Table.Cell>`false`</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+## Error Categories at a Glance
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Factory Method</Table.Head>
+      <Table.Head>Category</Table.Head>
+      <Table.Head>Retryable</Table.Head>
+      <Table.Head>When to Use</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell>`ToolError.auth()`</Table.Cell>
+      <Table.Cell>`auth`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>User not logged in, session expired, permission denied</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`ToolError.notFound()`</Table.Cell>
+      <Table.Cell>`not_found`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Channel, user, page, or resource doesn't exist</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`ToolError.rateLimited()`</Table.Cell>
+      <Table.Cell>`rate_limit`</Table.Cell>
+      <Table.Cell>Yes</Table.Cell>
+      <Table.Cell>API returned 429, too many requests</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`ToolError.validation()`</Table.Cell>
+      <Table.Cell>`validation`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Invalid input that Zod didn't catch</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`ToolError.timeout()`</Table.Cell>
+      <Table.Cell>`timeout`</Table.Cell>
+      <Table.Cell>Yes</Table.Cell>
+      <Table.Cell>Operation took too long, network slow</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`ToolError.internal()`</Table.Cell>
+      <Table.Cell>`internal`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Unexpected failure, page structure changed, bug</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+## How Errors Reach the AI Agent
+
+When your tool throws a `ToolError`, it travels through the platform:
+
+1. **Tool handler** throws `ToolError` in the page context
+2. **Browser extension** serializes the error, preserving `code`, `category`, `retryable`, and `retryAfterMs`
+3. **MCP server** formats the error into a human-readable prefix line and a machine-readable JSON block
+4. **AI agent** receives both formats and uses the structured fields to decide what to do next
+
+The AI agent sees a response like this:
+
+```
+[ERROR code=RATE_LIMITED category=rate_limit retryable=true retryAfterMs=2000] Too many requests — try again shortly
+
+```json
+{"code":"RATE_LIMITED","category":"rate_limit","retryable":true,"retryAfterMs":2000}
+```
+```
+
+With this information, the agent knows to wait 2 seconds and retry — instead of giving up or retrying immediately.
+
+## Custom Error Codes
+
+For domain-specific errors, construct `ToolError` directly with a custom code:
+
+```typescript
+import { ToolError } from '@opentabs-dev/plugin-sdk';
+
+throw new ToolError('Message is too long for this channel', 'MESSAGE_TOO_LONG', {
+  category: 'validation',
+  retryable: false,
+});
+```
+
+The `code` field is a machine-readable string. Use `UPPER_SNAKE_CASE` by convention. The `notFound` factory also accepts a custom code:
+
+```typescript
+throw ToolError.notFound('Project not found', 'PROJECT_NOT_FOUND');
+```
+
+## Best Practices
+
+**Be specific in error messages.** The message is shown to both the AI agent and the user. Include what failed and what to do about it.
+
+```typescript
+// Good — tells the agent what to do
+throw ToolError.auth('Not logged in — open app.example.com and sign in');
+
+// Bad — vague
+throw ToolError.auth('Auth failed');
+```
+
+**Use `retryAfterMs` when you know the delay.** If the API tells you when to retry (via a `Retry-After` header), pass it through. The agent uses this to wait the right amount of time.
+
+```typescript
+throw ToolError.rateLimited('Rate limited by Slack API', 3000);
+```
+
+**Prefer factory methods over the constructor.** They encode best practices (e.g., `rateLimited` is always retryable, `auth` never is). Use the constructor only when you need a custom code with a standard category.
+
+**Let Zod handle input validation.** Your tool's Zod schema validates input before `handle()` runs. Use `ToolError.validation()` only for semantic validation that Zod can't express — like checking that a referenced resource actually exists.
+
+**Don't catch errors you can't handle.** If an unexpected error occurs, let it propagate. The platform wraps uncaught errors in a generic error response. Only catch errors when you can provide better context through a `ToolError`.
+
+## Next Steps
+
+- [Plugin Development](/docs/guides/plugin-development) — full walkthrough of building a plugin
+- [Logging & Debugging](/docs/guides/logging-debugging) — debug tools when errors aren't enough
+- [SDK Reference: Error Types](/docs/sdk/error-types) — complete API reference for `ToolError`
