@@ -3,6 +3,7 @@
  */
 
 import { InvalidArgumentError } from 'commander';
+import pc from 'picocolors';
 
 const DEFAULT_PORT = 9515;
 
@@ -29,6 +30,11 @@ const resolvePort = (options: { port?: number }): number => {
     if (Number.isInteger(parsed) && parsed >= 1 && parsed <= 65535) {
       return parsed;
     }
+    console.error(
+      pc.yellow(
+        `Warning: OPENTABS_PORT="${envPort}" is invalid (must be 1-65535). Using default port ${DEFAULT_PORT}.`,
+      ),
+    );
   }
 
   return DEFAULT_PORT;
