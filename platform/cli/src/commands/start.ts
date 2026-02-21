@@ -77,6 +77,7 @@ const autoInitialize = async (configDir: string): Promise<boolean> => {
       return true;
     } else if (result.installed) {
       console.log(pc.dim(`Extension updated to v${result.version}`));
+      console.log(pc.dim('  Reload the extension from chrome://extensions/ for changes to take effect.'));
     }
   } catch (err) {
     // Extension install is non-fatal — the server can still start without it.
