@@ -2,6 +2,7 @@
 
 import { CodeBlock } from './CodeBlock';
 import { CliCommand } from './ComponentInstall';
+import { PluginStructure, QuickStartFlow } from './illustrations';
 import { Table } from './retroui/Table';
 import { Alert, Badge, Card, Text } from '@/components/retroui';
 import { cn } from '@/lib/utils';
@@ -82,6 +83,8 @@ const docComponents = {
   Card,
   Alert,
   CliCommand,
+  QuickStartFlow,
+  PluginStructure,
 };
 
 const blogComponents = {

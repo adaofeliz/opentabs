@@ -56,18 +56,7 @@ opentabs plugin create my-app --domain .example.com --display "My App"
 
 This creates a standalone npm package with everything you need:
 
-```
-my-app/
-├── package.json          # Plugin metadata and dependencies
-├── tsconfig.json         # TypeScript config (strict, ES2022)
-├── eslint.config.ts      # Lint config
-├── .prettierrc           # Formatting config
-├── .gitignore
-└── src/
-    ├── index.ts          # Plugin class
-    └── tools/
-        └── example.ts    # Example tool
-```
+<PluginStructure />
 
 The scaffolder also auto-registers the plugin in `~/.opentabs/config.json` so the MCP server discovers it immediately.
 
