@@ -52,7 +52,7 @@ const handleConfigShow = async (options: ConfigShowOptions): Promise<void> => {
 
   if (!config) {
     console.error(pc.red(`No config found at ${configPath}`));
-    console.error('Run opentabs dev to create one automatically.');
+    console.error('Run opentabs config init to create one.');
     process.exit(1);
   }
 

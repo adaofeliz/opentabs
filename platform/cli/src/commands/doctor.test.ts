@@ -98,7 +98,7 @@ describe('checkConfigFile', () => {
       expect(result.fatal).toBe(false);
       expect(result.label).toBe('Config file');
       expect(result.detail).toContain('not found');
-      expect(result.hint).toContain('opentabs dev');
+      expect(result.hint).toContain('opentabs config init');
       expect(config).toBeNull();
     } finally {
       Bun.env.OPENTABS_CONFIG_DIR = prev;
@@ -147,7 +147,7 @@ describe('checkPlugins', () => {
     expect(results[0]?.ok).toBe(false);
     expect(results[0]?.fatal).toBe(false);
     expect(results[0]?.detail).toContain('tools.json not found');
-    expect(results[0]?.hint).toContain('opentabs build');
+    expect(results[0]?.hint).toContain('opentabs-plugin build');
   });
 
   test('returns warn when IIFE file is missing', async () => {
@@ -160,7 +160,7 @@ describe('checkPlugins', () => {
     expect(results[0]?.ok).toBe(false);
     expect(results[0]?.fatal).toBe(false);
     expect(results[0]?.detail).toContain('adapter IIFE not found');
-    expect(results[0]?.hint).toContain('opentabs build');
+    expect(results[0]?.hint).toContain('opentabs-plugin build');
   });
 
   test('returns pass for valid plugin directory with tools.json and IIFE', async () => {

@@ -54,7 +54,7 @@ const checkConfigFile = async (): Promise<{ result: CheckResult; config: Record<
     return { result: pass('Config file', configPath), config };
   }
   return {
-    result: warn('Config file', `not found at ${configPath}`, 'Run opentabs dev to create one automatically'),
+    result: warn('Config file', `not found at ${configPath}`, 'Run opentabs config init to create one'),
     config: null,
   };
 };
@@ -76,7 +76,7 @@ const checkServerHealth = async (
     return { result: pass('MCP server', `running (v${version}) on port ${port}`), data };
   } catch {
     const portSuffix = port !== 9515 ? ` --port ${port}` : '';
-    const hint = `Start it with: opentabs dev${portSuffix}`;
+    const hint = `Start it with: opentabs start${portSuffix}`;
     return {
       result: fail('MCP server', 'not reachable', hint),
       data: null,
@@ -175,7 +175,7 @@ const checkPlugins = async (config: Record<string, unknown> | null): Promise<Che
     const toolsJsonPath = join(resolvedPath, 'dist', 'tools.json');
     if (!existsSync(toolsJsonPath)) {
       results.push(
-        warn(`Plugin ${pluginPath}`, 'dist/tools.json not found', 'Run opentabs build in the plugin directory'),
+        warn(`Plugin ${pluginPath}`, 'dist/tools.json not found', 'Run opentabs-plugin build in the plugin directory'),
       );
       continue;
     }
@@ -183,7 +183,7 @@ const checkPlugins = async (config: Record<string, unknown> | null): Promise<Che
     const iifePath = join(resolvedPath, 'dist', 'adapter.iife.js');
     if (!existsSync(iifePath)) {
       results.push(
-        warn(`Plugin ${pluginPath}`, 'adapter IIFE not found', 'Run opentabs build in the plugin directory'),
+        warn(`Plugin ${pluginPath}`, 'adapter IIFE not found', 'Run opentabs-plugin build in the plugin directory'),
       );
       continue;
     }

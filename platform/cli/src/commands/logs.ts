@@ -1,7 +1,7 @@
 /**
  * `opentabs logs` command — tails the MCP server log output.
  *
- * The log file is written by `opentabs dev` at ~/.opentabs/server.log
+ * The log file is written by `opentabs start` at ~/.opentabs/server.log
  * (or $OPENTABS_CONFIG_DIR/server.log).
  */
 
@@ -107,7 +107,7 @@ const handleLogs = async (options: LogsOptions): Promise<void> => {
   if (!existsSync(logFilePath)) {
     console.error(pc.red('No log file found.'));
     console.error(pc.dim(`Expected at: ${logFilePath}`));
-    console.error(pc.dim('Start the server with: opentabs dev'));
+    console.error(pc.dim('Start the server with: opentabs start'));
     process.exit(1);
   }
 

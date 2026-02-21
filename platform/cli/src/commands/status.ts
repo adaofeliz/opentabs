@@ -85,7 +85,7 @@ const handleStatus = async (options: StatusOptions): Promise<void> => {
       }
     }
   } catch (err: unknown) {
-    const startHint = `Start it with: opentabs dev${port !== 9515 ? ` --port ${port}` : ''}`;
+    const startHint = `Start it with: opentabs start${port !== 9515 ? ` --port ${port}` : ''}`;
 
     if (isConnectionRefused(err)) {
       console.error(pc.red('Server not running'));

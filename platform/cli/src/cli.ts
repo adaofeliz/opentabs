@@ -6,6 +6,7 @@ import {
   registerLogsCommand,
   registerPluginCommand,
   registerSetupCommand,
+  registerStartCommand,
   registerStatusCommand,
 } from './commands/index.js';
 import { parsePort } from './parse-port.js';
@@ -24,6 +25,7 @@ const program = new Command('opentabs')
     program.help();
   });
 
+registerStartCommand(program);
 registerConfigCommand(program);
 registerDoctorCommand(program);
 registerLogsCommand(program);
