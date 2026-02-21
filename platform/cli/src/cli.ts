@@ -5,7 +5,6 @@ import {
   registerDoctorCommand,
   registerLogsCommand,
   registerPluginCommand,
-  registerSetupCommand,
   registerStartCommand,
   registerStatusCommand,
 } from './commands/index.js';
@@ -28,7 +27,6 @@ const program = new Command('opentabs')
 registerStartCommand(program);
 registerStatusCommand(program);
 registerDoctorCommand(program);
-registerSetupCommand(program);
 registerLogsCommand(program);
 registerPluginCommand(program);
 registerConfigCommand(program);

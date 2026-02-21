@@ -416,7 +416,7 @@ const scaffoldPlugin = async (args: ScaffoldArgs): Promise<string> => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     console.warn(pc.yellow(`Warning: Could not auto-register plugin: ${msg}`));
-    console.warn(`  Run ${pc.cyan(`opentabs plugin add ./${args.name}`)} manually.`);
+    console.warn(`  Run ${pc.cyan('bun run build')} inside the plugin directory to register it.`);
   }
 
   console.log('');

@@ -54,7 +54,7 @@ const checkConfigFile = async (): Promise<{ result: CheckResult; config: Record<
     return { result: pass('Config file', configPath), config };
   }
   return {
-    result: warn('Config file', `not found at ${configPath}`, 'Run opentabs config init to create one'),
+    result: warn('Config file', `not found at ${configPath}`, 'Run opentabs start to auto-create config'),
     config: null,
   };
 };
@@ -107,7 +107,7 @@ const checkExtensionInstalled = async (): Promise<{ result: CheckResult; version
       result: warn(
         'Extension installed',
         `not found at ${extensionDir}`,
-        'Run opentabs setup to install the extension',
+        'Run opentabs start to auto-install the extension',
       ),
       versionFile: null,
     };
@@ -136,7 +136,7 @@ const checkExtensionVersion = async (installedVersion: string | null): Promise<C
   }
 
   if (!installedVersion) {
-    return warn('Extension version', 'no version marker found', 'Run opentabs setup to install a versioned extension');
+    return warn('Extension version', 'no version marker found', 'Run opentabs start to install a versioned extension');
   }
 
   if (installedVersion === cliVersion) {
@@ -146,7 +146,7 @@ const checkExtensionVersion = async (installedVersion: string | null): Promise<C
   return warn(
     'Extension version',
     `v${installedVersion} (CLI is v${cliVersion})`,
-    'Run opentabs setup to update the extension',
+    'Restart opentabs start to update the extension',
   );
 };
 
@@ -159,7 +159,13 @@ const checkPlugins = async (config: Record<string, unknown> | null): Promise<Che
   const pluginPaths = getLocalPluginsFromConfig(config);
 
   if (pluginPaths.length === 0) {
-    return [warn('Plugins', 'none configured', 'Add a plugin with: opentabs plugin add <path>')];
+    return [
+      warn(
+        'Plugins',
+        'no local plugins configured',
+        'npm plugins are auto-discovered; local plugins are registered by opentabs-plugin build',
+      ),
+    ];
   }
 
   const results: CheckResult[] = [];

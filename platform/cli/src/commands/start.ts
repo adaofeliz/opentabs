@@ -80,11 +80,10 @@ const autoInitialize = async (configDir: string): Promise<boolean> => {
     }
   } catch (err) {
     // Extension install is non-fatal — the server can still start without it.
-    // The user can run `opentabs setup` manually later.
     console.warn(
       pc.yellow(`Warning: Could not install extension: ${err instanceof Error ? err.message : String(err)}`),
     );
-    console.warn(pc.dim('Run opentabs setup manually to install the browser extension.'));
+    console.warn(pc.dim('Restart opentabs start to retry extension installation.'));
   }
 
   return false;

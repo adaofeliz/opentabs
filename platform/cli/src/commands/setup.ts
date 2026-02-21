@@ -1,17 +1,14 @@
 /**
- * `opentabs setup` command — copies the browser extension to ~/.opentabs/extension/.
+ * Browser extension installation logic.
  *
- * The core install logic is in installExtension(), which is also called by
- * `opentabs start` for auto-initialization.
+ * The installExtension() function is called by `opentabs start` for
+ * auto-initialization on first run.
  */
 
 import { EXTENSION_COPY_EXCLUDE_PATTERN } from '@opentabs-dev/shared';
-import pc from 'picocolors';
 import { cpSync, existsSync, mkdirSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { join, dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Command } from 'commander';
 
 const resolveExtensionDir = (): string => {
   try {
@@ -93,44 +90,5 @@ const installExtension = async (configDir: string): Promise<InstallExtensionResu
   return { installed: true, firstTime, extensionDest, version };
 };
 
-const handleSetup = async (): Promise<void> => {
-  const configDir = join(homedir(), '.opentabs');
-  mkdirSync(configDir, { recursive: true });
-
-  try {
-    const result = await installExtension(configDir);
-
-    if (!result.installed) {
-      console.log(pc.dim(`Extension already up-to-date (v${result.version})`));
-    } else if (result.firstTime) {
-      console.log(pc.green(`Extension installed to ${result.extensionDest} (v${result.version})`));
-    } else {
-      console.log(pc.green(`Extension updated to v${result.version} at ${result.extensionDest}`));
-    }
-
-    console.log('');
-    console.log('To load the extension in Chrome:');
-    console.log(`  1. Open ${pc.cyan('chrome://extensions/')}`);
-    console.log(`  2. Enable "Developer mode" (top-right toggle)`);
-    console.log(`  3. Click "Load unpacked" and select: ${pc.cyan(result.extensionDest)}`);
-  } catch (err) {
-    console.error(pc.red(`Error: ${err instanceof Error ? err.message : String(err)}`));
-    process.exit(1);
-  }
-};
-
-const registerSetupCommand = (program: Command): void => {
-  program
-    .command('setup')
-    .description('Install the browser extension to ~/.opentabs/')
-    .addHelpText(
-      'after',
-      `
-Examples:
-  $ opentabs setup`,
-    )
-    .action(() => handleSetup());
-};
-
-export { installExtension, registerSetupCommand };
+export { installExtension };
 export type { InstallExtensionResult };

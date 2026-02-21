@@ -2,9 +2,8 @@
  * `opentabs config` command — view and manage configuration.
  */
 
-import { atomicWriteConfig, getConfigDir, getConfigPath, readConfig } from '../config.js';
+import { atomicWriteConfig, getConfigPath, readConfig } from '../config.js';
 import pc from 'picocolors';
-import { existsSync, mkdirSync } from 'node:fs';
 import type { Command } from 'commander';
 
 const REDACTED = '***';
@@ -20,28 +19,6 @@ const handleConfigPath = (): void => {
   console.log(getConfigPath());
 };
 
-interface ConfigInitOptions {
-  force?: boolean;
-}
-
-const handleConfigInit = async (options: ConfigInitOptions): Promise<void> => {
-  const configPath = getConfigPath();
-
-  if (existsSync(configPath) && !options.force) {
-    console.log(pc.yellow(`Config already exists at ${configPath}`));
-    console.log('Use --force to overwrite.');
-    return;
-  }
-
-  const configDir = getConfigDir();
-  mkdirSync(configDir, { recursive: true });
-
-  const config = { localPlugins: [], tools: {}, secret: crypto.randomUUID() };
-  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
-
-  console.log(pc.green(`Config created at ${configPath}`));
-};
-
 interface ConfigShowOptions {
   json?: boolean;
 }
@@ -52,7 +29,7 @@ const handleConfigShow = async (options: ConfigShowOptions): Promise<void> => {
 
   if (!config) {
     console.error(pc.red(`No config found at ${configPath}`));
-    console.error('Run opentabs config init to create one.');
+    console.error('Run opentabs start to auto-create config.');
     process.exit(1);
   }
 
@@ -124,7 +101,7 @@ const handleConfigSet = async (key: string, value: string): Promise<void> => {
 
   if (!config) {
     console.error(pc.red(`No config found at ${configPath}`));
-    console.error('Run opentabs config init to create one.');
+    console.error('Run opentabs start to auto-create config.');
     process.exit(1);
   }
 
@@ -144,23 +121,10 @@ const handleConfigSet = async (key: string, value: string): Promise<void> => {
 const registerConfigCommand = (program: Command): void => {
   const configCmd = program
     .command('config')
-    .description('View configuration details')
+    .description('View and manage configuration')
     .action(() => {
       configCmd.help();
     });
-
-  configCmd
-    .command('init')
-    .description('Create config file with sensible defaults')
-    .option('--force', 'Overwrite existing config')
-    .addHelpText(
-      'after',
-      `
-Examples:
-  $ opentabs config init
-  $ opentabs config init --force`,
-    )
-    .action((options: ConfigInitOptions) => handleConfigInit(options));
 
   configCmd
     .command('set <key> <value>')
