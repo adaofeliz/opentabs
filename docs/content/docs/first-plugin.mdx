@@ -1,0 +1,107 @@
+---
+title: Your First Plugin
+description: Create your first OpenTabs plugin in 10 minutes — scaffold, define a tool, build, and test.
+lastUpdated: 2026-02-21
+---
+
+Build a working OpenTabs plugin from scratch. By the end, you'll have a tool that AI agents can call through your browser.
+
+## Prerequisites
+
+- [OpenTabs running](/docs/quick-start) (server + extension + MCP client)
+- [Bun](https://bun.sh) installed (`curl -fsSL https://bun.sh/install | bash`)
+
+## 1. Scaffold the project
+
+```bash
+opentabs plugin create my-app --domain .example.com --display "My App"
+cd opentabs-plugin-my-app
+bun install
+```
+
+This creates a standalone npm package and auto-registers it with the MCP server.
+
+## 2. Define a tool
+
+Open `src/tools/example.ts`. Replace the contents with a tool that reads the page title:
+
+```typescript
+import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { z } from 'zod';
+
+export const getPageTitle = defineTool({
+  name: 'get_page_title',
+  description: 'Returns the current page title and URL.',
+  input: z.object({}),
+  output: z.object({
+    title: z.string(),
+    url: z.string(),
+  }),
+  async handle() {
+    return {
+      title: document.title,
+      url: window.location.href,
+    };
+  },
+});
+```
+
+## 3. Register the tool
+
+Open `src/index.ts` and update the imports and tools array:
+
+```typescript
+import { OpenTabsPlugin, type ToolDefinition } from '@opentabs-dev/plugin-sdk';
+import { getPageTitle } from './tools/example.js';
+
+class MyAppPlugin extends OpenTabsPlugin {
+  readonly name = 'my-app';
+  readonly version = '0.0.1';
+  readonly description = 'My first OpenTabs plugin';
+  override readonly displayName = 'My App';
+  readonly urlPatterns = ['*://*.example.com/*'];
+  readonly tools: ToolDefinition[] = [getPageTitle];
+
+  async isReady(): Promise<boolean> {
+    return true;
+  }
+}
+
+export default new MyAppPlugin();
+```
+
+## 4. Build
+
+```bash
+bun run build
+```
+
+This compiles your plugin, generates the adapter bundle and tool manifest, and notifies the running MCP server.
+
+## 5. Test it
+
+Open a tab matching your URL pattern (e.g., `example.com`), then ask your AI agent:
+
+> What's the title of the current example.com page?
+
+The agent will call `my-app_get_page_title` and return the page title and URL.
+
+Verify the plugin is loaded:
+
+```bash
+opentabs status
+```
+
+## What just happened?
+
+1. **`bun run build`** compiled your TypeScript and bundled an adapter IIFE — a self-contained script that runs in the page context
+2. The build auto-registered your plugin in `~/.opentabs/config.json` and called `POST /reload` to notify the server
+3. The server sent the plugin definition to the Chrome extension via WebSocket
+4. The extension injected the adapter into matching tabs
+5. When the AI agent called the tool, the request flowed: MCP client → server → extension → adapter → page → back
+
+## Next steps
+
+- [Plugin Development](/docs/guides/plugin-development) — the complete guide covering SDK utilities, error handling, logging, Zod schemas, hot reload, and publishing
+- [Plugin Class](/docs/sdk/plugin-class) — API reference for `OpenTabsPlugin`
+- [Tools](/docs/sdk/tools) — API reference for `defineTool`
