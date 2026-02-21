@@ -129,6 +129,7 @@ export abstract class OpenTabsPlugin {
 // ---------------------------------------------------------------------------
 
 export { ToolError } from './errors.js';
+export type { ErrorCategory, ToolErrorOptions } from './errors.js';
 
 // ---------------------------------------------------------------------------
 // SDK utilities — DOM
