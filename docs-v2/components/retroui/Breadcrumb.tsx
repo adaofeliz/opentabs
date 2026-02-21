@@ -52,7 +52,7 @@ const BreadcrumbLink = React.forwardRef<
     <Comp
       ref={ref}
       className={cn(
-        "font-medium transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded-sm",
+        "font-medium transition-colors hover:text-foreground focus:outline-none focus:ring-2 focus:ring-ring rounded-(--radius)",
         className,
       )}
       {...props}

@@ -3,7 +3,7 @@ import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 import { cva, VariantProps } from "class-variance-authority";
 import { Check } from "lucide-react";
 
-const checkboxVariants = cva("border-2 rounded", {
+const checkboxVariants = cva("border-2 rounded-(--radius)", {
   variants: {
     variant: {
       default:

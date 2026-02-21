@@ -32,7 +32,10 @@ export function CodeBlock({ className, children, ...props }: ICodeBlock) {
   return (
     <div className="relative my-6">
       <pre
-        className={cn("overflow-x-auto rounded-sm bg-[#282A36] p-4", className)}
+        className={cn(
+          "overflow-x-auto rounded-(--radius) bg-[#282A36] p-4",
+          className,
+        )}
         {...props}
       >
         <Button

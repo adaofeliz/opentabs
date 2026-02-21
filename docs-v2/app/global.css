@@ -38,7 +38,7 @@
 }
 
 :root {
-  --radius: 0;
+  --radius: 0.5rem;
   --background: #fff;
   --foreground: #000;
   --card: #fff;
@@ -48,7 +48,7 @@
   --primary-foreground: #000;
   --secondary: #000;
   --secondary-foreground: #fff;
-  --muted: #d5d5d5;
+  --muted: #cccccc;
   --muted-foreground: #5a5a5a;
   --accent: #fae583;
   --accent-foreground: #000;
@@ -86,10 +86,6 @@
   --chart-3: #aeaeae;
   --chart-4: #fae583;
   --chart-5: #e63946;
-}
-
-.with-radius {
-  --radius: 0.5rem;
 }
 
 .theme-purple {
@@ -489,7 +485,7 @@ code.hljs {
 
 .sidebar-scroll::-webkit-scrollbar-thumb {
   background: transparent;
-  border-radius: 2px;
+  border-radius: var(--radius);
   transition: background 0.3s ease;
 }
 

@@ -14,7 +14,7 @@ function Command({
   return (
     <CommandPrimitive
       className={cn(
-        "flex h-full w-full flex-col overflow-hidden rounded bg-background text-foreground border-border shadow-md",
+        "flex h-full w-full flex-col overflow-hidden rounded-(--radius) bg-background text-foreground border-border shadow-md",
         className,
       )}
       {...props}
@@ -33,7 +33,7 @@ const CommandDialog = ({
     <Dialog {...props}>
       <Dialog.Content
         className={cn(
-          "overflow-hidden p-0 shadow-lg rounded w-full max-w-md",
+          "overflow-hidden p-0 shadow-lg rounded-(--radius) w-full max-w-md",
           className,
         )}
       >
@@ -58,7 +58,7 @@ function CommandInput({
       <Search className="me-2 h-4 w-4 shrink-0 opacity-50 text-foreground" />
       <CommandPrimitive.Input
         className={cn(
-          "flex h-11 w-full rounded bg-transparent py-3 text-sm outline-hidden text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 font-body",
+          "flex h-11 w-full rounded-(--radius) bg-transparent py-3 text-sm outline-hidden text-foreground placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50 font-body",
           className,
         )}
         {...props}
@@ -132,7 +132,7 @@ function CommandItem({
     <CommandPrimitive.Item
       data-slot="command-item"
       className={cn(
-        "relative flex text-foreground cursor-pointer gap-2 select-none items-center rounded px-2 py-1.5 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground transition-all font-body",
+        "relative flex text-foreground cursor-pointer gap-2 select-none items-center rounded-(--radius) px-2 py-1.5 text-sm outline-hidden data-[disabled=true]:pointer-events-none data-[selected=true]:bg-primary data-[selected=true]:text-primary-foreground data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0 hover:bg-accent hover:text-accent-foreground transition-all font-body",
         className,
       )}
       {...props}

@@ -6,7 +6,7 @@ import Link from "next/link";
 
 export function Login() {
   return (
-    <div className="max-w-80 p-4  border-2 border-black shadow-md space-y-3">
+    <div className="max-w-80 p-4 border-2 border-border shadow-md space-y-3 rounded-(--radius)">
       <div className="text-center">
         <Text as="h2">Login</Text>
       </div>
@@ -29,7 +29,7 @@ export function Login() {
           </Button>
           <div className="px-4 py-2 space-x-1">
             <span>Don&apos;t have an account?</span>
-            <Link href="/" className="text-primary-700 hover:underline">
+            <Link href="/" className="text-primary hover:underline">
               sign-in
             </Link>
           </div>

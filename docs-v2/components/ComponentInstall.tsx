@@ -60,18 +60,18 @@ export function CliCommand({
   }
 
   return (
-    <TabGroup className="p-4 my-2 bg-gray-800 rounded-md text-background/90">
+    <TabGroup className="p-4 my-2 bg-secondary rounded-(--radius) text-secondary-foreground/90">
       <TabList className="flex space-x-4 mb-6 text-sm">
-        <Tab className="cursor-pointer text-gray-400 relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-white focus:outline-hidden">
+        <Tab className="cursor-pointer text-muted-foreground relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-secondary-foreground focus:outline-hidden">
           pnpm
         </Tab>
-        <Tab className="cursor-pointer text-gray-400 relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-white focus:outline-hidden">
+        <Tab className="cursor-pointer text-muted-foreground relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-secondary-foreground focus:outline-hidden">
           npm
         </Tab>
-        <Tab className="cursor-pointer text-gray-400 relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-white focus:outline-hidden">
+        <Tab className="cursor-pointer text-muted-foreground relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-secondary-foreground focus:outline-hidden">
           yarn
         </Tab>
-        <Tab className="cursor-pointer text-gray-400 relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-white focus:outline-hidden">
+        <Tab className="cursor-pointer text-muted-foreground relative px-2 py-1 bg-transparent data-selected:border-b-2 border-accent data-selected:text-secondary-foreground focus:outline-hidden">
           bun
         </Tab>
       </TabList>

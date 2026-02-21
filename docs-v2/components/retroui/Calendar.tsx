@@ -56,12 +56,12 @@ function Calendar({
         ),
         button_previous: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-8 p-2 border-2 rounded select-none",
+          "size-8 p-2 border-2 rounded-(--radius) select-none",
           defaultClassNames.button_previous,
         ),
         button_next: cn(
           buttonVariants({ variant: buttonVariant }),
-          "size-8 p-2 border-2 rounded select-none",
+          "size-8 p-2 border-2 rounded-(--radius) select-none",
           defaultClassNames.button_next,
         ),
         month_caption: cn(
@@ -73,7 +73,7 @@ function Calendar({
           defaultClassNames.dropdowns,
         ),
         dropdown_root: cn(
-          "relative has-focus:outline-ring outline outline-input has-focus:ring-ring/50 has-focus:ring-[3px] rounded",
+          "relative has-focus:outline-ring outline outline-input has-focus:ring-ring/50 has-focus:ring-[3px] rounded-(--radius)",
           defaultClassNames.dropdown_root,
         ),
         dropdown: cn(
@@ -110,7 +110,7 @@ function Calendar({
           defaultClassNames.day,
         ),
         today: cn(
-          "bg-accent text-accent-foreground rounded data-[selected=true]:rounded-none",
+          "bg-accent text-accent-foreground rounded-(--radius) data-[selected=true]:rounded-none",
           defaultClassNames.today,
         ),
         outside: cn(

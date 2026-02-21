@@ -111,7 +111,7 @@ const components = (type: "doc" | "blog") => ({
   }: React.HTMLAttributes<HTMLElement>) => (
     <code
       className={cn(
-        "relative rounded-sm bg-[#282A36] p-1 text-primary text-sm",
+        "relative rounded-(--radius) bg-[#282A36] p-1 text-primary text-sm",
         className,
       )}
       {...props}

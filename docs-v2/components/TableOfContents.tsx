@@ -31,8 +31,8 @@ export default function TableOfContents({ toc }: TableOfContentsProps) {
   }
 
   return (
-    <div className="border p-4 rounded-sm max-h-60 overflow-y-auto sidebar-scroll">
-      <h3 className="mb-3 border-b border-black pb-2">On this Page</h3>
+    <div className="border p-4 rounded-(--radius) max-h-60 overflow-y-auto sidebar-scroll">
+      <h3 className="mb-3 border-b border-border pb-2">On this Page</h3>
       {renderTOCItems(toc.items)}
     </div>
   );
