@@ -25,11 +25,11 @@
                                                              └──────────────────┘
 ```
 
-**MCP Server** (`platform/mcp-server`): Discovers plugins, registers their tools as MCP tools, dispatches tool calls to the Chrome extension via WebSocket, receives plugin log entries and forwards them to MCP clients via the logging capability, and serves health/config endpoints.
+**MCP Server** (`platform/mcp-server`): Discovers plugins, registers their tools as MCP tools, dispatches tool calls to the Chrome extension via WebSocket, receives plugin log entries and forwards them to MCP clients via the logging capability, converts tool progress notifications into MCP `notifications/progress` events, and serves health/config endpoints.
 
-**Chrome Extension** (`platform/browser-extension`): Receives plugin definitions from the MCP server via `sync.full`, dynamically registers content scripts for URL patterns, injects adapter IIFEs into matching tabs, and dispatches tool calls to the correct tab's adapter. The `debugger` permission in the manifest is required for network capture via the Chrome DevTools Protocol (`chrome.debugger.attach`, `Network.enable`, `Runtime.enable`) in `network-capture.ts`.
+**Chrome Extension** (`platform/browser-extension`): Receives plugin definitions from the MCP server via `sync.full`, dynamically registers content scripts for URL patterns, injects adapter IIFEs into matching tabs, dispatches tool calls to the correct tab's adapter, and relays tool progress notifications from adapters back to the MCP server. The `debugger` permission in the manifest is required for network capture via the Chrome DevTools Protocol (`chrome.debugger.attach`, `Network.enable`, `Runtime.enable`) in `network-capture.ts`.
 
-**Plugin SDK** (`platform/plugin-sdk`): Provides the `OpenTabsPlugin` base class and `defineTool` factory. Plugins extend `OpenTabsPlugin` and define tools with Zod schemas.
+**Plugin SDK** (`platform/plugin-sdk`): Provides the `OpenTabsPlugin` base class, `defineTool` factory, and `ToolHandlerContext` interface for progress reporting. Plugins extend `OpenTabsPlugin` and define tools with Zod schemas.
 
 **Plugin Tools** (`platform/plugin-tools`): Plugin developer CLI (`opentabs-plugin`). The `opentabs-plugin build` command bundles the plugin adapter into an IIFE, generates `dist/tools.json`, auto-registers the plugin in `~/.opentabs/config.json` (under `localPlugins`), and calls `POST /reload` to notify the running MCP server. Supports `--watch` mode for development.
 
@@ -101,6 +101,7 @@ opentabs/
 │   ├── lifecycle.e2e.ts           # Hot reload and reconnection tests
 │   ├── lifecycle-hooks.e2e.ts     # Plugin lifecycle hooks tests
 │   ├── plugin-logging.e2e.ts     # Plugin logging pipeline tests
+│   ├── progress.e2e.ts            # Progress notification pipeline tests
 │   └── test-server.ts             # Controllable test web server
 ├── eslint.config.ts               # ESLint flat config
 ├── knip.ts                        # Knip unused code detection config
@@ -125,6 +126,10 @@ opentabs/
 - `onToolInvocationEnd(toolName, success, durationMs)` — called after each `tool.handle()` completes
 
 All hooks run in the page context. Errors in hooks are caught and logged — they do not affect adapter registration or tool execution.
+
+**Progress reporting**: Long-running tools can report incremental progress to MCP clients via an optional second argument to `handle()`. The `handle(params, context?)` signature provides a `ToolHandlerContext` with a `reportProgress({ progress, total, message? })` callback. Progress flows from the adapter (MAIN world `CustomEvent`) → ISOLATED world content script relay → `chrome.runtime.sendMessage` → extension background → WebSocket `tool.progress` JSON-RPC notification → MCP server → `notifications/progress` to MCP clients. The wire format from extension to server is `{ jsonrpc: '2.0', method: 'tool.progress', params: { dispatchId, progress, total, message? } }`. The `dispatchId` correlates progress back to the pending dispatch via the JSON-RPC request ID. Progress notifications are fire-and-forget — errors in the progress chain do not affect the tool result. The MCP server only emits `notifications/progress` if the MCP client included a `progressToken` in the tools/call request's `_meta`; otherwise progress is silently dropped.
+
+**Dispatch timeout and progress**: Tool dispatch uses a 30s timeout (`DISPATCH_TIMEOUT_MS`) by default. When a tool reports progress, the timeout resets to 30s from the last progress notification — so a tool that reports progress at least once every 30s will never time out. An absolute ceiling of 5 minutes (`MAX_DISPATCH_TIMEOUT_MS = 300_000`) applies regardless of progress, preventing indefinitely running tools. The extension has a matching `MAX_SCRIPT_TIMEOUT_MS` (295s, 5s less than the server max) to ensure the extension always responds before the server times out.
 
 **Dev vs production mode**: The MCP server operates in two modes, controlled by the `--dev` CLI flag or `OPENTABS_DEV=1` environment variable. **Production mode** (default) performs static plugin discovery at startup with no file watchers and no config watching. **Dev mode** enables file watchers for local plugin `dist/` directories, config file watching, and is intended to run with `bun --hot` for hot reload. The `POST /reload` endpoint is available in both modes (behind bearer auth and rate limiting), allowing `opentabs-plugin build` to trigger rediscovery in either mode. The mode is determined once at startup in `dev-mode.ts` and accessible via `isDev()`.
 
@@ -182,13 +187,19 @@ Usage in a tool handler:
 
 ```typescript
 import { waitForSelector, fetchJSON, getLocalStorage, getPageGlobal, retry, log } from '@opentabs-dev/plugin-sdk';
+import type { ToolHandlerContext } from '@opentabs-dev/plugin-sdk';
 
-// Wait for a DOM element, then fetch data using the page's session
-const el = await waitForSelector('.dashboard-loaded');
-const data = await retry(() => fetchJSON<ApiResponse>('/api/data'), { maxAttempts: 3, delay: 500 });
-const token = getLocalStorage('auth_token');
-const teamId = getPageGlobal('App.config.teamId') as string | undefined;
-log.info('Fetched data', { items: data.length, teamId });
+// handle(params, context?) — context is optional and injected by the adapter runtime
+async function handle(params: Input, context?: ToolHandlerContext): Promise<Output> {
+  const el = await waitForSelector('.dashboard-loaded');
+  const pages = await fetchPages(params.query);
+  for (let i = 0; i < pages.length; i++) {
+    context?.reportProgress({ progress: i + 1, total: pages.length, message: `Processing page ${i + 1}` });
+    await processPage(pages[i]);
+  }
+  log.info('Processed all pages', { count: pages.length });
+  return { processed: pages.length };
+}
 ```
 
 ### Commands
@@ -247,7 +258,7 @@ Each plugin follows the same pattern:
 
 1. **Create the plugin** (`plugins/<name>/`): Extend `OpenTabsPlugin` from `@opentabs-dev/plugin-sdk`
 2. **Configure `package.json`**: Add an `opentabs` field with `displayName`, `description`, and `urlPatterns`; set `main` to `dist/adapter.iife.js`
-3. **Define tools** (`plugins/<name>/src/tools/`): One file per tool using `defineTool()` with Zod schemas
+3. **Define tools** (`plugins/<name>/src/tools/`): One file per tool using `defineTool()` with Zod schemas. The `handle(params, context?)` function receives an optional `ToolHandlerContext` as its second argument for reporting progress during long-running operations
 4. **Build**: `cd plugins/<name> && bun install && bun run build` (runs `tsc` then `opentabs-plugin build`, which produces `dist/adapter.iife.js` and `dist/tools.json`, auto-registers the plugin in `localPlugins`, and calls `POST /reload` to notify the MCP server)
 
 ### Plugin Isolation
