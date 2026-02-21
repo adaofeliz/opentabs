@@ -18,6 +18,7 @@ interface PluginDetail {
   toolCount: number;
   tabState: string;
   source?: string;
+  sdkVersion?: string | null;
 }
 
 interface FailedPluginEntry {
@@ -69,9 +70,14 @@ const handleStatus = async (options: StatusOptions): Promise<void> => {
       const uptime = Number(data.uptime) || 0;
       const pluginDetails = Array.isArray(data.pluginDetails) ? (data.pluginDetails as PluginDetail[]) : [];
 
+      const serverSdkVersion = typeof data.sdkVersion === 'string' ? data.sdkVersion : null;
+
       console.log(pc.bold('OpenTabs MCP Server'));
       console.log(`${pad('Status')}${pc.green('running')}`);
       console.log(`${pad('Version')}${String(data.version)}`);
+      if (serverSdkVersion) {
+        console.log(`${pad('SDK')}${serverSdkVersion}`);
+      }
       console.log(`${pad('Port')}${String(port)}`);
       console.log(`${pad('Uptime')}${formatUptime(uptime)}`);
       console.log(`${pad('Extension')}${data.extensionConnected ? pc.green('connected') : pc.yellow('not connected')}`);
@@ -87,7 +93,10 @@ const handleStatus = async (options: StatusOptions): Promise<void> => {
           const state = colorTabState(p.tabState);
           const tools = pc.dim(`${p.toolCount} tool${p.toolCount === 1 ? '' : 's'}`);
           const sourceLabel = p.source === 'local' ? ` ${pc.dim('(local)')}` : ` ${pc.dim('(npm)')}`;
-          console.log(`    ${p.displayName}${sourceLabel} ${pc.dim('—')} ${state} ${pc.dim('·')} ${tools}`);
+          const sdkWarning = p.sdkVersion === null ? ` ${pc.yellow('⚠ no SDK version')}` : '';
+          console.log(
+            `    ${p.displayName}${sourceLabel} ${pc.dim('—')} ${state} ${pc.dim('·')} ${tools}${sdkWarning}`,
+          );
         }
       }
 

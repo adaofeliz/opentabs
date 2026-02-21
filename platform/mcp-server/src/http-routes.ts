@@ -20,6 +20,7 @@ import { log } from './logger.js';
 import { createMcpServer, notifyToolListChanged } from './mcp-setup.js';
 import { performConfigReload } from './reload.js';
 import { sanitizeErrorMessage } from './sanitize-error.js';
+import { sdkVersion } from './sdk-version.js';
 import { getNextRequestId, STATE_SCHEMA_VERSION } from './state.js';
 import { version } from './version.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
@@ -188,6 +189,7 @@ const createHandleFetch =
         toolCount: p.tools.length,
         tabState: state.tabMapping.get(p.name)?.state ?? 'closed',
         source: p.source,
+        sdkVersion: p.sdkVersion ?? null,
         logBufferSize: getLogCount(p.name),
       }));
 
@@ -200,6 +202,7 @@ const createHandleFetch =
       return Response.json({
         status: 'ok',
         version,
+        sdkVersion,
         mode: isDev() ? 'dev' : 'production',
         extensionConnected: state.extensionWs !== null,
         mcpClients: transports.size,

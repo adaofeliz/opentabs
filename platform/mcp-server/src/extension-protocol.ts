@@ -591,6 +591,7 @@ const handleConfigGetState = (state: ServerState, id: string | number): void => 
         source: p.source,
         tabState: tabInfo?.state ?? 'closed',
         urlPatterns: p.urlPatterns,
+        ...(p.sdkVersion ? { sdkVersion: p.sdkVersion } : {}),
         tools: p.tools.map(t => ({
           name: t.name,
           displayName: t.displayName,

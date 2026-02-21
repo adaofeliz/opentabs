@@ -201,6 +201,8 @@ export interface ConfigStatePlugin {
   source: 'npm' | 'local';
   tabState: TabState;
   urlPatterns: string[];
+  /** SDK version the plugin was built with (from tools.json). Undefined for old plugins. */
+  sdkVersion?: string;
   tools: WireToolDef[];
 }
 

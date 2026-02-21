@@ -126,6 +126,18 @@ const PluginCard = ({
                 DEV
               </span>
             )}
+            {!plugin.sdkVersion && (
+              <Tooltip.Provider>
+                <Tooltip>
+                  <Tooltip.Trigger asChild>
+                    <span className="ml-1.5 inline-block rounded border border-yellow-500/50 bg-yellow-500/10 px-1 py-0.5 align-middle text-[9px] leading-none font-medium text-yellow-600 dark:text-yellow-400">
+                      SDK
+                    </span>
+                  </Tooltip.Trigger>
+                  <Tooltip.Content>SDK version mismatch — rebuild plugin</Tooltip.Content>
+                </Tooltip>
+              </Tooltip.Provider>
+            )}
           </div>
           <ChevronDown className="h-4 w-4 shrink-0 transition-transform duration-200" />
         </AccordionPrimitive.Trigger>
