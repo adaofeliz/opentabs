@@ -25,13 +25,13 @@
                                                              └──────────────────┘
 ```
 
-**MCP Server** (`platform/mcp-server`): Discovers plugins, registers their tools as MCP tools, dispatches tool calls to the Chrome extension via WebSocket, receives plugin log entries and forwards them to MCP clients via the logging capability, converts tool progress notifications into MCP `notifications/progress` events, and serves health/config endpoints.
+**MCP Server** (`platform/mcp-server`): Discovers plugins, registers their tools, resources, and prompts as MCP capabilities, dispatches tool calls, resource reads, and prompt gets to the Chrome extension via WebSocket, receives plugin log entries and forwards them to MCP clients via the logging capability, converts tool progress notifications into MCP `notifications/progress` events, and serves health/config endpoints.
 
-**Chrome Extension** (`platform/browser-extension`): Receives plugin definitions from the MCP server via `sync.full`, dynamically registers content scripts for URL patterns, injects adapter IIFEs into matching tabs, dispatches tool calls to the correct tab's adapter, and relays tool progress notifications from adapters back to the MCP server. The `debugger` permission in the manifest is required for network capture via the Chrome DevTools Protocol (`chrome.debugger.attach`, `Network.enable`, `Runtime.enable`) in `network-capture.ts`.
+**Chrome Extension** (`platform/browser-extension`): Receives plugin definitions from the MCP server via `sync.full`, dynamically registers content scripts for URL patterns, injects adapter IIFEs into matching tabs, dispatches tool calls, resource reads, and prompt gets to the correct tab's adapter, and relays tool progress notifications from adapters back to the MCP server. The `debugger` permission in the manifest is required for network capture via the Chrome DevTools Protocol (`chrome.debugger.attach`, `Network.enable`, `Runtime.enable`) in `network-capture.ts`.
 
-**Plugin SDK** (`platform/plugin-sdk`): Provides the `OpenTabsPlugin` base class, `defineTool` factory, and `ToolHandlerContext` interface for progress reporting. Plugins extend `OpenTabsPlugin` and define tools with Zod schemas.
+**Plugin SDK** (`platform/plugin-sdk`): Provides the `OpenTabsPlugin` base class, `defineTool`, `defineResource`, and `definePrompt` factory functions, and `ToolHandlerContext` interface for progress reporting. Plugins extend `OpenTabsPlugin` and define tools (with Zod schemas), resources, and prompts.
 
-**Plugin Tools** (`platform/plugin-tools`): Plugin developer CLI (`opentabs-plugin`). The `opentabs-plugin build` command bundles the plugin adapter into an IIFE, generates `dist/tools.json`, auto-registers the plugin in `~/.opentabs/config.json` (under `localPlugins`), and calls `POST /reload` to notify the running MCP server. Supports `--watch` mode for development.
+**Plugin Tools** (`platform/plugin-tools`): Plugin developer CLI (`opentabs-plugin`). The `opentabs-plugin build` command bundles the plugin adapter into an IIFE, generates `dist/tools.json` (containing tool schemas, resource metadata, and prompt metadata), auto-registers the plugin in `~/.opentabs/config.json` (under `localPlugins`), and calls `POST /reload` to notify the running MCP server. Supports `--watch` mode for development.
 
 **CLI** (`platform/cli`): User-facing CLI (`opentabs`). Commands: `start`, `status`, `doctor`, `logs`, `plugin create`, `config show/set/path`. The `opentabs start` command auto-initializes config and the Chrome extension on first run, then launches the MCP server. The `opentabs logs --plugin <name>` flag filters output to only show logs from a specific plugin.
 
@@ -59,9 +59,9 @@ opentabs/
 │   │       ├── discovery.ts       # Discovery orchestrator (resolve → load → register)
 │   │       ├── resolver.ts        # Plugin specifier resolution (npm + local paths)
 │   │       ├── loader.ts          # Plugin artifact loading (package.json, IIFE, tools.json)
-│   │       ├── registry.ts        # Immutable PluginRegistry with O(1) tool lookup
+│   │       ├── registry.ts        # Immutable PluginRegistry with O(1) tool, resource, and prompt lookup
 │   │       ├── extension-protocol.ts  # JSON-RPC protocol with Chrome extension
-│   │       ├── mcp-setup.ts       # MCP tool registration from discovered plugins
+│   │       ├── mcp-setup.ts       # MCP tool, resource, and prompt registration from discovered plugins
 │   │       ├── state.ts           # In-memory server state (PluginRegistry)
 │   │       ├── log-buffer.ts      # Per-plugin circular log buffer (last 1000 entries)
 │   │       ├── file-watcher.ts    # Watches local plugin dist/ directories (dev mode only)
@@ -75,7 +75,7 @@ opentabs/
 │   │   └── build-side-panel.ts    # Bun.build script for side panel
 │   ├── plugin-sdk/                # Plugin authoring SDK
 │   │   └── src/
-│   │       ├── index.ts           # OpenTabsPlugin, defineTool, log exports
+│   │       ├── index.ts           # OpenTabsPlugin, defineTool, defineResource, definePrompt, log exports
 │   │       └── log.ts             # Structured logging API (sdk.log namespace)
 │   ├── plugin-tools/              # Plugin developer CLI (opentabs-plugin)
 │   │   └── src/
@@ -102,6 +102,7 @@ opentabs/
 │   ├── lifecycle-hooks.e2e.ts     # Plugin lifecycle hooks tests
 │   ├── plugin-logging.e2e.ts     # Plugin logging pipeline tests
 │   ├── progress.e2e.ts            # Progress notification pipeline tests
+│   ├── resources-prompts.e2e.ts   # Resource and prompt dispatch pipeline tests
 │   └── test-server.ts             # Controllable test web server
 ├── eslint.config.ts               # ESLint flat config
 ├── knip.ts                        # Knip unused code detection config
@@ -111,9 +112,11 @@ opentabs/
 
 ### Key Concepts
 
-**Plugin discovery**: The MCP server discovers plugins from two sources: (1) **npm auto-discovery** scans global `node_modules` for packages matching `opentabs-plugin-*` and `@*/opentabs-plugin-*` patterns, and (2) **local plugins** listed in the `localPlugins` array in `~/.opentabs/config.json` (filesystem paths to plugins under active development). Each discovered plugin is loaded by reading `package.json` (with an `opentabs` field for metadata), `dist/adapter.iife.js` (the adapter bundle), and `dist/tools.json` (tool schemas). Local plugins override npm plugins of the same name. Discovery is a four-phase pipeline: resolve → load → determine trust tier → build an immutable registry.
+**Plugin discovery**: The MCP server discovers plugins from two sources: (1) **npm auto-discovery** scans global `node_modules` for packages matching `opentabs-plugin-*` and `@*/opentabs-plugin-*` patterns, and (2) **local plugins** listed in the `localPlugins` array in `~/.opentabs/config.json` (filesystem paths to plugins under active development). Each discovered plugin is loaded by reading `package.json` (with an `opentabs` field for metadata), `dist/adapter.iife.js` (the adapter bundle), and `dist/tools.json` (tool schemas, resource metadata, and prompt metadata). Local plugins override npm plugins of the same name. Discovery is a four-phase pipeline: resolve → load → determine trust tier → build an immutable registry.
 
-**Tool prefixing**: Plugin tools are exposed to MCP clients with a `<plugin>_<tool>` prefix (e.g., `slack_send_message`). This prevents name collisions across plugins.
+**Tool and prompt name prefixing**: Plugin tools and prompts are exposed to MCP clients with a `<plugin>_<name>` prefix (e.g., `slack_send_message` for tools, `slack_greet` for prompts). This prevents name collisions across plugins.
+
+**Resource URI prefixing**: Plugin resource URIs are prefixed with `opentabs+<plugin>://` to make them globally unique across plugins. For example, a resource with URI `slack://channels` in a plugin named `slack` becomes `opentabs+slack://slack://channels`.
 
 **Tab state machine**: Each plugin has three tab states: `closed` (no matching tab), `unavailable` (tab exists but `isReady()` returns false), and `ready` (tab exists and authenticated). The extension reports state changes to the MCP server.
 
@@ -128,6 +131,8 @@ opentabs/
 All hooks run in the page context. Errors in hooks are caught and logged — they do not affect adapter registration or tool execution.
 
 **Progress reporting**: Long-running tools can report incremental progress to MCP clients via an optional second argument to `handle()`. The `handle(params, context?)` signature provides a `ToolHandlerContext` with a `reportProgress({ progress, total, message? })` callback. Progress flows from the adapter (MAIN world `CustomEvent`) → ISOLATED world content script relay → `chrome.runtime.sendMessage` → extension background → WebSocket `tool.progress` JSON-RPC notification → MCP server → `notifications/progress` to MCP clients. The wire format from extension to server is `{ jsonrpc: '2.0', method: 'tool.progress', params: { dispatchId, progress, total, message? } }`. The `dispatchId` correlates progress back to the pending dispatch via the JSON-RPC request ID. Progress notifications are fire-and-forget — errors in the progress chain do not affect the tool result. The MCP server only emits `notifications/progress` if the MCP client included a `progressToken` in the tools/call request's `_meta`; otherwise progress is silently dropped.
+
+**Resource and prompt dispatch**: Resources and prompts follow the same dispatch pipeline as tools: MCP server → WebSocket → Chrome extension → adapter IIFE → page context. The `resource.read` dispatch sends a URI to the adapter's `resource.read(uri)` function and returns `ResourceContent`. The `prompt.get` dispatch sends a prompt name and arguments to the adapter's `prompt.render(args)` function and returns `PromptMessage[]`. Unlike tool dispatch, resource reads and prompt gets do not support progress reporting or invocation lifecycle hooks. The `dist/tools.json` manifest file stores resource metadata (`{ uri, name, description, mimeType }`) and prompt metadata (`{ name, description, arguments }`) alongside tool schemas — the `read()` and `render()` runtime functions exist only in the adapter IIFE.
 
 **Dispatch timeout and progress**: Tool dispatch uses a 30s timeout (`DISPATCH_TIMEOUT_MS`) by default. When a tool reports progress, the timeout resets to 30s from the last progress notification — so a tool that reports progress at least once every 30s will never time out. An absolute ceiling of 5 minutes (`MAX_DISPATCH_TIMEOUT_MS = 300_000`) applies regardless of progress, preventing indefinitely running tools. The extension has a matching `MAX_SCRIPT_TIMEOUT_MS` (295s, 5s less than the server max) to ensure the extension always responds before the server times out.
 
@@ -259,7 +264,8 @@ Each plugin follows the same pattern:
 1. **Create the plugin** (`plugins/<name>/`): Extend `OpenTabsPlugin` from `@opentabs-dev/plugin-sdk`
 2. **Configure `package.json`**: Add an `opentabs` field with `displayName`, `description`, and `urlPatterns`; set `main` to `dist/adapter.iife.js`
 3. **Define tools** (`plugins/<name>/src/tools/`): One file per tool using `defineTool()` with Zod schemas. The `handle(params, context?)` function receives an optional `ToolHandlerContext` as its second argument for reporting progress during long-running operations
-4. **Build**: `cd plugins/<name> && bun install && bun run build` (runs `tsc` then `opentabs-plugin build`, which produces `dist/adapter.iife.js` and `dist/tools.json`, auto-registers the plugin in `localPlugins`, and calls `POST /reload` to notify the MCP server)
+4. **Optionally define resources and prompts**: Use `defineResource()` for data the plugin can expose (read via `resources/read`) and `definePrompt()` for prompt templates (rendered via `prompts/get`). Assign them to the `resources` and `prompts` properties on the plugin class
+5. **Build**: `cd plugins/<name> && bun install && bun run build` (runs `tsc` then `opentabs-plugin build`, which produces `dist/adapter.iife.js` and `dist/tools.json`, auto-registers the plugin in `localPlugins`, and calls `POST /reload` to notify the MCP server)
 
 ### Plugin Isolation
 
