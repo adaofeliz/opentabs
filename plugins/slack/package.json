@@ -2,9 +2,15 @@
   "name": "opentabs-plugin-slack",
   "version": "0.0.1",
   "type": "module",
+  "main": "dist/adapter.iife.js",
   "keywords": [
     "opentabs-plugin"
   ],
+  "opentabs": {
+    "displayName": "Slack",
+    "description": "OpenTabs plugin for Slack",
+    "urlPatterns": ["*://*.slack.com/*"]
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,8 +19,7 @@
   },
   "types": "./dist/index.d.ts",
   "files": [
-    "dist",
-    "opentabs-plugin.json"
+    "dist"
   ],
   "scripts": {
     "build": "tsc && opentabs build",
@@ -29,10 +34,15 @@
     "zod": "^4.0.0"
   },
   "dependencies": {
-    "@opentabs-dev/plugin-sdk": "^0.0.9"
+    "@opentabs-dev/plugin-sdk": "file:../../platform/plugin-sdk"
+  },
+  "overrides": {
+    "@opentabs-dev/shared": "file:../../platform/shared",
+    "@opentabs-dev/plugin-sdk": "file:../../platform/plugin-sdk",
+    "@opentabs-dev/cli": "file:../../platform/cli"
   },
   "devDependencies": {
-    "@opentabs-dev/cli": "^0.0.9",
+    "@opentabs-dev/cli": "file:../../platform/cli",
     "eslint": "^9.39.2",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-prettier": "^5.5.5",
