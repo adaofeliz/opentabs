@@ -646,3 +646,55 @@ describe('CORS protection', () => {
     expect((res as Response).status).toBe(200);
   });
 });
+
+describe('WebSocket upgrade origin check', () => {
+  /** Mock bunServer that reports successful upgrades */
+  const upgradingBunServer = {
+    upgrade: () => true,
+    timeout: () => {},
+  };
+
+  test('WS upgrade rejected with Origin: http://evil.com (403)', async () => {
+    const { handlers } = createTestHandlers();
+    const req = new Request('http://localhost:9876/ws', {
+      headers: {
+        Origin: 'http://evil.com',
+        Upgrade: 'websocket',
+      },
+    });
+
+    const res = await handlers.fetch(req, upgradingBunServer);
+
+    expect(res).toBeInstanceOf(Response);
+    expect((res as Response).status).toBe(403);
+  });
+
+  test('WS upgrade allowed with no Origin header (proceeds to secret check)', async () => {
+    const { handlers } = createTestHandlers();
+    // No wsSecret configured, so no auth is needed — upgrade should succeed
+    const req = new Request('http://localhost:9876/ws', {
+      headers: { Upgrade: 'websocket' },
+    });
+
+    const res = await handlers.fetch(req, upgradingBunServer);
+
+    // Successful upgrade returns undefined (Bun convention)
+    expect(res).toBeUndefined();
+  });
+
+  test('WS upgrade allowed with Origin: chrome-extension://abc (proceeds to secret check)', async () => {
+    const { handlers } = createTestHandlers();
+    // No wsSecret configured, so no auth is needed — upgrade should succeed
+    const req = new Request('http://localhost:9876/ws', {
+      headers: {
+        Origin: 'chrome-extension://abc',
+        Upgrade: 'websocket',
+      },
+    });
+
+    const res = await handlers.fetch(req, upgradingBunServer);
+
+    // Successful upgrade returns undefined (Bun convention)
+    expect(res).toBeUndefined();
+  });
+});
