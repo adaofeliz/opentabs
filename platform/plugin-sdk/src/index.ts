@@ -80,6 +80,21 @@ export abstract class OpenTabsPlugin {
    */
   teardown?(): void;
   /**
+   * Called once after the adapter is registered on
+   * `globalThis.__openTabs.adapters`. Use for setting up page-level event
+   * listeners, observers, or other resources that should exist for the
+   * adapter's lifetime.
+   */
+  onActivate?(): void;
+  /**
+   * Called when the adapter is being removed — either before `teardown()`
+   * on plugin update, or when the tab navigates away from a matching URL.
+   * Use for cleanup of resources set up in `onActivate`.
+   *
+   * Ordering: `onDeactivate` fires before `teardown` when both are defined.
+   */
+  onDeactivate?(): void;
+  /**
    * Called on in-page URL changes (pushState, replaceState, popstate,
    * hashchange). Runs in the page context. If the plugin does not
    * implement this method, no navigation listeners are set up.
