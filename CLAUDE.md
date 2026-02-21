@@ -97,6 +97,7 @@ opentabs/
 │   ├── fixtures.ts                # Test fixtures (MCP server, extension, test server)
 │   ├── tool-dispatch.e2e.ts       # Full-stack tool dispatch tests
 │   ├── lifecycle.e2e.ts           # Hot reload and reconnection tests
+│   ├── lifecycle-hooks.e2e.ts     # Plugin lifecycle hooks tests
 │   └── test-server.ts             # Controllable test web server
 ├── eslint.config.ts               # ESLint flat config
 ├── knip.ts                        # Knip unused code detection config
@@ -111,6 +112,16 @@ opentabs/
 **Tool prefixing**: Plugin tools are exposed to MCP clients with a `<plugin>_<tool>` prefix (e.g., `slack_send_message`). This prevents name collisions across plugins.
 
 **Tab state machine**: Each plugin has three tab states: `closed` (no matching tab), `unavailable` (tab exists but `isReady()` returns false), and `ready` (tab exists and authenticated). The extension reports state changes to the MCP server.
+
+**Lifecycle hooks**: Plugins can optionally implement lifecycle hooks on the `OpenTabsPlugin` base class. All hooks are wired automatically by the `opentabs-plugin build` command in the generated IIFE wrapper — plugin authors only need to implement the methods.
+
+- `onActivate()` — called once after the adapter is registered on `globalThis.__openTabs.adapters`
+- `onDeactivate()` — called when the adapter is being removed (before `teardown()`)
+- `onNavigate(url)` — called on in-page URL changes (pushState, replaceState, popstate, hashchange)
+- `onToolInvocationStart(toolName)` — called before each `tool.handle()` execution
+- `onToolInvocationEnd(toolName, success, durationMs)` — called after each `tool.handle()` completes
+
+All hooks run in the page context. Errors in hooks are caught and logged — they do not affect adapter registration or tool execution.
 
 **Dev vs production mode**: The MCP server operates in two modes, controlled by the `--dev` CLI flag or `OPENTABS_DEV=1` environment variable. **Production mode** (default) performs static plugin discovery at startup with no file watchers and no config watching. **Dev mode** enables file watchers for local plugin `dist/` directories, config file watching, and is intended to run with `bun --hot` for hot reload. The `POST /reload` endpoint is available in both modes (behind bearer auth and rate limiting), allowing `opentabs-plugin build` to trigger rediscovery in either mode. The mode is determined once at startup in `dev-mode.ts` and accessible via `isDev()`.
 
