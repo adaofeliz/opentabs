@@ -131,14 +131,13 @@ const reloadCore = async ({ state, sessionServers, transports }: ReloadCoreArgs)
     // directory before passing to discoverPlugins, which expects absolute paths.
     const configDir = getConfigDir();
     resolvedPaths = config.plugins.map(p => (isAbsolute(p) ? p : resolve(configDir, p)));
-    const { plugins: newPlugins, failures } = await discoverPluginsLegacy(resolvedPaths, config.npmPlugins ?? []);
+    const { plugins: newPlugins, failures } = await discoverPluginsLegacy(resolvedPaths, []);
 
     // Atomic swap
     state.plugins = newPlugins;
     state.failedPlugins = failures;
     state.toolConfig = { ...config.tools };
     state.pluginPaths = [...config.plugins];
-    state.npmPlugins = [...(config.npmPlugins ?? [])];
     state.wsSecret = config.secret ?? null;
 
     log.info(

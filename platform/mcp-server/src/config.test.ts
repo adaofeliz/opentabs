@@ -113,22 +113,23 @@ describe('loadConfig / saveConfig round-trip', () => {
     expect(config.secret).toBeDefined();
   });
 
-  test('round-trips npmPlugins through save and load', async () => {
-    await loadConfig();
+  test('migrates legacy npmPlugins into plugins array', async () => {
+    await Bun.write(
+      configPath,
+      JSON.stringify({
+        plugins: ['/local/plugin'],
+        tools: {},
+        secret: 'test-secret-migrate',
+        npmPlugins: ['opentabs-plugin-jira', '@myorg/opentabs-plugin-github'],
+      }),
+    );
 
-    const custom: OpentabsConfig = {
-      plugins: [],
-      tools: {},
-      secret: 'test-secret-npm',
-      npmPlugins: ['opentabs-plugin-jira', '@myorg/opentabs-plugin-github'],
-    };
-    await saveConfigWrapped(custom);
-
-    const loaded = await loadConfig();
-    expect(loaded.npmPlugins).toEqual(['opentabs-plugin-jira', '@myorg/opentabs-plugin-github']);
+    const config = await loadConfig();
+    expect(config.plugins).toEqual(['/local/plugin', 'opentabs-plugin-jira', '@myorg/opentabs-plugin-github']);
+    expect(config).not.toHaveProperty('npmPlugins');
   });
 
-  test('filters non-string elements from npmPlugins array', async () => {
+  test('migration filters non-string elements from legacy npmPlugins', async () => {
     await Bun.write(
       configPath,
       JSON.stringify({
@@ -140,26 +141,27 @@ describe('loadConfig / saveConfig round-trip', () => {
     );
 
     const config = await loadConfig();
-    expect(config.npmPlugins).toEqual(['valid-plugin', 'another-plugin']);
+    expect(config.plugins).toEqual(['valid-plugin', 'another-plugin']);
   });
 
-  test('returns undefined npmPlugins when field is absent', async () => {
+  test('ignores absent npmPlugins field without error', async () => {
     await Bun.write(
       configPath,
       JSON.stringify({
-        plugins: [],
+        plugins: ['/some/plugin'],
         tools: {},
         secret: 'test-secret',
       }),
     );
 
     const config = await loadConfig();
-    expect(config.npmPlugins).toBeUndefined();
+    expect(config.plugins).toEqual(['/some/plugin']);
+    expect(config).not.toHaveProperty('npmPlugins');
   });
 
-  test('default config includes empty npmPlugins array', async () => {
+  test('default config has no npmPlugins field', async () => {
     const config = await loadConfig();
-    expect(config.npmPlugins).toEqual([]);
+    expect(config).not.toHaveProperty('npmPlugins');
   });
 });
 
