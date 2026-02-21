@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 
-import { scaffoldPlugin, ScaffoldError } from '@opentabs-dev/cli/scaffold';
+import { scaffoldPlugin, promptForMissingArgs, ScaffoldError } from '@opentabs-dev/cli/scaffold';
 import { Command } from 'commander';
 import pc from 'picocolors';
 import { dirname, join } from 'node:path';
@@ -12,18 +12,19 @@ const pkgJson = JSON.parse(await Bun.file(join(cliDir, '..', 'package.json')).te
 const program = new Command('create-opentabs-plugin')
   .version(pkgJson.version, '-V, --version')
   .description('Scaffold a new OpenTabs plugin project')
-  .argument('<name>', 'Plugin name (lowercase alphanumeric + hyphens)')
-  .requiredOption('--domain <domain>', 'Target domain (e.g., .slack.com or github.com)')
+  .argument('[name]', 'Plugin name (lowercase alphanumeric + hyphens)')
+  .option('--domain <domain>', 'Target domain (e.g., .slack.com or github.com)')
   .option('--display <name>', 'Display name (e.g., Slack)')
   .option('--description <desc>', 'Plugin description')
-  .action(async (name: string, options: { domain: string; display?: string; description?: string }) => {
+  .action(async (name: string | undefined, options: { domain?: string; display?: string; description?: string }) => {
     try {
-      await scaffoldPlugin({
+      const args = await promptForMissingArgs({
         name,
         domain: options.domain,
         display: options.display,
         description: options.description,
       });
+      await scaffoldPlugin(args);
     } catch (err: unknown) {
       if (err instanceof ScaffoldError) {
         console.error(pc.red(`Error: ${err.message}`));

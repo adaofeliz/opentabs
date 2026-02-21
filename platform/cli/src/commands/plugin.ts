@@ -12,7 +12,7 @@ import {
   resolvePluginPath,
 } from '../config.js';
 import { parsePort, resolvePort } from '../parse-port.js';
-import { scaffoldPlugin, ScaffoldError } from '../scaffold.js';
+import { scaffoldPlugin, promptForMissingArgs, ScaffoldError } from '../scaffold.js';
 import pc from 'picocolors';
 import { join } from 'node:path';
 import type { Command } from 'commander';
@@ -499,25 +499,27 @@ Examples:
   pluginCmd
     .command('create')
     .description('Scaffold a new plugin project')
-    .argument('<name>', 'Plugin name (lowercase alphanumeric + hyphens)')
-    .requiredOption('--domain <domain>', 'Target domain (e.g., .slack.com or github.com)')
+    .argument('[name]', 'Plugin name (lowercase alphanumeric + hyphens)')
+    .option('--domain <domain>', 'Target domain (e.g., .slack.com or github.com)')
     .option('--display <name>', 'Display name (e.g., Slack)')
     .option('--description <desc>', 'Plugin description')
     .addHelpText(
       'after',
       `
 Examples:
+  $ opentabs plugin create                                  # interactive mode
   $ opentabs plugin create my-plugin --domain .example.com
   $ opentabs plugin create slack --domain .slack.com --display Slack`,
     )
-    .action(async (name: string, options: { domain: string; display?: string; description?: string }) => {
+    .action(async (name: string | undefined, options: { domain?: string; display?: string; description?: string }) => {
       try {
-        await scaffoldPlugin({
+        const args = await promptForMissingArgs({
           name,
           domain: options.domain,
           display: options.display,
           description: options.description,
         });
+        await scaffoldPlugin(args);
       } catch (err: unknown) {
         if (err instanceof ScaffoldError) {
           console.error(pc.red(`Error: ${err.message}`));

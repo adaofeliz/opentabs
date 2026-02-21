@@ -10,6 +10,7 @@ import { validatePluginName, validateUrlPattern } from '@opentabs-dev/plugin-sdk
 import pc from 'picocolors';
 import { existsSync, mkdirSync } from 'node:fs';
 import { resolve, join, dirname } from 'node:path';
+import { createInterface } from 'node:readline/promises';
 
 // --- Errors ---
 
@@ -323,6 +324,60 @@ export const exampleTool = defineTool({
 `;
 };
 
+// --- Interactive prompting ---
+
+interface PartialScaffoldArgs {
+  name?: string;
+  domain?: string;
+  display?: string;
+  description?: string;
+}
+
+/**
+ * Prompt the user for any missing required scaffold arguments.
+ * If both name and domain are already provided, returns immediately.
+ * In non-interactive environments (piped stdin), throws instead of prompting.
+ */
+const promptForMissingArgs = async (partial: PartialScaffoldArgs): Promise<ScaffoldArgs> => {
+  let { name, domain } = partial;
+  const { display, description } = partial;
+
+  if (name && domain) {
+    return { name, domain, display, description };
+  }
+
+  if (!process.stdin.isTTY) {
+    const missing = [!name && 'name', !domain && '--domain'].filter(Boolean);
+    throw new ScaffoldError(
+      `Missing required arguments: ${missing.join(', ')}. Provide them as flags or run interactively.`,
+    );
+  }
+
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+
+  try {
+    if (!name) {
+      const answer = await rl.question(`Plugin name ${pc.dim('(lowercase, hyphens ok)')}: `);
+      name = answer.trim();
+      if (!name) {
+        throw new ScaffoldError('Plugin name is required.');
+      }
+    }
+
+    if (!domain) {
+      const answer = await rl.question(`Target domain ${pc.dim('(e.g., .slack.com or github.com)')}: `);
+      domain = answer.trim();
+      if (!domain) {
+        throw new ScaffoldError('Target domain is required.');
+      }
+    }
+  } finally {
+    rl.close();
+  }
+
+  return { name, domain, display, description };
+};
+
 // --- Scaffolding ---
 
 /**
@@ -386,5 +441,5 @@ const scaffoldPlugin = async (args: ScaffoldArgs): Promise<string> => {
   return projectDir;
 };
 
-export { scaffoldPlugin, ScaffoldError, toPascalCase, toTitleCase };
-export type { ScaffoldArgs };
+export { scaffoldPlugin, promptForMissingArgs, ScaffoldError, toPascalCase, toTitleCase };
+export type { ScaffoldArgs, PartialScaffoldArgs };

@@ -162,7 +162,7 @@ describe('create-opentabs-plugin CLI', () => {
       expect(stderr).toContain('already exists');
     });
 
-    test('missing --domain flag exits with code 1 and prints usage error', () => {
+    test('missing --domain in non-interactive mode exits with code 1', () => {
       const { exitCode, stderr } = runCli(['my-plugin'], { cwd: tmpDir, configDir });
 
       expect(exitCode).toBe(1);
