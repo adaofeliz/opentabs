@@ -190,6 +190,29 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, _sender, sendRes
       return true;
     }
 
+    case 'plugin:logs': {
+      // Forward batched plugin log entries to the MCP server via WebSocket.
+      // Each entry becomes a separate JSON-RPC notification so the server
+      // can process them individually (buffer, forward to MCP clients, etc.).
+      if (wsConnected) {
+        for (const entry of message.entries) {
+          sendToServer({
+            jsonrpc: '2.0',
+            method: 'plugin.log',
+            params: {
+              plugin: message.plugin,
+              level: entry.level,
+              message: entry.message,
+              data: entry.data,
+              ts: entry.ts,
+            },
+          });
+        }
+      }
+      sendResponse({ ok: true });
+      return true;
+    }
+
     // Messages handled by other listeners (offscreen, side panel) — not
     // processed here, but included for exhaustiveness so TypeScript flags
     // any new InternalMessage variant that isn't routed somewhere.

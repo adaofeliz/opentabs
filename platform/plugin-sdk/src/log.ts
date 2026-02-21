@@ -155,6 +155,16 @@ const log = Object.freeze({
 });
 
 // ---------------------------------------------------------------------------
+// Runtime registration — allows the adapter IIFE wrapper to call
+// _setLogTransport without an explicit import (which would fail if the
+// plugin's installed SDK version predates the log module).
+// ---------------------------------------------------------------------------
+
+const ot = ((globalThis as Record<string, unknown>).__openTabs ?? {}) as Record<string, unknown>;
+(globalThis as Record<string, unknown>).__openTabs = ot;
+ot._setLogTransport = _setLogTransport;
+
+// ---------------------------------------------------------------------------
 // Exports
 // ---------------------------------------------------------------------------
 

@@ -258,6 +258,43 @@ const bundleIIFE = async (sourceEntry: string, outDir: string, pluginName: strin
 (globalThis as any).__openTabs = (globalThis as any).__openTabs || {};
 (globalThis as any).__openTabs.adapters = (globalThis as any).__openTabs.adapters || {};
 const adapters = (globalThis as any).__openTabs.adapters;
+
+// --- Log transport: batch entries and flush via postMessage to the relay ---
+// Access _setLogTransport from globalThis (registered by the SDK's log module
+// at import time) rather than via a direct import, so the wrapper works even
+// when the plugin's installed SDK version predates the log module.
+const setLogTransport = (globalThis as any).__openTabs?._setLogTransport as
+  | ((fn: (entry: { level: string; message: string; data: unknown[]; ts: string }) => void) => () => void)
+  | undefined;
+
+const LOG_FLUSH_INTERVAL = 100;
+const LOG_BATCH_MAX = 50;
+let logBatch: Array<{ level: string; message: string; data: unknown[]; ts: string }> = [];
+let logFlushTimer: ReturnType<typeof setTimeout> | null = null;
+
+const flushLogs = () => {
+  if (logBatch.length === 0) return;
+  const entries = logBatch;
+  logBatch = [];
+  try {
+    window.postMessage({ type: 'opentabs:plugin-logs', plugin: ${name}, entries }, '*');
+  } catch {
+    // Extension not available — drop silently
+  }
+};
+
+const logTransport = (entry: { level: string; message: string; data: unknown[]; ts: string }) => {
+  logBatch.push(entry);
+  if (logBatch.length >= LOG_BATCH_MAX) {
+    if (logFlushTimer !== null) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+    flushLogs();
+  } else if (logFlushTimer === null) {
+    logFlushTimer = setTimeout(() => { logFlushTimer = null; flushLogs(); }, LOG_FLUSH_INTERVAL);
+  }
+};
+
+const restoreTransport = setLogTransport ? setLogTransport(logTransport) : undefined;
+
 const existing = adapters[${name}];
 if (existing) {
   if (typeof existing.onDeactivate === 'function') {
@@ -335,20 +372,28 @@ if (typeof plugin.onNavigate === 'function') {
     history.replaceState = origReplaceState;
     window.removeEventListener('popstate', checkUrl);
     window.removeEventListener('hashchange', checkUrl);
+    // Flush remaining logs and tear down log transport
+    if (logFlushTimer !== null) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+    flushLogs();
+    if (restoreTransport) restoreTransport();
     if (origTeardown) origTeardown();
   };
   plugin.onDeactivate = undefined as any;
 } else {
-  // No onNavigate — still wrap teardown for onDeactivate ordering
+  // No onNavigate — still wrap teardown for onDeactivate ordering and log cleanup
   const origTeardown = typeof plugin.teardown === 'function' ? plugin.teardown.bind(plugin) : undefined;
   const origOnDeactivate = typeof plugin.onDeactivate === 'function' ? plugin.onDeactivate.bind(plugin) : undefined;
-  if (origOnDeactivate) {
-    plugin.teardown = function() {
+  plugin.teardown = function() {
+    if (origOnDeactivate) {
       try { origOnDeactivate(); } catch (e) { console.warn('[OpenTabs] onDeactivate failed for ' + ${name} + ':', e); }
-      if (origTeardown) origTeardown();
-    };
-    plugin.onDeactivate = undefined as any;
-  }
+    }
+    // Flush remaining logs and tear down log transport
+    if (logFlushTimer !== null) { clearTimeout(logFlushTimer); logFlushTimer = null; }
+    flushLogs();
+    if (restoreTransport) restoreTransport();
+    if (origTeardown) origTeardown();
+  };
+  plugin.onDeactivate = undefined as any;
 }
 `;
   await Bun.write(wrapperPath, wrapperCode);

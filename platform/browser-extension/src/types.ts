@@ -80,6 +80,13 @@ export interface SpConnectionStateMessage {
   data: { connected: boolean };
 }
 
+/** Content script relay → Background: batched plugin log entries from adapter IIFE */
+export interface PluginLogsMessage {
+  type: 'plugin:logs';
+  plugin: string;
+  entries: Array<{ level: string; message: string; data: unknown[]; ts: string }>;
+}
+
 /** Background → Side panel: forwarded JSON-RPC message from the MCP server */
 export interface SpRelayMessage {
   type: 'sp:serverMessage';
@@ -98,6 +105,7 @@ export type InternalMessage =
   | BgGetConnectionStateMessage
   | BgGetLogsMessage
   | BgForceReconnectMessage
+  | PluginLogsMessage
   | SpGetStateMessage
   | SpConnectionStateMessage
   | SpRelayMessage;

@@ -90,6 +90,42 @@ const verifyAdapterHash = async (tabId: number, pluginName: string, expectedHash
 };
 
 /**
+ * Inject a log relay listener into a tab's ISOLATED world.
+ * Listens for 'opentabs:plugin-logs' postMessages from the MAIN world adapter
+ * and forwards batched log entries to the background via chrome.runtime.sendMessage.
+ * The listener is idempotent — a guard flag prevents duplicate registration.
+ */
+const injectLogRelay = async (tabId: number): Promise<void> => {
+  try {
+    await chrome.scripting.executeScript({
+      target: { tabId },
+      world: 'ISOLATED',
+      func: () => {
+        // Idempotent guard: only register the listener once per tab
+        const guard = '__opentabs_log_relay';
+        const win = window as unknown as Record<string, unknown>;
+        if (win[guard]) return;
+        win[guard] = true;
+
+        window.addEventListener('message', event => {
+          if (event.source !== window) return;
+          const data = event.data as Record<string, unknown> | undefined;
+          if (!data || data.type !== 'opentabs:plugin-logs') return;
+          const plugin = data.plugin;
+          const entries = data.entries;
+          if (typeof plugin !== 'string' || !Array.isArray(entries) || entries.length === 0) return;
+          chrome.runtime.sendMessage({ type: 'plugin:logs', plugin, entries }).catch(() => {
+            // Background may not be listening — drop silently
+          });
+        });
+      },
+    });
+  } catch {
+    // Tab may not be injectable (e.g., chrome:// pages) — best-effort
+  }
+};
+
+/**
  * Inject an adapter file into a single tab via chrome.scripting.executeScript.
  *
  * Uses the `files` option to inject the pre-built adapter IIFE from the
@@ -102,6 +138,10 @@ const injectAdapterFile = async (
   version?: string,
   adapterHash?: string,
 ): Promise<void> => {
+  // Inject the log relay in ISOLATED world before the adapter IIFE (MAIN world)
+  // so postMessage listeners are in place when the adapter starts logging.
+  await injectLogRelay(tabId);
+
   const adapterFile = `adapters/${pluginName}.js`;
   try {
     await chrome.scripting.executeScript({
