@@ -42,9 +42,7 @@ const extractFields = (schema: Record<string, unknown>): Array<{ name: string; t
 /** Truncate a string to maxLen, appending "..." if truncated */
 const truncate = (s: string, maxLen: number): string => (s.length > maxLen ? s.slice(0, maxLen - 3) + '...' : s);
 
-const handleInspect = async (options: { json?: boolean }): Promise<void> => {
-  const projectDir = process.cwd();
-
+const handleInspect = async (options: { json?: boolean }, projectDir: string = process.cwd()): Promise<void> => {
   // Read dist/tools.json
   const toolsJsonPath = join(projectDir, 'dist', 'tools.json');
   const toolsJsonFile = Bun.file(toolsJsonPath);
@@ -194,4 +192,5 @@ Examples:
     .action((options: { json?: boolean }) => handleInspect(options));
 };
 
-export { registerInspectCommand };
+export { extractFields, handleInspect, registerInspectCommand, truncate };
+export type { ToolsJsonManifest };
