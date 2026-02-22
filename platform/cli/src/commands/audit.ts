@@ -33,11 +33,11 @@ interface AuditEntry {
 }
 
 const parseLimit = (value: string): number => {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 1) {
+  const parsedCount = Number(value);
+  if (!Number.isInteger(parsedCount) || parsedCount < 1) {
     throw new InvalidArgumentError('Must be a positive integer.');
   }
-  return n;
+  return parsedCount;
 };
 
 const DURATION_UNITS = new Map<string, number>([

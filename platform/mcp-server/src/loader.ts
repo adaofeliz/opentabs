@@ -104,19 +104,19 @@ const validateTools = (tools: unknown, sourcePath: string): Result<ManifestTool[
     if (typeof raw !== 'object' || raw === null || Array.isArray(raw)) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}] must be an object`);
     }
-    const t = raw as Record<string, unknown>;
+    const toolRecord = raw as Record<string, unknown>;
 
-    const name = t.name;
+    const name = toolRecord.name;
     if (typeof name !== 'string' || name.length === 0) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].name must be a non-empty string`);
     }
 
-    const displayName = t.displayName;
+    const displayName = toolRecord.displayName;
     if (typeof displayName !== 'string' || displayName.length === 0) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].displayName must be a non-empty string`);
     }
 
-    const description = t.description;
+    const description = toolRecord.description;
     if (typeof description !== 'string' || description.length === 0) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].description must be a non-empty string`);
     }
@@ -124,21 +124,21 @@ const validateTools = (tools: unknown, sourcePath: string): Result<ManifestTool[
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].description must be at most 1000 characters`);
     }
 
-    const icon = t.icon;
+    const icon = toolRecord.icon;
     if (typeof icon !== 'string' || icon.length === 0) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].icon must be a non-empty string`);
     }
 
     // Optional SVG icons
-    const iconSvg = typeof t.iconSvg === 'string' ? t.iconSvg : undefined;
-    const iconInactiveSvg = typeof t.iconInactiveSvg === 'string' ? t.iconInactiveSvg : undefined;
+    const iconSvg = typeof toolRecord.iconSvg === 'string' ? toolRecord.iconSvg : undefined;
+    const iconInactiveSvg = typeof toolRecord.iconInactiveSvg === 'string' ? toolRecord.iconInactiveSvg : undefined;
 
-    const inputSchema = t.input_schema;
+    const inputSchema = toolRecord.input_schema;
     if (typeof inputSchema !== 'object' || inputSchema === null || Array.isArray(inputSchema)) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].input_schema must be an object`);
     }
 
-    const outputSchema = t.output_schema;
+    const outputSchema = toolRecord.output_schema;
     if (typeof outputSchema !== 'object' || outputSchema === null || Array.isArray(outputSchema)) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].output_schema must be an object`);
     }
@@ -166,7 +166,7 @@ const computeHash = async (content: string): Promise<string> => {
   const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
   const hashArray = new Uint8Array(hashBuffer);
   return Array.from(hashArray)
-    .map(b => b.toString(16).padStart(2, '0'))
+    .map(byte => byte.toString(16).padStart(2, '0'))
     .join('');
 };
 

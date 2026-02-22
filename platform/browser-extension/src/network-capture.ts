@@ -114,8 +114,8 @@ const headersToRecord = (raw: unknown): Record<string, string> | undefined => {
 
 /** Extract a string property from a Record<string, unknown>, defaulting to fallback. */
 const stringProp = (obj: Record<string, unknown>, key: string, fallback: string): string => {
-  const val = obj[key];
-  return typeof val === 'string' ? val : fallback;
+  const propertyValue = obj[key];
+  return typeof propertyValue === 'string' ? propertyValue : fallback;
 };
 
 /** Truncate a string to MAX_BODY_LENGTH, appending a suffix if truncated. */
@@ -135,15 +135,15 @@ const isBinaryMime = (mimeType: string | undefined): boolean => {
 };
 
 chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: string, params?: object) => {
-  const p = params as Record<string, unknown> | undefined;
+  const paramsRecord = params as Record<string, unknown> | undefined;
   const tabId = source.tabId;
   if (tabId === undefined) return;
   const state = captures.get(tabId);
   if (!state) return;
 
   if (method === 'Network.requestWillBeSent') {
-    const requestId = p?.requestId as string | undefined;
-    const request = p?.request as Record<string, unknown> | undefined;
+    const requestId = paramsRecord?.requestId as string | undefined;
+    const request = paramsRecord?.request as Record<string, unknown> | undefined;
     if (!requestId || !request) return;
 
     const url = stringProp(request, 'url', '');
@@ -161,8 +161,8 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
       timestamp: Date.now(),
     });
   } else if (method === 'Network.responseReceived') {
-    const requestId = p?.requestId as string | undefined;
-    const response = p?.response as Record<string, unknown> | undefined;
+    const requestId = paramsRecord?.requestId as string | undefined;
+    const response = paramsRecord?.response as Record<string, unknown> | undefined;
     if (!requestId || !response) return;
 
     const pending = state.pendingRequests.get(requestId);
@@ -198,7 +198,7 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     const idx = state.requests.push(completed) - 1;
     state.requestIdToIndex.set(requestId, idx);
   } else if (method === 'Network.loadingFinished') {
-    const requestId = p?.requestId as string | undefined;
+    const requestId = paramsRecord?.requestId as string | undefined;
     if (!requestId) return;
 
     const idx = state.requestIdToIndex.get(requestId);
@@ -216,21 +216,21 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
       // Graceful handling: if the request was aborted or the body is unavailable,
       // chrome.runtime.lastError is set and result is undefined
       if (chrome.runtime.lastError || !result) return;
-      const res = result as { body?: string; base64Encoded?: boolean };
-      if (typeof res.body !== 'string') return;
+      const responseData = result as { body?: string; base64Encoded?: boolean };
+      if (typeof responseData.body !== 'string') return;
       // For text content, store directly; for base64-encoded text, decode from
       // base64 to UTF-8 via Uint8Array + TextDecoder (bare atob returns Latin1,
       // which corrupts non-ASCII characters like Chinese text or emoji).
-      const body = res.base64Encoded
-        ? new TextDecoder().decode(Uint8Array.from(atob(res.body), c => c.charCodeAt(0)))
-        : res.body;
+      const body = responseData.base64Encoded
+        ? new TextDecoder().decode(Uint8Array.from(atob(responseData.body), c => c.charCodeAt(0)))
+        : responseData.body;
       request.responseBody = truncateBody(body);
     });
   } else if (method === 'Network.webSocketCreated') {
     // WebSocket connections use separate CDP events (not requestWillBeSent).
     // Capture the creation event as a synthetic request so that the
     // analyze-site API detection module can classify it as websocket.
-    const url = p?.url as string | undefined;
+    const url = paramsRecord?.url as string | undefined;
     if (!url) return;
 
     // Apply URL filter
@@ -257,8 +257,8 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     }
     state.requests.push(completed);
   } else if (method === 'Runtime.consoleAPICalled') {
-    const type = p?.type as string | undefined;
-    const args = p?.args as Array<{ type?: string; value?: unknown; description?: string }> | undefined;
+    const type = paramsRecord?.type as string | undefined;
+    const args = paramsRecord?.args as Array<{ type?: string; value?: unknown; description?: string }> | undefined;
     if (!type || !args) return;
 
     const messageParts: string[] = [];

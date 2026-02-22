@@ -20,10 +20,10 @@ export const urlMatchesPatterns = (url: string, patterns: string[]): boolean => 
  *   http://example.com/*   → matches http://example.com/anything (default port)
  */
 export const matchPattern = (url: string, pattern: string): boolean => {
-  const m = pattern.match(/^(\*|https?|ftp):\/\/(.+?)(\/.*)$/);
-  if (!m?.[1] || !m[2] || !m[3]) return false;
+  const matchResult = pattern.match(/^(\*|https?|ftp):\/\/(.+?)(\/.*)$/);
+  if (!matchResult?.[1] || !matchResult[2] || !matchResult[3]) return false;
 
-  const [, scheme, hostWithPort, path] = m;
+  const [, scheme, hostWithPort, path] = matchResult;
 
   // Separate host and optional port from the pattern's host portion.
   // Examples: "localhost:9516" → host="localhost", port="9516"

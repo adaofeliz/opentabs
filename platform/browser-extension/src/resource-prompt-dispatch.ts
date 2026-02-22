@@ -86,11 +86,11 @@ const executeResourceReadOnTab = async (
         const output = await resource.read(uri);
         return { type: 'success' as const, output };
       } catch (err: unknown) {
-        const e = err as { message?: string };
+        const caughtError = err as { message?: string };
         return {
           type: 'error' as const,
           code: -32603,
-          message: e.message ?? 'Resource read failed',
+          message: caughtError.message ?? 'Resource read failed',
         };
       }
     },
@@ -203,11 +203,11 @@ const executePromptGetOnTab = async (
         const output = await prompt.render(pArgs);
         return { type: 'success' as const, output };
       } catch (err: unknown) {
-        const e = err as { message?: string };
+        const caughtError = err as { message?: string };
         return {
           type: 'error' as const,
           code: -32603,
-          message: e.message ?? 'Prompt render failed',
+          message: caughtError.message ?? 'Prompt render failed',
         };
       }
     },

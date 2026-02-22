@@ -56,8 +56,8 @@ export const isNewer = (current: string, latest: string): boolean => {
       .split('.')
       .map(segment => {
         const hyphen = segment.indexOf('-');
-        const n = Number(hyphen >= 0 ? segment.slice(0, hyphen) : segment);
-        return Number.isFinite(n) ? n : 0;
+        const numericVersion = Number(hyphen >= 0 ? segment.slice(0, hyphen) : segment);
+        return Number.isFinite(numericVersion) ? numericVersion : 0;
       });
 
   const currentParts = parse(current);

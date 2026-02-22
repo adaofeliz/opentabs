@@ -129,11 +129,11 @@ const followFile = async (filePath: string, initialOffset: number, filter?: stri
 };
 
 const parseLines = (value: string): number => {
-  const n = Number(value);
-  if (!Number.isInteger(n) || n < 0) {
+  const parsedCount = Number(value);
+  if (!Number.isInteger(parsedCount) || parsedCount < 0) {
     throw new InvalidArgumentError('Must be a non-negative integer.');
   }
-  return n;
+  return parsedCount;
 };
 
 const handleLogs = async (options: LogsOptions): Promise<void> => {

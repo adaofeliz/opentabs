@@ -250,18 +250,18 @@ const executeToolOnTab = async (
         const output = await tool.handle(tInput, context);
         return { type: 'success' as const, output };
       } catch (err: unknown) {
-        const e = err as {
+        const caughtError = err as {
           message?: string;
           code?: string;
           retryable?: boolean;
           retryAfterMs?: number;
           category?: string;
         };
-        if (typeof e.code !== 'string') {
+        if (typeof caughtError.code !== 'string') {
           return {
             type: 'error' as const,
             code: -32603,
-            message: e.message ?? 'Tool execution failed',
+            message: caughtError.message ?? 'Tool execution failed',
           };
         }
         const data: {
@@ -269,14 +269,14 @@ const executeToolOnTab = async (
           retryable?: boolean;
           retryAfterMs?: number;
           category?: string;
-        } = { code: e.code };
-        if (typeof e.retryable === 'boolean') data.retryable = e.retryable;
-        if (typeof e.retryAfterMs === 'number') data.retryAfterMs = e.retryAfterMs;
-        if (typeof e.category === 'string') data.category = e.category;
+        } = { code: caughtError.code };
+        if (typeof caughtError.retryable === 'boolean') data.retryable = caughtError.retryable;
+        if (typeof caughtError.retryAfterMs === 'number') data.retryAfterMs = caughtError.retryAfterMs;
+        if (typeof caughtError.category === 'string') data.category = caughtError.category;
         return {
           type: 'error' as const,
           code: -32603,
-          message: e.message ?? 'Tool execution failed',
+          message: caughtError.message ?? 'Tool execution failed',
           data,
         };
       }
