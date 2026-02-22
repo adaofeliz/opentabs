@@ -1021,3 +1021,84 @@ describe('WebSocket upgrade origin check', () => {
     expect(res).toBeUndefined();
   });
 });
+
+describe('/mcp session creation rate limiting', () => {
+  test('returns 429 after 5 new session attempts per minute', async () => {
+    const { handlers, state } = createTestHandlers();
+    state.wsSecret = null; // Disable auth for simpler test
+
+    // Send 5 POST requests without session ID — each passes rate limit and gets 400 (not initialize)
+    for (let i = 0; i < 5; i++) {
+      const req = new Request('http://localhost:9876/mcp', {
+        method: 'POST',
+        headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ not: 'an initialize request' }),
+      });
+      const res = (await handlers.fetch(req, mockBunServer)) as Response;
+      expect(res.status).toBe(400);
+    }
+
+    // 6th request should be rate-limited
+    const req = new Request('http://localhost:9876/mcp', {
+      method: 'POST',
+      headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ not: 'an initialize request' }),
+    });
+    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    expect(res.status).toBe(429);
+    expect(res.headers.get('Retry-After')).toBe('60');
+  });
+
+  test('unknown session IDs fall through to rate-limited new session path', async () => {
+    const { handlers, state } = createTestHandlers();
+    state.wsSecret = null;
+
+    // Exhaust the rate limit with new session attempts
+    for (let i = 0; i < 5; i++) {
+      const req = new Request('http://localhost:9876/mcp', {
+        method: 'POST',
+        headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ not: 'an initialize request' }),
+      });
+      await handlers.fetch(req, mockBunServer);
+    }
+
+    // A request with an unknown session ID falls through to the new session path
+    // and is subject to the same rate limit
+    const req = new Request('http://localhost:9876/mcp', {
+      method: 'POST',
+      headers: {
+        Host: 'localhost:9876',
+        'Content-Type': 'application/json',
+        'mcp-session-id': 'non-existent-session',
+      },
+      body: JSON.stringify({ method: 'tools/list' }),
+    });
+    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    expect(res.status).toBe(429);
+  });
+
+  test('does not rate-limit GET requests to /mcp', async () => {
+    const { handlers, state } = createTestHandlers();
+    state.wsSecret = null;
+
+    // Exhaust the rate limit with new session attempts
+    for (let i = 0; i < 5; i++) {
+      const req = new Request('http://localhost:9876/mcp', {
+        method: 'POST',
+        headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
+        body: JSON.stringify({ not: 'an initialize request' }),
+      });
+      await handlers.fetch(req, mockBunServer);
+    }
+
+    // GET requests should not be rate-limited
+    const req = new Request('http://localhost:9876/mcp', {
+      method: 'GET',
+      headers: { Host: 'localhost:9876' },
+    });
+    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    // GET without session ID returns 400, not 429
+    expect(res.status).toBe(400);
+  });
+});

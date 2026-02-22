@@ -428,7 +428,12 @@ const createHandleFetch =
           }
         }
 
-        // New session — check if it's an initialize request
+        // New session — rate-limit session creation to prevent resource exhaustion
+        if (!checkEndpointRateLimit('/mcp-session-create', 5)) {
+          return new Response('Too Many Requests', { status: 429, headers: { 'Retry-After': '60' } });
+        }
+
+        // Check if it's an initialize request
         const body: unknown = await req.json().catch(() => null);
         if (body && isInitializeRequest(body)) {
           let sessionServer: McpServerInstance | null = null;
