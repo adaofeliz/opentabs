@@ -206,6 +206,60 @@ describe('tools/call handler — browser tool path', () => {
   });
 });
 
+describe('tools/call handler — browser tool disabled via browserToolPolicy', () => {
+  test('disabled browser tool returns isError with "disabled via configuration" message', async () => {
+    const state = createState();
+    state.browserTools = [
+      {
+        name: 'browser_execute_script',
+        description: 'Execute script',
+        input: z.object({}),
+        handler: () => Promise.resolve({}),
+      },
+    ];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_execute_script: false };
+
+    const { server, getCallHandler } = createMockServer();
+    registerMcpHandlers(server, state);
+    const handler = getCallHandler();
+
+    const result = (await handler({ params: { name: 'browser_execute_script', arguments: {} } }, mockExtra)) as {
+      isError: boolean;
+      content: Array<{ text: string }>;
+    };
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]?.text).toBe('Tool browser_execute_script is disabled via configuration');
+  });
+
+  test('enabled browser tool dispatches normally', async () => {
+    const state = createState();
+    state.browserTools = [
+      {
+        name: 'browser_list_tabs',
+        description: 'List tabs',
+        input: z.object({}),
+        handler: () => Promise.resolve([{ id: 1, title: 'Test' }]),
+      },
+    ];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_list_tabs: true };
+
+    const { server, getCallHandler } = createMockServer();
+    registerMcpHandlers(server, state);
+    const handler = getCallHandler();
+
+    const result = (await handler({ params: { name: 'browser_list_tabs', arguments: {} } }, mockExtra)) as {
+      isError?: boolean;
+      content: Array<{ text: string }>;
+    };
+
+    expect(result.isError).toBeUndefined();
+    expect(result.content[0]?.text).toContain('Test');
+  });
+});
+
 describe('tools/call handler — plugin tool not found / disabled', () => {
   test('plugin tool not found returns isError', async () => {
     const state = createState();

@@ -240,6 +240,7 @@ interface HealthResponse {
   plugins: number;
   pluginDetails: { name: string; displayName: string; toolCount: number; tabState: string; source: string }[];
   toolCount: number;
+  disabledBrowserTools: string[];
   uptime: number;
   reloadCount: number;
   lastReloadTimestamp: number;
@@ -367,6 +368,33 @@ describe('/health endpoint', () => {
     const body = await fetchJson<HealthResponse>(handlers, 'http://localhost:9876/health');
 
     expect(body.toolCount).toBe(2);
+  });
+
+  test('disabledBrowserTools is empty when no tools are disabled', async () => {
+    const { handlers, state } = createTestHandlers();
+
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: {} as never },
+    ];
+
+    const body = await fetchJson<HealthResponse>(handlers, 'http://localhost:9876/health');
+
+    expect(body.disabledBrowserTools).toEqual([]);
+  });
+
+  test('disabledBrowserTools lists tools disabled via browserToolPolicy', async () => {
+    const { handlers, state } = createTestHandlers();
+
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: {} as never },
+      { name: 'browser_execute_script', description: 'Execute script', inputSchema: {}, tool: {} as never },
+      { name: 'browser_get_cookies', description: 'Get cookies', inputSchema: {}, tool: {} as never },
+    ];
+    state.browserToolPolicy = { browser_execute_script: false, browser_get_cookies: false };
+
+    const body = await fetchJson<HealthResponse>(handlers, 'http://localhost:9876/health');
+
+    expect(body.disabledBrowserTools).toEqual(['browser_execute_script', 'browser_get_cookies']);
   });
 });
 

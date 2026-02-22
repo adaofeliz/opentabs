@@ -1,4 +1,11 @@
-import { createState, getNextRequestId, isToolEnabled, prefixedToolName, STATE_SCHEMA_VERSION } from './state.js';
+import {
+  createState,
+  getNextRequestId,
+  isBrowserToolEnabled,
+  isToolEnabled,
+  prefixedToolName,
+  STATE_SCHEMA_VERSION,
+} from './state.js';
 import { describe, expect, test } from 'bun:test';
 
 describe('createState', () => {
@@ -11,6 +18,7 @@ describe('createState', () => {
     expect(state.tabMapping).toBeInstanceOf(Map);
     expect(state.tabMapping.size).toBe(0);
     expect(state.toolConfig).toEqual({});
+    expect(state.browserToolPolicy).toEqual({});
     expect(state.pluginPaths).toEqual([]);
     expect(state.pendingDispatches).toBeInstanceOf(Map);
     expect(state.pendingDispatches.size).toBe(0);
@@ -89,5 +97,30 @@ describe('isToolEnabled', () => {
     const state = createState();
     state.toolConfig = { slack_send_message: false };
     expect(isToolEnabled(state, 'slack_read_messages')).toBe(true);
+  });
+});
+
+describe('isBrowserToolEnabled', () => {
+  test('returns true by default when tool is not in policy', () => {
+    const state = createState();
+    expect(isBrowserToolEnabled(state, 'browser_execute_script')).toBe(true);
+  });
+
+  test('returns false when tool is explicitly disabled', () => {
+    const state = createState();
+    state.browserToolPolicy = { browser_execute_script: false };
+    expect(isBrowserToolEnabled(state, 'browser_execute_script')).toBe(false);
+  });
+
+  test('returns true when tool is explicitly enabled', () => {
+    const state = createState();
+    state.browserToolPolicy = { browser_execute_script: true };
+    expect(isBrowserToolEnabled(state, 'browser_execute_script')).toBe(true);
+  });
+
+  test('only checks the specific tool name', () => {
+    const state = createState();
+    state.browserToolPolicy = { browser_execute_script: false };
+    expect(isBrowserToolEnabled(state, 'browser_list_tabs')).toBe(true);
   });
 });

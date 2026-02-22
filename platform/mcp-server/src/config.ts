@@ -27,6 +27,8 @@ interface OpentabsConfig {
   localPlugins: string[];
   /** Tool enabled/disabled state: prefixed tool name → boolean. Absent = enabled (default). */
   tools: Record<string, boolean>;
+  /** Browser tool enabled/disabled state: browser tool name → boolean. Absent = enabled (default). */
+  browserToolPolicy: Record<string, boolean>;
   /** Shared secret for WebSocket authentication between MCP server and Chrome extension */
   secret?: string;
 }
@@ -137,6 +139,19 @@ const parseConfigRecord = (record: Record<string, unknown>): Omit<OpentabsConfig
     }
   }
 
+  const browserToolPolicy: Record<string, boolean> = {};
+  if (
+    record.browserToolPolicy &&
+    typeof record.browserToolPolicy === 'object' &&
+    !Array.isArray(record.browserToolPolicy)
+  ) {
+    for (const [key, value] of Object.entries(record.browserToolPolicy as Record<string, unknown>)) {
+      if (typeof value === 'boolean') {
+        browserToolPolicy[key] = value;
+      }
+    }
+  }
+
   // Migration: if the old `plugins` array exists, extract local paths into localPlugins
   // and drop npm package names (they will be auto-discovered from global node_modules).
   if (Array.isArray(record.plugins)) {
@@ -180,7 +195,7 @@ const parseConfigRecord = (record: Record<string, unknown>): Omit<OpentabsConfig
 
   const secret = typeof record.secret === 'string' ? record.secret : undefined;
 
-  return { localPlugins, tools, secret };
+  return { localPlugins, tools, browserToolPolicy, secret };
 };
 
 /**
@@ -201,7 +216,7 @@ const loadConfig = async (): Promise<OpentabsConfig> => {
   const configFile = Bun.file(configPath);
   if (!(await configFile.exists())) {
     // First run — create default config with a fresh shared secret
-    const config: OpentabsConfig = { localPlugins: [], tools: {}, secret: generateSecret() };
+    const config: OpentabsConfig = { localPlugins: [], tools: {}, browserToolPolicy: {}, secret: generateSecret() };
     await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
     log.info(`Created default config at ${configPath}`);
     return config;
@@ -226,7 +241,7 @@ const loadConfig = async (): Promise<OpentabsConfig> => {
     log.info(`Generated WebSocket authentication secret in ${configPath}`);
   }
 
-  return { ...config, secret };
+  return { ...config, secret } as OpentabsConfig;
 };
 
 /**
@@ -284,6 +299,7 @@ const saveToolConfig = async (
     const updated: OpentabsConfig = {
       localPlugins: current.localPlugins,
       tools,
+      browserToolPolicy: current.browserToolPolicy,
       secret: current.secret,
     };
     await atomicWriteConfig(configPath, JSON.stringify(updated, null, 2) + '\n');

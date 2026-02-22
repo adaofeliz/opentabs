@@ -493,6 +493,80 @@ describe('getEnabledToolsList — disabled tool filtering', () => {
   });
 });
 
+describe('getEnabledToolsList — browserToolPolicy filtering', () => {
+  test('disabled browser tool is excluded from tools list', () => {
+    const state = createState();
+    state.browserTools = [
+      createBrowserTool('browser_list_tabs', 'List tabs'),
+      createBrowserTool('browser_execute_script', 'Execute script'),
+    ];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_execute_script: false };
+
+    const tools = getEnabledToolsList(state);
+    const names = tools.map(t => t.name);
+
+    expect(names).toContain('browser_list_tabs');
+    expect(names).not.toContain('browser_execute_script');
+    expect(tools).toHaveLength(1);
+  });
+
+  test('all browser tools disabled — none appear in list', () => {
+    const state = createState();
+    state.browserTools = [
+      createBrowserTool('browser_list_tabs', 'List tabs'),
+      createBrowserTool('browser_open_tab', 'Open tab'),
+    ];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_list_tabs: false, browser_open_tab: false };
+
+    const tools = getEnabledToolsList(state);
+    expect(tools).toHaveLength(0);
+  });
+
+  test('empty browserToolPolicy means all browser tools enabled (default)', () => {
+    const state = createState();
+    state.browserTools = [createBrowserTool('browser_list_tabs', 'List tabs')];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = {};
+
+    const tools = getEnabledToolsList(state);
+    const names = tools.map(t => t.name);
+
+    expect(names).toContain('browser_list_tabs');
+    expect(tools).toHaveLength(1);
+  });
+
+  test('re-enabling a disabled browser tool makes it reappear', () => {
+    const state = createState();
+    state.browserTools = [createBrowserTool('browser_list_tabs', 'List tabs')];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_list_tabs: false };
+
+    expect(getEnabledToolsList(state)).toHaveLength(0);
+
+    state.browserToolPolicy = { browser_list_tabs: true };
+    const tools = getEnabledToolsList(state);
+    expect(tools).toHaveLength(1);
+    expect(tools[0]?.name).toBe('browser_list_tabs');
+  });
+
+  test('browserToolPolicy does not affect plugin tools', () => {
+    const state = createState();
+    state.registry = buildRegistry([createPlugin('slack', ['send_message'])], []);
+    state.browserTools = [createBrowserTool('browser_list_tabs', 'List tabs')];
+    rebuildCachedBrowserTools(state);
+    state.browserToolPolicy = { browser_list_tabs: false };
+
+    const tools = getEnabledToolsList(state);
+    const names = tools.map(t => t.name);
+
+    expect(names).toContain('slack_send_message');
+    expect(names).not.toContain('browser_list_tabs');
+    expect(tools).toHaveLength(1);
+  });
+});
+
 describe('getEnabledToolsList — tool entry shape', () => {
   test('plugin tools have correct name, description with trust tier prefix, and inputSchema', () => {
     const state = createState();

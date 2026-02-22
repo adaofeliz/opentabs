@@ -197,6 +197,8 @@ export interface ServerState {
   tabMapping: Map<string, TabMapping>;
   /** Tool enabled/disabled config (in-memory, synced from ~/.opentabs/config.json) */
   toolConfig: ToolConfig;
+  /** Browser tool enabled/disabled policy (in-memory, synced from ~/.opentabs/config.json) */
+  browserToolPolicy: Record<string, boolean>;
   /** Local plugin paths from config */
   pluginPaths: string[];
   /** Pending tool dispatches keyed by JSON-RPC id */
@@ -264,6 +266,7 @@ export const createState = (): ServerState => ({
   registry: EMPTY_REGISTRY,
   tabMapping: new Map(),
   toolConfig: {},
+  browserToolPolicy: {},
   pluginPaths: [],
   pendingDispatches: new Map(),
   extensionWs: null,
@@ -305,3 +308,8 @@ export const prefixedPromptName = (plugin: string, promptName: string): string =
  *  explicitly disabled tools (set to false) are hidden from MCP clients. */
 export const isToolEnabled = (state: ServerState, prefixedName: string): boolean =>
   state.toolConfig[prefixedName] !== false;
+
+/** Check if a browser tool is enabled via browserToolPolicy. Browser tools are
+ *  enabled by default — only explicitly disabled tools (set to false) are hidden. */
+export const isBrowserToolEnabled = (state: ServerState, toolName: string): boolean =>
+  state.browserToolPolicy[toolName] !== false;

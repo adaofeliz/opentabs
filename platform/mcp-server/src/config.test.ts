@@ -61,6 +61,7 @@ describe('loadConfig / saveConfig round-trip', () => {
     const custom: OpentabsConfig = {
       localPlugins: ['/path/to/plugin-a', '/path/to/plugin-b'],
       tools: { slack_send_message: false, slack_read_messages: true },
+      browserToolPolicy: {},
       secret: 'test-secret-123',
     };
     await saveConfigWrapped(custom);
@@ -194,6 +195,7 @@ describe('tool config round-trip with isToolEnabled', () => {
     const config: OpentabsConfig = {
       localPlugins: [],
       tools: { slack_send: false, slack_read: true },
+      browserToolPolicy: {},
       secret: 'test-secret-roundtrip',
     };
     await saveConfigWrapped(config);
@@ -214,6 +216,7 @@ describe('tool config round-trip with isToolEnabled', () => {
     const config: OpentabsConfig = {
       localPlugins: [],
       tools: { slack_send: false },
+      browserToolPolicy: {},
       secret: 'test-secret-absent',
     };
     await saveConfigWrapped(config);

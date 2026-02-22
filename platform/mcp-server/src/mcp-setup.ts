@@ -25,7 +25,7 @@ import { dispatchToExtension, isDispatchError, sendInvocationStart, sendInvocati
 import { log } from './logger.js';
 import { getResource, getPrompt, listAllResources, listAllPrompts, trustTierPrefix } from './registry.js';
 import { sanitizeErrorMessage } from './sanitize-error.js';
-import { prefixedToolName, isToolEnabled, appendAuditEntry } from './state.js';
+import { prefixedToolName, isToolEnabled, isBrowserToolEnabled, appendAuditEntry } from './state.js';
 import { version } from './version.js';
 import {
   ListToolsRequestSchema,
@@ -316,6 +316,12 @@ const registerMcpHandlers = (server: McpServerInstance, state: ServerState): voi
     // Browser tools are few and fixed.
     const cachedBt = state.cachedBrowserTools.find(c => c.name === toolName);
     if (cachedBt) {
+      if (!isBrowserToolEnabled(state, toolName)) {
+        return {
+          content: [{ type: 'text' as const, text: `Tool ${toolName} is disabled via configuration` }],
+          isError: true,
+        };
+      }
       // Validate args through the tool's Zod input schema
       const parseResult = cachedBt.tool.input.safeParse(args);
       if (!parseResult.success) {
@@ -605,7 +611,7 @@ const notifyPromptListChanged = (server: McpServerInstance): void => {
 /**
  * Returns the list of enabled tools for MCP tools/list responses.
  * Plugin tools are filtered by the toolConfig (disabled tools are excluded).
- * Browser tools are always included (no per-tool config gating).
+ * Browser tools are filtered by the browserToolPolicy (disabled tools are excluded).
  */
 export const getEnabledToolsList = (
   state: ServerState,
@@ -625,6 +631,7 @@ export const getEnabledToolsList = (
   }
 
   for (const cached of state.cachedBrowserTools) {
+    if (!isBrowserToolEnabled(state, cached.name)) continue;
     tools.push({
       name: cached.name,
       description: cached.description,

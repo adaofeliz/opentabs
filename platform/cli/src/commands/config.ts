@@ -71,6 +71,17 @@ const handleConfigShow = async (options: ConfigShowOptions): Promise<void> => {
             console.log(`    ${toolName}: ${indicator}`);
           }
         }
+      } else if (key === 'browserToolPolicy' && typeof value === 'object' && value !== null) {
+        const entries = Object.entries(value as Record<string, unknown>);
+        console.log(`  ${pc.cyan('browserToolPolicy')}`);
+        if (entries.length === 0) {
+          console.log(`    ${pc.dim('(none)')}`);
+        } else {
+          for (const [toolName, enabled] of entries) {
+            const indicator = enabled ? pc.green('enabled') : pc.red('disabled');
+            console.log(`    ${toolName}: ${indicator}`);
+          }
+        }
       } else {
         const display =
           typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean'
@@ -83,12 +94,14 @@ const handleConfigShow = async (options: ConfigShowOptions): Promise<void> => {
 };
 
 const TOOL_PREFIX = 'tool.';
+const BROWSER_TOOL_PREFIX = 'browser-tool.';
 const LOCAL_PLUGINS_ADD = 'localPlugins.add';
 const LOCAL_PLUGINS_REMOVE = 'localPlugins.remove';
 const PORT_KEY = 'port';
 
 const SUPPORTED_KEYS = `Supported keys:
-  tool.<plugin>_<tool>    Enable/disable a tool (value: enabled | disabled)
+  tool.<plugin>_<tool>    Enable/disable a plugin tool (value: enabled | disabled)
+  browser-tool.<name>     Enable/disable a browser tool (value: enabled | disabled)
   port                    Set the server port (value: 1-65535)
   localPlugins.add        Add a local plugin path (value: absolute or relative path)
   localPlugins.remove     Remove a local plugin path (value: path to remove)`;
@@ -114,13 +127,18 @@ interface HealthPluginDetail {
   tools: string[];
 }
 
+interface HealthResponse {
+  pluginDetails?: HealthPluginDetail[];
+  disabledBrowserTools?: string[];
+}
+
 const fetchToolNames = async (port: number): Promise<string[] | null> => {
   try {
     const res = await fetch(`http://localhost:${port}/health`, {
       signal: AbortSignal.timeout(3_000),
     });
     if (!res.ok) return null;
-    const data = (await res.json()) as { pluginDetails?: HealthPluginDetail[] };
+    const data = (await res.json()) as HealthResponse;
     if (!Array.isArray(data.pluginDetails)) return null;
     return data.pluginDetails.flatMap(p => p.tools);
   } catch {
@@ -176,6 +194,39 @@ const handleSetTool = async (key: string, value: string): Promise<void> => {
   const tools = config.tools as Record<string, boolean>;
   const enabled = value === 'enabled';
   tools[toolName] = enabled;
+
+  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
+
+  const indicator = enabled ? pc.green('enabled') : pc.red('disabled');
+  console.log(`${toolName}: ${indicator}`);
+};
+
+const handleSetBrowserTool = async (key: string, value: string): Promise<void> => {
+  const toolName = key.slice(BROWSER_TOOL_PREFIX.length);
+  if (!toolName || (!toolName.startsWith('browser_') && !toolName.startsWith('extension_'))) {
+    console.error(pc.red(`Invalid browser tool name: ${toolName || '(empty)'}`));
+    console.error('Browser tool names start with "browser_" or "extension_", e.g. browser_execute_script');
+    process.exit(1);
+  }
+
+  if (value !== 'enabled' && value !== 'disabled') {
+    console.error(pc.red(`Invalid value: ${value}`));
+    console.error('Value must be "enabled" or "disabled".');
+    process.exit(1);
+  }
+
+  const { config, configPath } = await loadConfig();
+
+  if (
+    !config.browserToolPolicy ||
+    typeof config.browserToolPolicy !== 'object' ||
+    Array.isArray(config.browserToolPolicy)
+  ) {
+    config.browserToolPolicy = {};
+  }
+  const policy = config.browserToolPolicy as Record<string, boolean>;
+  const enabled = value === 'enabled';
+  policy[toolName] = enabled;
 
   await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
 
@@ -252,6 +303,9 @@ const handleConfigSet = async (key: string, value?: string): Promise<void> => {
   if (key.startsWith(TOOL_PREFIX)) {
     return handleSetTool(key, value);
   }
+  if (key.startsWith(BROWSER_TOOL_PREFIX)) {
+    return handleSetBrowserTool(key, value);
+  }
   if (key === PORT_KEY) {
     return handleSetPort(value);
   }
@@ -311,6 +365,8 @@ Examples:
   $ opentabs config set tool.                              List available tools
   $ opentabs config set tool.slack_send_message disabled
   $ opentabs config set tool.slack_send_message enabled
+  $ opentabs config set browser-tool.browser_execute_script disabled
+  $ opentabs config set browser-tool.browser_execute_script enabled
   $ opentabs config set port 9515
   $ opentabs config set localPlugins.add /path/to/plugin
   $ opentabs config set localPlugins.remove /path/to/plugin`,

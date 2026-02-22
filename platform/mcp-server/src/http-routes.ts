@@ -291,6 +291,10 @@ const createHandleFetch =
 
       const auditSummary = computeAuditSummary(state.auditLog);
 
+      const disabledBrowserTools = state.cachedBrowserTools
+        .filter(c => state.browserToolPolicy[c.name] === false)
+        .map(c => c.name);
+
       return Response.json({
         status: 'ok',
         version,
@@ -303,6 +307,7 @@ const createHandleFetch =
         failedPlugins: [...state.registry.failures],
         discoveryErrors: [...state.discoveryErrors],
         toolCount,
+        disabledBrowserTools,
         uptime: uptimeSeconds,
         reloadCount: hs?.reloadCount ?? 0,
         lastReloadTimestamp: hs?.lastReloadTimestamp ?? 0,

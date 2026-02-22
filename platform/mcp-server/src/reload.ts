@@ -174,6 +174,7 @@ const reloadCore = async ({ state, sessionServers, transports }: ReloadCoreArgs)
 
     state.registry = registry;
     state.toolConfig = { ...config.tools };
+    state.browserToolPolicy = { ...config.browserToolPolicy };
     state.pluginPaths = [...config.localPlugins];
     state.wsSecret = config.secret ?? null;
     state.discoveryErrors = errors;
