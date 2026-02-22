@@ -450,6 +450,8 @@ bun run test          # Unit tests
 - Do not rationalize failures ("that's a known issue", "the build is the real type-check", "this was broken before I started"). If it fails, it is your problem. Fix it or explain to the user why you cannot.
 - Do not skip a check because a different check covers "the same thing". Each command tests something distinct. Run all of them.
 
+**NEVER run `bun run test:e2e` or `bunx playwright test` in automated/delegated contexts.** E2E tests spawn Chromium browsers, MCP server processes, and test servers that become orphaned when the parent process is killed or times out. Only run E2E tests when the user explicitly asks. The verification checklist above intentionally excludes E2E tests.
+
 ### ESLint
 
 - **NEVER use `eslint-disable` comments** in source code. Always fix the underlying issue.

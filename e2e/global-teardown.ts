@@ -18,8 +18,8 @@ export default function globalTeardown(): void {
     const pids = execSync('pgrep -f "opentabs-e2e-"', { encoding: 'utf-8' }).trim().split('\n').filter(Boolean);
 
     if (pids.length > 0) {
-      // SIGTERM first for graceful shutdown (test servers now handle it)
-      execSync(`kill ${pids.join(' ')}`, { encoding: 'utf-8' });
+      // SIGKILL — orphaned bun --hot servers and Chromium ignore SIGTERM when their parent is gone
+      execSync(`kill -9 ${pids.join(' ')}`, { encoding: 'utf-8' });
     }
   } catch {
     // pgrep returns exit code 1 when no processes match — expected when
