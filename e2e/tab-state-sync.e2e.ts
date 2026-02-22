@@ -280,7 +280,7 @@ test.describe('Tab state sync — server restart reconnect', () => {
     const server1 = await startMcpServer(configDir, true);
     const serverPort = server1.port;
     const testServer = await startTestServer();
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server1.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server1.port, server1.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {

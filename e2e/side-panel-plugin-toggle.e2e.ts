@@ -55,7 +55,7 @@ test.describe('Side panel — plugin list rendering', () => {
 
     const server = await startMcpServer(configDir, true);
     const testServer = await startTestServer();
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -131,7 +131,7 @@ test.describe('Side panel — tool toggle', () => {
 
     const server = await startMcpServer(configDir, true);
     const mcpClient = createMcpClient(server.port, server.secret);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -252,7 +252,7 @@ test.describe('Side panel — disabled tool dispatch rejection', () => {
     const server = await startMcpServer(configDir, true);
     const testServer = await startTestServer();
     const mcpClient = createMcpClient(server.port, server.secret);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -357,7 +357,7 @@ test.describe('Side panel — toggle all tools', () => {
 
     const server = await startMcpServer(configDir, true);
     const mcpClient = createMcpClient(server.port, server.secret);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {

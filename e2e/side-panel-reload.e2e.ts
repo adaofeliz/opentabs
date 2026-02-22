@@ -62,7 +62,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -105,7 +105,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
     writeTestConfig(configDir, { localPlugins: [], tools: {} });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -153,7 +153,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {

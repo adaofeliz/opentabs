@@ -44,7 +44,7 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
     writeTestConfig(configDir, { localPlugins: [], tools: {} });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -97,7 +97,7 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {

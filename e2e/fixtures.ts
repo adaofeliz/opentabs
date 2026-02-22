@@ -218,9 +218,12 @@ const readTestConfig = (configDir: string): OpentabsConfig => {
 
 /**
  * Write a new config.json to an isolated test config directory.
+ * Auto-generates a secret if one isn't provided, ensuring the MCP server
+ * and extension can authenticate via auth.json in every test.
  */
 const writeTestConfig = (configDir: string, config: OpentabsConfig): void => {
-  fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(config, null, 2) + '\n', 'utf-8');
+  const withSecret: OpentabsConfig = config.secret ? config : { ...config, secret: crypto.randomUUID() };
+  fs.writeFileSync(path.join(configDir, 'config.json'), JSON.stringify(withSecret, null, 2) + '\n', 'utf-8');
 };
 
 /** Minimal plugin manifest tool definition */
@@ -679,6 +682,7 @@ const startAnalyzeSiteServer = (): Promise<TestServer> =>
  */
 const createExtensionCopy = (
   mcpPort: number,
+  secret?: string,
 ): {
   extensionDir: string;
   userDataDir: string;
@@ -720,6 +724,14 @@ const createExtensionCopy = (
     // Create adapters/ directory for plugin adapter IIFEs
     fs.mkdirSync(path.join(extensionDir, 'adapters'), { recursive: true });
 
+    // Write auth.json so the offscreen document can bootstrap the shared
+    // secret and port. The MCP server writes this to ~/.opentabs/extension/,
+    // but E2E tests use an isolated extension copy, so auth.json must be
+    // placed directly in the test's extension directory.
+    if (secret) {
+      fs.writeFileSync(path.join(extensionDir, 'auth.json'), JSON.stringify({ secret, port: mcpPort }) + '\n', 'utf-8');
+    }
+
     fs.mkdirSync(userDataDir, { recursive: true });
   } catch (error) {
     fs.rmSync(tmpBase, { recursive: true, force: true });
@@ -736,8 +748,9 @@ const SHOW_BROWSER = process.env['HEADED'] === '1';
 
 const launchExtensionContext = async (
   mcpPort: number,
+  secret?: string,
 ): Promise<{ context: BrowserContext; cleanupDir: string; extensionDir: string; mcpPort: number }> => {
-  const { extensionDir, userDataDir } = createExtensionCopy(mcpPort);
+  const { extensionDir, userDataDir } = createExtensionCopy(mcpPort, secret);
 
   const context = await chromium.launchPersistentContext(userDataDir, {
     headless: false,
@@ -1250,7 +1263,7 @@ const test = base.extend<TestFixtures>({
   extensionContext: async ({ mcpServer }, use) => {
     // The extension must be patched with the ACTUAL port the MCP server
     // bound to (parsed from its startup log, not pre-allocated).
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(mcpServer.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(mcpServer.port, mcpServer.secret);
 
     // Symlink the MCP server's adapters dir to the extension copy's adapters dir.
     // The MCP server writes adapter IIFEs to <configDir>/extension/adapters/,

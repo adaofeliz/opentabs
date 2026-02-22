@@ -37,7 +37,7 @@ test.describe('Onboarding states', () => {
     writeTestConfig(configDir, { localPlugins: [], tools: {} });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -83,7 +83,7 @@ test.describe('Onboarding states', () => {
     writeTestConfig(configDir, { localPlugins: [], tools: {} });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -123,7 +123,7 @@ test.describe('Onboarding states', () => {
     writeTestConfig(configDir, { localPlugins: [], tools: {} });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -161,7 +161,7 @@ test.describe('Onboarding states', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
 
     const server = await startMcpServer(configDir, true);
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {

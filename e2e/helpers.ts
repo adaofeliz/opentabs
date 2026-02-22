@@ -436,7 +436,7 @@ export const setupIsolatedIifeTest = async (configDirPrefix: string): Promise<Is
     server = await startMcpServer(configDir, true);
     testSrv = await startTestServer();
 
-    const ext = await launchExtensionContext(server.port);
+    const ext = await launchExtensionContext(server.port, server.secret);
     context = ext.context;
     cleanupDir = ext.cleanupDir;
     setupAdapterSymlink(configDir, ext.extensionDir);

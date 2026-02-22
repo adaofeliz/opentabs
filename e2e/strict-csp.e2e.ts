@@ -485,7 +485,7 @@ test.describe('Strict CSP — file watcher IIFE re-injection', () => {
     const server = await startMcpServer(configDir, true);
     const strictCspSrv = await startStrictCspServer();
 
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     const serverAdaptersParent = path.join(configDir, 'extension');
     fs.mkdirSync(serverAdaptersParent, { recursive: true });
     const serverAdaptersDir = path.join(serverAdaptersParent, 'adapters');

@@ -623,7 +623,11 @@ test.describe('extension_reload', () => {
 
     // Launch a fresh extension context pointed at the same MCP server.
     // This simulates what happens in a real browser when the extension restarts.
-    const { context: newContext, cleanupDir, extensionDir } = await launchExtensionContext(mcpServer.port);
+    const {
+      context: newContext,
+      cleanupDir,
+      extensionDir,
+    } = await launchExtensionContext(mcpServer.port, mcpServer.secret);
 
     // Symlink the adapters directory for the new extension copy
     const serverAdaptersParent = path.join(mcpServer.configDir, 'extension');

@@ -11,7 +11,7 @@ export default defineConfig({
   },
   fullyParallel: true, // Each test gets its own dynamic ports — safe to parallelize
   retries: 1, // 1 retry for resilience under parallel load (Chrome/extension startup can be flaky)
-  workers: process.env.CI ? 2 : 8,
+  workers: process.env.CI ? 2 : 4,
   reporter: [['list'], ['html', { open: 'never' }]],
   use: {
     browserName: 'chromium',

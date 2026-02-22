@@ -42,7 +42,7 @@ test.describe('Side panel data flow — connection status', () => {
 
     const server = await startMcpServer(configDir, true);
     const serverPort = server.port;
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -106,7 +106,7 @@ test.describe('Side panel data flow — tab state changes', () => {
 
     const server = await startMcpServer(configDir, true);
     const testServer = await startTestServer();
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -206,7 +206,7 @@ test.describe('Side panel data flow — tab state changes', () => {
 
     const server = await startMcpServer(configDir, true);
     const testServer = await startTestServer();
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     try {
@@ -334,7 +334,7 @@ test.describe('Side panel data flow — tool invocation animation', () => {
 
     const server = await startMcpServer(configDir, true);
     const testServer = await startTestServer();
-    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port);
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
     const mcpClient = createMcpClient(server.port, server.secret);
