@@ -9,6 +9,7 @@ import { ConfirmationDialog } from './components/ConfirmationDialog.js';
 import { DisconnectedState, LoadingState } from './components/EmptyStates.js';
 import { Footer } from './components/Footer.js';
 import { OnboardingState } from './components/OnboardingState.js';
+import { OutdatedPluginsBadge } from './components/OutdatedPluginsBadge.js';
 import { PluginList } from './components/PluginList.js';
 import { Input } from './components/retro/Input.js';
 import { ReturningUserEmptyState } from './components/ReturningUserEmptyState.js';
@@ -18,6 +19,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { FailedPluginState, PluginState } from './bridge.js';
 import type { InternalMessage } from '../types.js';
 import type { ConfirmationData } from './components/ConfirmationDialog.js';
+import type { OutdatedPlugin } from './components/OutdatedPluginsBadge.js';
 import type { TabState } from '@opentabs-dev/shared';
 
 const STORAGE_KEY_HAS_EVER_HAD_PLUGINS = 'hasEverHadPlugins';
@@ -32,6 +34,7 @@ const App = () => {
   const [activeTools, setActiveTools] = useState<Set<string>>(new Set());
   const [toolFilter, setToolFilter] = useState('');
   const [hasEverHadPlugins, setHasEverHadPlugins] = useState<boolean | null>(null);
+  const [outdatedPlugins, setOutdatedPlugins] = useState<OutdatedPlugin[]>([]);
   const [pendingConfirmations, setPendingConfirmations] = useState<ConfirmationData[]>([]);
 
   const lastFetchRef = useRef(0);
@@ -65,6 +68,7 @@ const App = () => {
         }
         setPlugins(updatedPlugins);
         setFailedPlugins(result.failedPlugins);
+        setOutdatedPlugins(result.outdatedPlugins);
         if (updatedPlugins.length > 0 && hasEverHadPluginsRef.current !== true) {
           setHasEverHadPlugins(true);
           void chrome.storage.local.set({ [STORAGE_KEY_HAS_EVER_HAD_PLUGINS]: true });
@@ -191,6 +195,7 @@ const App = () => {
         } else {
           setPlugins([]);
           setFailedPlugins([]);
+          setOutdatedPlugins([]);
           setActiveTools(new Set());
           setPendingConfirmations([]);
           rejectAllPending();
@@ -265,25 +270,29 @@ const App = () => {
           onDenyAll={handleDenyAll}
         />
       )}
-      {connected && !loading && totalTools > 5 && (
-        <div className="px-3 py-2">
-          <div className="relative">
-            <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
-            <Input
-              value={toolFilter}
-              onChange={e => setToolFilter(e.target.value)}
-              placeholder="Filter tools..."
-              className="pr-8 pl-9"
-            />
-            {toolFilter && (
-              <button
-                type="button"
-                onClick={() => setToolFilter('')}
-                className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer">
-                <X className="h-4 w-4" />
-              </button>
-            )}
-          </div>
+      {connected && !loading && (totalTools > 5 || outdatedPlugins.length > 0) && (
+        <div className="flex items-center gap-2 px-3 py-2">
+          {totalTools > 5 && (
+            <div className="relative min-w-0 flex-1">
+              <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
+              <Input
+                value={toolFilter}
+                onChange={e => setToolFilter(e.target.value)}
+                placeholder="Filter tools..."
+                className="pr-8 pl-9"
+              />
+              {toolFilter && (
+                <button
+                  type="button"
+                  onClick={() => setToolFilter('')}
+                  className="text-muted-foreground hover:text-foreground absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer">
+                  <X className="h-4 w-4" />
+                </button>
+              )}
+            </div>
+          )}
+          {totalTools <= 5 && <div className="flex-1" />}
+          <OutdatedPluginsBadge outdatedPlugins={outdatedPlugins} />
         </div>
       )}
       <main className={`flex-1 px-3 py-2 ${showPlugins ? '' : 'flex items-center justify-center'}`}>
