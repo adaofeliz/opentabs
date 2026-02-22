@@ -71,8 +71,6 @@ const isValidWsOrigin = (wsUrl: string, httpBase: string): boolean => {
 let mcpServerUrl = DEFAULT_MCP_SERVER_URL;
 /** WebSocket auth token — sent via Sec-WebSocket-Protocol header, not URL query */
 let wsSecret: string | null = null;
-/** Connection token received from the server's sync.full — required to replace a live connection */
-let connectionToken: string | null = null;
 let ws: WebSocket | null = null;
 let backoffMs = INITIAL_BACKOFF_MS;
 let pingIntervalId: ReturnType<typeof setInterval> | null = null;
@@ -235,11 +233,8 @@ const connect = async (): Promise<void> => {
     await refreshWsUrl();
     // Send auth token via Sec-WebSocket-Protocol header (not URL query)
     // to keep it out of server logs, browser history, and proxy logs.
-    // Include the connection token (if available from a previous sync.full)
-    // so the server allows this reconnect to replace the existing connection.
     const protocols: string[] = ['opentabs'];
     if (wsSecret) protocols.push(wsSecret);
-    if (connectionToken) protocols.push(connectionToken);
     ws = protocols.length > 1 ? new WebSocket(mcpServerUrl, protocols) : new WebSocket(mcpServerUrl);
   } catch {
     scheduleReconnect();
@@ -270,15 +265,6 @@ const connect = async (): Promise<void> => {
       if (msg.method === 'pong') {
         onPongReceived();
         return;
-      }
-
-      // Store the connection token from sync.full — needed on reconnect to
-      // prove we are the legitimate extension (prevents single-slot takeover).
-      if (msg.method === 'sync.full') {
-        const syncParams = msg.params as Record<string, unknown> | undefined;
-        if (syncParams && typeof syncParams.connectionToken === 'string') {
-          connectionToken = syncParams.connectionToken;
-        }
       }
 
       const method = msg.method as string | undefined;

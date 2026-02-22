@@ -26,7 +26,6 @@ import {
   expect,
   startMcpServer,
   fetchWsInfo,
-  fetchConnectionToken,
   readTestConfig,
   writeTestConfig,
   launchExtensionContext,
@@ -242,13 +241,10 @@ test.describe('WebSocket connection management', () => {
     await waitForLog(mcpServer, 'tab.syncAll received');
     mcpServer.logs.length = 0;
 
-    // 2. Open a second WebSocket with both wsSecret and connectionToken
-    //    — this should replace the extension's slot.
+    // 2. Open a second WebSocket with wsSecret — this should replace the extension's slot.
     const { wsUrl, wsSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const connToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const protocols = ['opentabs'];
     if (wsSecret) protocols.push(wsSecret);
-    if (connToken) protocols.push(connToken);
     const ws = protocols.length > 1 ? new WebSocket(wsUrl, protocols) : new WebSocket(wsUrl);
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve();
@@ -283,10 +279,8 @@ test.describe('WebSocket connection management', () => {
     await waitForExtensionConnected(mcpServer);
 
     const { wsUrl: pingWsUrl, wsSecret: pingWsSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const pingConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const pingProtocols = ['opentabs'];
     if (pingWsSecret) pingProtocols.push(pingWsSecret);
-    if (pingConnToken) pingProtocols.push(pingConnToken);
     const ws = pingProtocols.length > 1 ? new WebSocket(pingWsUrl, pingProtocols) : new WebSocket(pingWsUrl);
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve();
@@ -335,10 +329,8 @@ test.describe('Pong watchdog (zombie detection)', () => {
     mcpServer.logs.length = 0;
 
     const { wsUrl: zombieWsUrl, wsSecret: zombieWsSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const zombieConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const zombieProtocols = ['opentabs'];
     if (zombieWsSecret) zombieProtocols.push(zombieWsSecret);
-    if (zombieConnToken) zombieProtocols.push(zombieConnToken);
     const ws = zombieProtocols.length > 1 ? new WebSocket(zombieWsUrl, zombieProtocols) : new WebSocket(zombieWsUrl);
     await new Promise<void>((resolve, reject) => {
       ws.onopen = () => resolve();
@@ -491,10 +483,8 @@ test.describe('Secret rotation during hot reload', () => {
     // new secret's token, so the extension has to reconnect.
     mcpServer.logs.length = 0;
     const { wsUrl: newWsUrl, wsSecret: newSecret } = await fetchWsInfo(mcpServer.port, config.secret);
-    const rotateConnToken = await fetchConnectionToken(mcpServer.port, config.secret);
     const rotateProtocols = ['opentabs'];
     if (newSecret) rotateProtocols.push(newSecret);
-    if (rotateConnToken) rotateProtocols.push(rotateConnToken);
     const fakeWs = rotateProtocols.length > 1 ? new WebSocket(newWsUrl, rotateProtocols) : new WebSocket(newWsUrl);
     await new Promise<void>((resolve, reject) => {
       fakeWs.onopen = () => resolve();

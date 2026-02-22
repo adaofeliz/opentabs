@@ -13,7 +13,7 @@
  * All tests use dynamic ports and are safe for parallel execution.
  */
 
-import { test, expect, fetchWsInfo, fetchConnectionToken, createMcpClient } from './fixtures.js';
+import { test, expect, fetchWsInfo, createMcpClient } from './fixtures.js';
 import {
   waitForLog,
   waitForExtensionConnected,
@@ -289,13 +289,10 @@ test.describe('Tool call during reconnect window', () => {
     await waitForLog(mcpServer, 'tab.syncAll received');
 
     // Replace the extension's WebSocket slot with a fake client to disconnect the real extension.
-    // Requires the connectionToken (from /health) to replace a live connection.
     mcpServer.logs.length = 0;
     const { wsUrl, wsSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const stealConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const stealProtocols = ['opentabs'];
     if (wsSecret) stealProtocols.push(wsSecret);
-    if (stealConnToken) stealProtocols.push(stealConnToken);
     const fakeWs = stealProtocols.length > 1 ? new WebSocket(wsUrl, stealProtocols) : new WebSocket(wsUrl);
     await new Promise<void>((resolve, reject) => {
       fakeWs.onopen = () => resolve();
@@ -336,13 +333,11 @@ test.describe('Tool call during reconnect window', () => {
     await waitForExtensionConnected(mcpServer);
     await waitForLog(mcpServer, 'tab.syncAll received');
 
-    // Disconnect the extension by replacing the WS slot (requires connectionToken)
+    // Disconnect the extension by replacing the WS slot
     mcpServer.logs.length = 0;
     const { wsUrl: fakeUrl, wsSecret: fakeSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const fakeConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const fakeProtocols = ['opentabs'];
     if (fakeSecret) fakeProtocols.push(fakeSecret);
-    if (fakeConnToken) fakeProtocols.push(fakeConnToken);
     const fakeWs = fakeProtocols.length > 1 ? new WebSocket(fakeUrl, fakeProtocols) : new WebSocket(fakeUrl);
     await new Promise<void>((resolve, reject) => {
       fakeWs.onopen = () => resolve();
@@ -522,15 +517,13 @@ test.describe('Server-side dispatch timeout', () => {
     // Wait briefly for the dispatch to be sent over the WS before replacing it
     await new Promise(r => setTimeout(r, 500));
 
-    // Replace the extension's WebSocket with a fake client (requires connectionToken).
+    // Replace the extension's WebSocket with a fake client.
     // The server closes the old WS (triggering a close event), but since
     // state.extensionWs is now the fake WS, the close handler doesn't reject
     // pending dispatches. The extension's response has nowhere to go.
     mcpServer.logs.length = 0;
-    const timeoutConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const timeoutProtocols = ['opentabs'];
     if (timeoutWsSecret) timeoutProtocols.push(timeoutWsSecret);
-    if (timeoutConnToken) timeoutProtocols.push(timeoutConnToken);
     const fakeWs = timeoutProtocols.length > 1 ? new WebSocket(wsUrl, timeoutProtocols) : new WebSocket(wsUrl);
     await new Promise<void>((resolve, reject) => {
       fakeWs.onopen = () => resolve();
@@ -723,10 +716,8 @@ test.describe('Malformed WebSocket messages', () => {
     // send all malformed messages and verify the ping/pong quickly before the
     // extension's reconnect timer fires.
     const { wsUrl: rawWsUrl, wsSecret: rawWsSecret } = await fetchWsInfo(mcpServer.port, mcpServer.secret);
-    const rawConnToken = await fetchConnectionToken(mcpServer.port, mcpServer.secret);
     const rawProtocols = ['opentabs'];
     if (rawWsSecret) rawProtocols.push(rawWsSecret);
-    if (rawConnToken) rawProtocols.push(rawConnToken);
     const rawWs = rawProtocols.length > 1 ? new WebSocket(rawWsUrl, rawProtocols) : new WebSocket(rawWsUrl);
     await new Promise<void>((resolve, reject) => {
       rawWs.onopen = () => resolve();
