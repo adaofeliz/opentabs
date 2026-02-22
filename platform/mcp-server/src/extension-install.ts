@@ -34,7 +34,12 @@ const getExtensionSourceDir = (): string =>
  *
  * Safe to call on every reload — skips the copy when versions match.
  */
-const ensureExtensionInstalled = async (): Promise<void> => {
+interface ExtensionInstallResult {
+  /** Whether the extension files were updated (version mismatch detected and files copied) */
+  versionChanged: boolean;
+}
+
+const ensureExtensionInstalled = async (): Promise<ExtensionInstallResult> => {
   const extensionDir = getExtensionDir();
   const versionFile = getExtensionVersionFile();
   const adaptersDir = getAdaptersDir();
@@ -52,7 +57,7 @@ const ensureExtensionInstalled = async (): Promise<void> => {
 
   if (installedVersion === version) {
     log.debug(`Managed extension is up to date (v${version})`);
-    return;
+    return { versionChanged: false };
   }
 
   // Version mismatch or missing — perform the copy
@@ -61,7 +66,7 @@ const ensureExtensionInstalled = async (): Promise<void> => {
   // Verify the source exists before attempting the copy
   if (!(await Bun.file(join(extensionSrc, 'manifest.json')).exists())) {
     log.warn(`Browser extension source not found at ${extensionSrc}, skipping auto-install`);
-    return;
+    return { versionChanged: false };
   }
 
   log.info(
@@ -84,9 +89,12 @@ const ensureExtensionInstalled = async (): Promise<void> => {
     await Bun.write(versionFile, version);
 
     log.info(`Managed extension installed to ${extensionDir}`);
+    return { versionChanged: true };
   } catch (err) {
     log.warn('Failed to install managed extension:', err);
+    return { versionChanged: false };
   }
 };
 
+export type { ExtensionInstallResult };
 export { ensureExtensionInstalled };

@@ -14,7 +14,12 @@
 
 import { saveToolConfig } from './config.js';
 import { isDev } from './dev-mode.js';
-import { handleExtensionMessage, sendSyncFull, rejectAllPendingConfirmations } from './extension-protocol.js';
+import {
+  handleExtensionMessage,
+  sendSyncFull,
+  sendExtensionReload,
+  rejectAllPendingConfirmations,
+} from './extension-protocol.js';
 import { getLogCount } from './log-buffer.js';
 import { log } from './logger.js';
 import { createMcpServer, notifyToolListChanged } from './mcp-setup.js';
@@ -546,7 +551,16 @@ const createHandleWsOpen =
       }
     }
 
-    void sendSyncFull(state);
+    void sendSyncFull(state).then(() => {
+      // After sync.full completes, check if there's a pending extension reload
+      // (extension files were updated while extension was disconnected).
+      // The delay ensures sync.full is processed before the extension reloads.
+      if (state.pendingExtensionReload) {
+        state.pendingExtensionReload = false;
+        log.info('Sending deferred extension reload (version was updated while extension was disconnected)');
+        setTimeout(() => sendExtensionReload(state), 500);
+      }
+    });
   };
 
 const createHandleWsMessage =

@@ -125,6 +125,10 @@ const validateTools = (tools: unknown, sourcePath: string): Result<ManifestTool[
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].icon must be a non-empty string`);
     }
 
+    // Optional SVG icons
+    const iconSvg = typeof t.iconSvg === 'string' ? t.iconSvg : undefined;
+    const iconInactiveSvg = typeof t.iconInactiveSvg === 'string' ? t.iconInactiveSvg : undefined;
+
     const inputSchema = t.input_schema;
     if (typeof inputSchema !== 'object' || inputSchema === null || Array.isArray(inputSchema)) {
       return err(`Invalid tools.json at ${sourcePath}: tools[${i}].input_schema must be an object`);
@@ -140,6 +144,8 @@ const validateTools = (tools: unknown, sourcePath: string): Result<ManifestTool[
       displayName,
       description,
       icon,
+      iconSvg,
+      iconInactiveSvg,
       input_schema: inputSchema as Record<string, unknown>,
       output_schema: outputSchema as Record<string, unknown>,
     });

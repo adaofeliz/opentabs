@@ -61,6 +61,10 @@ export interface RegisteredPlugin {
   npmPackageName?: string;
   /** SDK version the plugin was built with (from tools.json sdkVersion field). Undefined for old plugins. */
   sdkVersion?: string;
+  /** Optional SVG icon for the plugin */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** Tab mapping entry for a plugin */
@@ -306,6 +310,8 @@ export interface ServerState {
   pendingConfirmations: Map<string, PendingConfirmation>;
   /** Session-scoped permission rules set by "Allow Always" actions during this server lifetime */
   sessionPermissions: SessionPermissionRule[];
+  /** Whether an extension reload is pending (set when extension files are updated but extension is not connected) */
+  pendingExtensionReload: boolean;
 }
 
 /** Increment when changing the type of an existing ServerState field */
@@ -360,6 +366,7 @@ export const createState = (): ServerState => ({
   },
   pendingConfirmations: new Map(),
   sessionPermissions: [],
+  pendingExtensionReload: false,
 });
 
 /** Generate a cryptographically random JSON-RPC request ID */

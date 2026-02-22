@@ -43,6 +43,10 @@ export interface PluginManifest {
   prompts?: ManifestPrompt[];
   /** SHA-256 hex hash of the adapter IIFE content (set by `opentabs-plugin build`) */
   adapterHash?: string;
+  /** Optional SVG icon for the plugin */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** Single tool definition within a plugin manifest */
@@ -55,6 +59,10 @@ export interface ManifestTool {
   icon: string;
   input_schema: Record<string, unknown>;
   output_schema: Record<string, unknown>;
+  /** Optional SVG icon for the tool */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** Resource definition within a plugin manifest (serialized form — no runtime functions) */
@@ -135,6 +143,10 @@ export interface WireToolDef {
   /** Lucide icon name (kebab-case) displayed in the side panel */
   icon: string;
   enabled: boolean;
+  /** Optional SVG icon for the tool */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** Plugin payload as sent in sync.full and plugin.update messages */
@@ -147,6 +159,10 @@ export interface WirePluginPayload {
   sourcePath?: string;
   adapterHash?: string;
   tools: WireToolDef[];
+  /** Optional SVG icon for the plugin */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** sync.full notification: server → extension (all plugins on connect) */
@@ -204,6 +220,10 @@ export interface ConfigStatePlugin {
   /** SDK version the plugin was built with (from tools.json). Undefined for old plugins. */
   sdkVersion?: string;
   tools: WireToolDef[];
+  /** Optional SVG icon for the plugin */
+  iconSvg?: string;
+  /** Optional SVG icon for the inactive state */
+  iconInactiveSvg?: string;
 }
 
 /** A plugin that failed discovery, sent to the side panel for display */

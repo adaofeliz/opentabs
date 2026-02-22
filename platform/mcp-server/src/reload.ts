@@ -16,7 +16,7 @@ import { loadConfig, getConfigDir } from './config.js';
 import { isDev } from './dev-mode.js';
 import { discoverPlugins } from './discovery.js';
 import { ensureExtensionInstalled } from './extension-install.js';
-import { sendSyncFull, sendPluginUpdate, cleanupStaleExecFiles } from './extension-protocol.js';
+import { sendSyncFull, sendPluginUpdate, sendExtensionReload, cleanupStaleExecFiles } from './extension-protocol.js';
 import { startConfigWatching, startFileWatching, stopFileWatching } from './file-watcher.js';
 import { sweepStaleSessions } from './http-routes.js';
 import { log } from './logger.js';
@@ -279,7 +279,20 @@ const performReload = async (
     // Isolated from the rest of reload so a transient filesystem error
     // (cpSync, mkdirSync, Bun.write) does not block plugin discovery.
     try {
-      await ensureExtensionInstalled();
+      const installResult = await ensureExtensionInstalled();
+      if (installResult.versionChanged) {
+        if (state.extensionWs) {
+          // Extension is connected — send reload after a short delay to let
+          // sync.full flush first (the extension handles extension.reload by
+          // calling chrome.runtime.reload() after its own flush delay).
+          log.info('Extension version changed — sending reload signal to connected extension');
+          setTimeout(() => sendExtensionReload(state), 500);
+        } else {
+          // Extension not connected — flag for reload on next connect
+          log.info('Extension version changed — reload will be sent on next extension connect');
+          state.pendingExtensionReload = true;
+        }
+      }
     } catch (err) {
       log.warn('Extension install failed (continuing with plugin discovery):', err);
     }
