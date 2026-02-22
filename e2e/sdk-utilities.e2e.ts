@@ -8,7 +8,7 @@
  * Uses the /sdk-test page on the test server which provides:
  *   - A delayed DOM element (#delayed-element, appears after 500ms)
  *   - localStorage key 'sdk-test-key' = 'sdk-test-value'
- *   - window.__sdkTestGlobal = { nested: { value: 42 } }
+ *   - window.__sdkTestGlobal = { nested: { value: 42, deeply: { nested: { value: 'deep' } } } }
  *   - An element with known textContent (#known-text)
  *
  * The test server also provides:
@@ -143,6 +143,25 @@ test.describe('SDK utilities — full stack', () => {
     await page.close();
   });
 
+  test('getPageGlobal: reads a deeply nested property (4 levels)', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    const page = await setupSdkTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    const output = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_sdk_get_page_global', {
+      path: '__sdkTestGlobal.nested.deeply.nested.value',
+    });
+
+    expect(output.ok).toBe(true);
+    expect(output.found).toBe(true);
+    expect(output.value).toBe('deep');
+
+    await page.close();
+  });
+
   test('getPageGlobal: returns not found for missing path', async ({
     mcpServer,
     testServer,
@@ -153,6 +172,25 @@ test.describe('SDK utilities — full stack', () => {
 
     const output = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_sdk_get_page_global', {
       path: '__nonexistent.deep.path',
+    });
+
+    expect(output.ok).toBe(true);
+    expect(output.found).toBe(false);
+
+    await page.close();
+  });
+
+  test('getPageGlobal: returns not found for non-existent intermediate segment', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    const page = await setupSdkTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // __sdkTestGlobal.nested exists, but .nonexistent does not
+    const output = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_sdk_get_page_global', {
+      path: '__sdkTestGlobal.nested.nonexistent.value',
     });
 
     expect(output.ok).toBe(true);

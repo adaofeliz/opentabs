@@ -300,7 +300,7 @@ const SDK_TEST_HTML = `<!DOCTYPE html>
     localStorage.setItem('sdk-test-key', 'sdk-test-value');
 
     // Set a global for getPageGlobal testing
-    window.__sdkTestGlobal = { nested: { value: 42 } };
+    window.__sdkTestGlobal = { nested: { value: 42, deeply: { nested: { value: 'deep' } } } };
 
     // Add a delayed element for waitForSelector testing (appears after 500ms)
     setTimeout(function() {
