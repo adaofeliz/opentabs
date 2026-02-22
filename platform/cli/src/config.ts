@@ -10,6 +10,8 @@ export const getConfigDir = (): string => Bun.env.OPENTABS_CONFIG_DIR || join(ho
 
 export const getConfigPath = (): string => join(getConfigDir(), 'config.json');
 
+export const getExtensionDir = (): string => join(getConfigDir(), 'extension');
+
 export const getLogFilePath = (): string => join(getConfigDir(), 'server.log');
 
 export type ConfigResult =

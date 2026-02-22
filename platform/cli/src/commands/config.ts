@@ -2,10 +2,11 @@
  * `opentabs config` command — view and manage configuration.
  */
 
-import { atomicWriteConfig, getConfigPath, readConfig } from '../config.js';
+import { atomicWriteConfig, getConfigPath, getExtensionDir, isConnectionRefused, readConfig } from '../config.js';
 import { resolvePort } from '../parse-port.js';
 import pc from 'picocolors';
-import { resolve } from 'node:path';
+import { chmod, mkdir, rename, unlink } from 'node:fs/promises';
+import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 
 const REDACTED = '***';
@@ -347,6 +348,88 @@ const handleConfigReset = async (options: ConfigResetOptions): Promise<void> => 
   console.log('Config reset. Run opentabs start to regenerate.');
 };
 
+/** Generate a 256-bit cryptographic random secret as a 64-character hex string. */
+const generateSecret = (): string => {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
+};
+
+/**
+ * Write auth.json to the managed extension directory so the Chrome extension
+ * can bootstrap the shared secret without an unauthenticated HTTP request.
+ * Matches the atomic write pattern: write to .tmp, chmod 0600, rename.
+ */
+const writeAuthFile = async (secret: string, port: number): Promise<void> => {
+  const extensionDir = getExtensionDir();
+  await mkdir(extensionDir, { recursive: true });
+  const authPath = join(extensionDir, 'auth.json');
+  const tmpPath = authPath + '.tmp';
+  try {
+    await Bun.write(tmpPath, JSON.stringify({ secret, port }) + '\n');
+    await chmod(tmpPath, 0o600).catch((err: unknown) => {
+      console.warn(
+        `Warning: Could not set file permissions on ${tmpPath}: ${err instanceof Error ? err.message : String(err)}. The auth file may be readable by other users.`,
+      );
+    });
+    await rename(tmpPath, authPath);
+  } catch (err) {
+    await unlink(tmpPath).catch(() => {});
+    throw err;
+  }
+};
+
+const handleRotateSecret = async (options: { port?: number }): Promise<void> => {
+  const { config, configPath } = await loadConfig();
+
+  const oldSecret = typeof config.secret === 'string' ? config.secret : null;
+  const newSecret = generateSecret();
+
+  // Update the secret in config
+  config.secret = newSecret;
+  await atomicWriteConfig(configPath, JSON.stringify(config, null, 2) + '\n');
+
+  // Determine port from config or default
+  const port = resolvePort(options);
+
+  // Write auth.json with the new secret
+  try {
+    await writeAuthFile(newSecret, port);
+  } catch (err) {
+    console.warn(pc.yellow(`Warning: Could not write auth.json: ${err instanceof Error ? err.message : String(err)}`));
+  }
+
+  // Notify the running server using the OLD secret
+  if (oldSecret) {
+    try {
+      const res = await fetch(`http://localhost:${port}/reload`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${oldSecret}` },
+        signal: AbortSignal.timeout(3_000),
+      });
+      if (res.ok) {
+        console.log(pc.green('Secret rotated successfully.'));
+        console.log('Restart the Chrome extension to reconnect.');
+        return;
+      }
+      console.log(pc.green('Secret rotated in config and auth.json.'));
+      console.log(pc.yellow(`Could not notify running server (HTTP ${res.status}).`));
+      console.log('Restart the MCP server and Chrome extension for changes to take effect.');
+    } catch (err: unknown) {
+      console.log(pc.green('Secret rotated in config and auth.json.'));
+      if (isConnectionRefused(err)) {
+        console.log(pc.dim('MCP server is not running. Changes will take effect on next start.'));
+      } else {
+        console.log(pc.yellow('Could not reach MCP server. Restart it for changes to take effect.'));
+      }
+      console.log('Restart the Chrome extension to reconnect.');
+    }
+  } else {
+    console.log(pc.green('Secret rotated in config and auth.json.'));
+    console.log('Restart the MCP server and Chrome extension for changes to take effect.');
+  }
+};
+
 const registerConfigCommand = (program: Command): void => {
   const configCmd = program
     .command('config')
@@ -408,6 +491,20 @@ Examples:
   $ opentabs config reset --confirm`,
     )
     .action((options: ConfigResetOptions) => handleConfigReset(options));
+
+  configCmd
+    .command('rotate-secret')
+    .description('Rotate the shared authentication secret')
+    .addHelpText(
+      'after',
+      `
+Generates a new 256-bit random secret and writes it to config.json and auth.json.
+If the MCP server is running, notifies it to reload the config.
+
+Examples:
+  $ opentabs config rotate-secret`,
+    )
+    .action((_options: Record<string, unknown>, command: Command) => handleRotateSecret(command.optsWithGlobals()));
 };
 
 export { registerConfigCommand };
