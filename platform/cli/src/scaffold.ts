@@ -79,6 +79,7 @@ const generatePackageJson = async (args: ScaffoldArgs, urlPattern: string): Prom
     main: 'dist/adapter.iife.js',
     keywords: ['opentabs-plugin'],
     opentabs: {
+      '//': 'Optional: place icon.svg (and icon-inactive.svg) next to package.json for a custom side-panel icon',
       displayName,
       description: desc,
       urlPatterns: [urlPattern],
@@ -201,6 +202,8 @@ ${desc}
 \`\`\`
 ${args.name}/
 ├── package.json          # Plugin metadata (name, opentabs field, dependencies)
+├── icon.svg              # Optional custom icon (square SVG, max 8KB)
+├── icon-inactive.svg     # Optional manual inactive icon override
 ├── src/
 │   ├── index.ts          # Plugin class (extends OpenTabsPlugin)
 │   └── tools/            # One file per tool (using defineTool)
@@ -230,6 +233,32 @@ Plugin metadata is defined in \`package.json\` under the \`opentabs\` field:
 - **\`opentabs.displayName\`** — human-readable name shown in the side panel
 - **\`opentabs.description\`** — short description of what the plugin does
 - **\`opentabs.urlPatterns\`** — Chrome match patterns for tabs where the adapter is injected
+
+## Custom Icons
+
+By default, the side panel shows a colored letter avatar for your plugin. To use a custom icon, place an \`icon.svg\` file in the plugin root (next to \`package.json\`):
+
+\`\`\`
+${args.name}/
+├── package.json
+├── icon.svg              ← custom icon (optional)
+├── icon-inactive.svg     ← manual inactive override (optional, requires icon.svg)
+├── src/
+│   └── ...
+\`\`\`
+
+**How it works:**
+
+- \`opentabs-plugin build\` reads \`icon.svg\`, validates it, auto-generates a grayscale inactive variant, and embeds both in \`dist/tools.json\`
+- To override the auto-generated inactive icon, provide \`icon-inactive.svg\` (must use only grayscale colors)
+- If no \`icon.svg\` is provided, the letter avatar is used automatically
+
+**Icon requirements:**
+
+- Square SVG with a \`viewBox\` attribute (e.g., \`viewBox="0 0 32 32"\`)
+- Maximum 8 KB file size
+- No embedded \`<image>\`, \`<script>\`, or event handler attributes (\`onclick\`, etc.)
+- Manual \`icon-inactive.svg\` must use only achromatic (grayscale) colors
 
 ## Development
 
