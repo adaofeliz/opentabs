@@ -322,6 +322,12 @@ export const EMPTY_REGISTRY: PluginRegistry = Object.freeze({
   failures: [] as FailedPlugin[],
 });
 
+/**
+ * Creates a fresh ServerState with all fields initialized to their defaults.
+ *
+ * @returns A new ServerState instance with empty collections, no WebSocket connection,
+ *          and default permission rules (localhost/127.0.0.1 trusted).
+ */
 export const createState = (): ServerState => ({
   _schemaVersion: STATE_SCHEMA_VERSION,
   registry: EMPTY_REGISTRY,

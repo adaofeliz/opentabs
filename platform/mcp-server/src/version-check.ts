@@ -17,8 +17,11 @@ interface NpmRegistryResponse {
 }
 
 /**
- * Query the npm registry for the latest version of a package.
- * Returns null if the fetch fails or the response is unexpected.
+ * Query the npm registry for the latest published version of a package.
+ * Uses the abbreviated install metadata endpoint with a 10s timeout.
+ *
+ * @param packageName - npm package name (e.g., 'opentabs-plugin-slack' or '@scope/opentabs-plugin-foo')
+ * @returns The latest version string from the registry's dist-tags, or null on failure
  */
 export const fetchLatestVersion = async (packageName: string): Promise<string | null> => {
   try {
@@ -43,11 +46,13 @@ export const fetchLatestVersion = async (packageName: string): Promise<string | 
 };
 
 /**
- * Compare two semver version strings.
- * Returns true if `latest` is newer than `current`.
+ * Compare two semver version strings (major.minor.patch only).
+ * Strips prerelease suffixes (e.g., "1.0.0-beta.1" → [1, 0, 0]) and leading 'v'
+ * prefixes so that version strings with hyphens don't produce NaN during parsing.
  *
- * Strips prerelease suffixes (e.g., "1.0.0-beta.1" → [1, 0, 0]) so
- * that version strings with hyphens don't produce NaN during parsing.
+ * @param current - The currently installed version string
+ * @param latest - The latest available version string
+ * @returns True if `latest` is strictly newer than `current`
  */
 export const isNewer = (current: string, latest: string): boolean => {
   const parse = (v: string): number[] =>
@@ -73,9 +78,11 @@ export const isNewer = (current: string, latest: string): boolean => {
 };
 
 /**
- * Check all npm-installed plugins for newer versions.
- * Non-blocking — runs checks in parallel, logs results, and stores in state.
- * Skips local plugins (filesystem paths).
+ * Check all npm-installed plugins for newer versions on the registry.
+ * Runs version checks in parallel, logs outdated entries, and stores
+ * results in `state.outdatedPlugins`. Skips local plugins (filesystem paths).
+ *
+ * @param state - Server state containing the plugin registry and outdatedPlugins target
  */
 export const checkForUpdates = async (state: ServerState): Promise<void> => {
   const npmPlugins = Array.from(state.registry.plugins.values()).filter(

@@ -811,6 +811,10 @@ export type ToolCallableResult = ToolCallableOk | ToolCallableError;
  * Check if a prefixed plugin tool name is callable: exists in the tool lookup
  * and is enabled in the tool config. Browser tools are handled separately
  * (before this check) in the tools/call handler.
+ *
+ * @param state - Server state containing the plugin registry and tool config
+ * @param prefixedToolName - Fully prefixed tool name (e.g., 'slack_send_message')
+ * @returns An ok result with pluginName/toolName if callable, or an error result with a message
  */
 export const checkToolCallable = (state: ServerState, prefixedToolName: string): ToolCallableResult => {
   const lookup = state.registry.toolLookup.get(prefixedToolName);

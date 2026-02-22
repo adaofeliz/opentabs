@@ -100,8 +100,11 @@ const matchesDomainList = (hostname: string, patterns: string[]): boolean =>
   patterns.some(p => matchDomain(hostname, p));
 
 /**
- * Get the security tier for a browser tool.
- * Tools not in the TOOL_TIERS map default to 'interact' (safe middle ground).
+ * Get the security tier for a browser tool by looking up the TOOL_TIERS map.
+ * Tools not in the map default to 'interact' (safe middle ground).
+ *
+ * @param toolName - Browser tool name (e.g., 'browser_execute_script')
+ * @returns The tool's security tier: 'observe', 'interact', or 'sensitive'
  */
 export const getToolTier = (toolName: string): ToolTier => TOOL_TIERS[toolName] ?? 'interact';
 
