@@ -298,11 +298,21 @@ export {
   parseRetryAfterMs,
   postJSON,
   postForm,
+  postFormData,
   putJSON,
   patchJSON,
   deleteJSON,
 } from './fetch.js';
-export type { FetchFromPageOptions, FetchJSON, PostJSON, PostForm, PutJSON, PatchJSON, DeleteJSON } from './fetch.js';
+export type {
+  FetchFromPageOptions,
+  FetchJSON,
+  PostJSON,
+  PostForm,
+  PostFormData,
+  PutJSON,
+  PatchJSON,
+  DeleteJSON,
+} from './fetch.js';
 
 // ---------------------------------------------------------------------------
 // SDK utilities — Timing

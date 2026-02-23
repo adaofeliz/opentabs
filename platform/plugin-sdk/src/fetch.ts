@@ -205,6 +205,47 @@ export const postForm: PostForm = (async (
 }) as PostForm;
 
 /**
+ * Overloaded call signature for postFormData — validates against a Zod schema
+ * when provided, or returns an unchecked cast when omitted.
+ */
+export interface PostFormData {
+  /** POST multipart form data and validate the response against a Zod schema. Returns the validated, typed result. */
+  <T extends z.ZodType>(
+    url: string,
+    body: FormData,
+    init: FetchFromPageOptions | undefined,
+    schema: T,
+  ): Promise<z.infer<T>>;
+  /** POST multipart form data with an unchecked cast to T (backward compatible). */
+  <T>(url: string, body: FormData, init?: FetchFromPageOptions): Promise<T>;
+}
+
+/**
+ * Convenience wrapper for POST requests with a multipart/form-data body.
+ * Does NOT set Content-Type — the browser sets it automatically with the
+ * multipart boundary string. Parses the JSON response. When a Zod schema
+ * is provided as the fourth argument, the parsed JSON is validated against it.
+ */
+export const postFormData: PostFormData = (async (
+  url: string,
+  body: FormData,
+  init?: FetchFromPageOptions,
+  schema?: z.ZodType,
+): Promise<unknown> => {
+  const extraHeaders = init?.headers ? Object.fromEntries(new Headers(init.headers).entries()) : {};
+  return fetchJSONImpl(
+    url,
+    {
+      ...init,
+      method: 'POST',
+      headers: { ...extraHeaders },
+      body,
+    },
+    schema,
+  );
+}) as PostFormData;
+
+/**
  * Overloaded call signature for putJSON — validates against a Zod schema
  * when provided, or returns an unchecked cast when omitted.
  */
