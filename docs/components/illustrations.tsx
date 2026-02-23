@@ -2065,6 +2065,340 @@ export const LifecycleSequence = () => (
 );
 
 /**
+ * ErrorCategories — 2-column grid showing the 6 ToolError categories grouped by
+ * retryable vs non-retryable. Each card shows the category name, factory method,
+ * and retry status. Used on the Error Handling guide page.
+ */
+export const ErrorCategories = () => (
+  <div className="my-8">
+    <svg
+      viewBox="0 0 560 290"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="w-full max-w-3xl"
+      aria-hidden="true">
+      {/* ── Column header: Not Retryable ──────────────── */}
+      <text
+        x="170"
+        y="16"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Not Retryable
+      </text>
+      <line x1="80" y1="24" x2="260" y2="24" stroke="var(--color-foreground)" strokeWidth="1" opacity="0.3" />
+
+      {/* ── Column header: Retryable ─────────────────── */}
+      <text
+        x="430"
+        y="16"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Retryable
+      </text>
+      <line x1="340" y1="24" x2="520" y2="24" stroke="var(--color-foreground)" strokeWidth="1" opacity="0.3" />
+
+      {/* ── Card 1: auth (not retryable) ─────────────── */}
+      {/* Shadow */}
+      <rect x="24" y="40" width="280" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="20"
+        y="36"
+        width="280"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="20" y="36" width="280" height="24" fill="var(--color-foreground)" />
+      <text
+        x="32"
+        y="52"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        auth
+      </text>
+      <text
+        x="288"
+        y="52"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        No
+      </text>
+      <text
+        x="32"
+        y="78"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.auth(msg)
+      </text>
+
+      {/* ── Card 2: not_found (not retryable) ────────── */}
+      {/* Shadow */}
+      <rect x="24" y="104" width="280" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="20"
+        y="100"
+        width="280"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="20" y="100" width="280" height="24" fill="var(--color-foreground)" />
+      <text
+        x="32"
+        y="116"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        not_found
+      </text>
+      <text
+        x="288"
+        y="116"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        No
+      </text>
+      <text
+        x="32"
+        y="142"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.notFound(msg, code?)
+      </text>
+
+      {/* ── Card 3: validation (not retryable) ───────── */}
+      {/* Shadow */}
+      <rect x="24" y="168" width="280" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="20"
+        y="164"
+        width="280"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="20" y="164" width="280" height="24" fill="var(--color-foreground)" />
+      <text
+        x="32"
+        y="180"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        validation
+      </text>
+      <text
+        x="288"
+        y="180"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        No
+      </text>
+      <text
+        x="32"
+        y="206"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.validation(msg)
+      </text>
+
+      {/* ── Card 4: internal (not retryable) ─────────── */}
+      {/* Shadow */}
+      <rect x="24" y="232" width="280" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="20"
+        y="228"
+        width="280"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="20" y="228" width="280" height="24" fill="var(--color-foreground)" />
+      <text
+        x="32"
+        y="244"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        internal
+      </text>
+      <text
+        x="288"
+        y="244"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        No
+      </text>
+      <text
+        x="32"
+        y="270"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.internal(msg)
+      </text>
+
+      {/* ── Vertical divider ─────────────────────────── */}
+      <line x1="318" y1="36" x2="318" y2="280" stroke="var(--color-foreground)" strokeWidth="1" opacity="0.15" />
+
+      {/* ── Card 5: rate_limit (retryable, highlighted) ─ */}
+      {/* Shadow */}
+      <rect x="344" y="40" width="200" height="116" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="340"
+        y="36"
+        width="200"
+        height="116"
+        fill="var(--color-primary)"
+        opacity="0.12"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="340" y="36" width="200" height="24" fill="var(--color-foreground)" />
+      <text
+        x="352"
+        y="52"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        rate_limit
+      </text>
+      <text
+        x="528"
+        y="52"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        Yes
+      </text>
+      <text
+        x="352"
+        y="78"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.rateLimited(
+      </text>
+      <text
+        x="362"
+        y="94"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        msg, retryAfterMs?)
+      </text>
+      {/* retryAfterMs note */}
+      <text
+        x="352"
+        y="140"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.4">
+        Supports retryAfterMs delay
+      </text>
+
+      {/* ── Card 6: timeout (retryable, highlighted) ──── */}
+      {/* Shadow */}
+      <rect x="344" y="168" width="200" height="112" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="340"
+        y="164"
+        width="200"
+        height="112"
+        fill="var(--color-primary)"
+        opacity="0.12"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header strip */}
+      <rect x="340" y="164" width="200" height="24" fill="var(--color-foreground)" />
+      <text
+        x="352"
+        y="180"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold">
+        timeout
+      </text>
+      <text
+        x="528"
+        y="180"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="end">
+        Yes
+      </text>
+      <text
+        x="352"
+        y="206"
+        fontSize="10"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.6">
+        ToolError.timeout(msg)
+      </text>
+      {/* transient note */}
+      <text
+        x="352"
+        y="264"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.4">
+        Transient network/server issues
+      </text>
+    </svg>
+  </div>
+);
+
+/**
  * PluginStructure — project structure diagram for the Plugin Development guide.
  * Shows the key files in a scaffolded plugin project as a tree.
  */
