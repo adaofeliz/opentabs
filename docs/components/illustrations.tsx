@@ -2771,6 +2771,312 @@ export const InstallPaths = () => (
 );
 
 /**
+ * FirstPluginFlow — horizontal 5-step flow for the "Your First Plugin" tutorial.
+ * Scaffold → Define Tool → Register → Build → Test, with arrows between steps.
+ * The "Build" step uses primary fill since that's where the plugin magic happens.
+ */
+export const FirstPluginFlow = () => (
+  <div className="my-8">
+    <svg viewBox="0 0 900 140" fill="none" xmlns="http://www.w3.org/2000/svg" className="w-full" aria-hidden="true">
+      <defs>
+        <marker id="fp-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+          <path d="M0,0 L10,4 L0,8 Z" fill="var(--color-foreground)" />
+        </marker>
+      </defs>
+
+      {/* ── Step 1: Scaffold ──────────────────────────────── */}
+      {/* Shadow */}
+      <rect x="4" y="14" width="140" height="110" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="0"
+        y="10"
+        width="140"
+        height="110"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header */}
+      <rect x="0" y="10" width="140" height="32" fill="var(--color-foreground)" />
+      <text
+        x="70"
+        y="32"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold"
+        textAnchor="middle">
+        1. Scaffold
+      </text>
+      {/* Content */}
+      <rect x="10" y="54" width="120" height="22" fill="var(--color-foreground)" />
+      <text
+        x="70"
+        y="69"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="middle">
+        opentabs plugin create
+      </text>
+      <text
+        x="70"
+        y="104"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Standalone npm package
+      </text>
+
+      {/* ── Arrow 1→2 ────────────────────────────────────── */}
+      <line
+        x1="150"
+        y1="64"
+        x2="190"
+        y2="64"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#fp-arrow)"
+      />
+
+      {/* ── Step 2: Define Tool ──────────────────────────── */}
+      {/* Shadow */}
+      <rect x="204" y="14" width="140" height="110" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="200"
+        y="10"
+        width="140"
+        height="110"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header */}
+      <rect x="200" y="10" width="140" height="32" fill="var(--color-foreground)" />
+      <text
+        x="270"
+        y="32"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold"
+        textAnchor="middle">
+        2. Define Tool
+      </text>
+      {/* Content */}
+      <rect x="210" y="54" width="120" height="22" fill="var(--color-foreground)" />
+      <text
+        x="270"
+        y="69"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="middle">
+        {'defineTool({ ... })'}
+      </text>
+      <text
+        x="270"
+        y="104"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Zod schema + handler
+      </text>
+
+      {/* ── Arrow 2→3 ────────────────────────────────────── */}
+      <line
+        x1="350"
+        y1="64"
+        x2="390"
+        y2="64"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#fp-arrow)"
+      />
+
+      {/* ── Step 3: Register ─────────────────────────────── */}
+      {/* Shadow */}
+      <rect x="404" y="14" width="140" height="110" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="400"
+        y="10"
+        width="140"
+        height="110"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header */}
+      <rect x="400" y="10" width="140" height="32" fill="var(--color-foreground)" />
+      <text
+        x="470"
+        y="32"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold"
+        textAnchor="middle">
+        3. Register
+      </text>
+      {/* Content */}
+      <rect x="410" y="54" width="120" height="22" fill="var(--color-foreground)" />
+      <text
+        x="470"
+        y="69"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="middle">
+        tools: [getPageTitle]
+      </text>
+      <text
+        x="470"
+        y="104"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Plugin class + tools array
+      </text>
+
+      {/* ── Arrow 3→4 ────────────────────────────────────── */}
+      <line
+        x1="550"
+        y1="64"
+        x2="590"
+        y2="64"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#fp-arrow)"
+      />
+
+      {/* ── Step 4: Build (primary-filled — the magic step) ── */}
+      {/* Shadow */}
+      <rect x="604" y="14" width="140" height="110" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="600"
+        y="10"
+        width="140"
+        height="110"
+        fill="var(--color-primary)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header */}
+      <rect x="600" y="10" width="140" height="32" fill="var(--color-foreground)" />
+      <text
+        x="670"
+        y="32"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold"
+        textAnchor="middle">
+        4. Build
+      </text>
+      {/* Content */}
+      <rect x="610" y="54" width="120" height="22" fill="var(--color-foreground)" />
+      <text
+        x="670"
+        y="69"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        textAnchor="middle">
+        bun run build
+      </text>
+      <text
+        x="670"
+        y="104"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        IIFE + notify server
+      </text>
+
+      {/* ── Arrow 4→5 ────────────────────────────────────── */}
+      <line
+        x1="750"
+        y1="64"
+        x2="790"
+        y2="64"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#fp-arrow)"
+      />
+
+      {/* ── Step 5: Test ─────────────────────────────────── */}
+      {/* Shadow */}
+      <rect x="804" y="14" width="92" height="110" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="800"
+        y="10"
+        width="92"
+        height="110"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      {/* Header */}
+      <rect x="800" y="10" width="92" height="32" fill="var(--color-foreground)" />
+      <text
+        x="846"
+        y="32"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-primary)"
+        fontWeight="bold"
+        textAnchor="middle">
+        5. Test
+      </text>
+      {/* Content */}
+      <text
+        x="846"
+        y="69"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.7"
+        textAnchor="middle">
+        Ask your
+      </text>
+      <text
+        x="846"
+        y="83"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.7"
+        textAnchor="middle">
+        AI agent
+      </text>
+      <text
+        x="846"
+        y="104"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        opentabs status
+      </text>
+    </svg>
+  </div>
+);
+
+/**
  * PluginStructure — project structure diagram for the Plugin Development guide.
  * Shows the key files in a scaffolded plugin project as a tree.
  */
