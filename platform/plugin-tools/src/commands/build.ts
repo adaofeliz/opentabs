@@ -7,11 +7,10 @@
 
 import { generateInactiveIcon, validateIconSvg, validateInactiveIconColors } from '../validate-icon.js';
 import { validatePluginName, validateUrlPattern, LUCIDE_ICON_NAMES } from '@opentabs-dev/plugin-sdk';
-import { parsePluginPackageJson } from '@opentabs-dev/shared';
+import { atomicWrite, parsePluginPackageJson } from '@opentabs-dev/shared';
 import pc from 'picocolors';
 import { z } from 'zod';
 import { mkdirSync, watch } from 'node:fs';
-import { chmod, rename, unlink } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { resolve, join, relative, dirname } from 'node:path';
 import type {
@@ -36,22 +35,9 @@ const DEFAULT_PORT = 9515;
 const getConfigDir = (): string => Bun.env.OPENTABS_CONFIG_DIR || join(homedir(), '.opentabs');
 const getConfigPath = (): string => join(getConfigDir(), 'config.json');
 
-/** Write config atomically via tmp-file + rename. */
-const atomicWriteConfig = async (configPath: string, content: string): Promise<void> => {
-  const tmpPath = configPath + '.tmp';
-  try {
-    await Bun.write(tmpPath, content);
-    await chmod(tmpPath, 0o600).catch((err: unknown) => {
-      console.warn(
-        `Warning: Could not set file permissions on ${tmpPath}: ${err instanceof Error ? err.message : String(err)}. The config file may be readable by other users.`,
-      );
-    });
-    await rename(tmpPath, configPath);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
-};
+/** Write config atomically with restrictive permissions via the shared helper. */
+const atomicWriteConfig = (configPath: string, content: string): Promise<void> =>
+  atomicWrite(configPath, content, 0o600);
 
 /**
  * Add the plugin directory to localPlugins in ~/.opentabs/config.json.

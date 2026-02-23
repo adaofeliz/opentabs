@@ -14,7 +14,8 @@ import {
   MAX_DISPATCH_TIMEOUT_MS,
   CONFIRMATION_TIMEOUT_MS,
 } from './state.js';
-import { mkdir, readdir, rename } from 'node:fs/promises';
+import { atomicWrite } from '@opentabs-dev/shared';
+import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { PluginLogEntry } from './log-buffer.js';
 import type {
@@ -92,7 +93,6 @@ interface McpCallbacks {
 const writeAdapterFile = async (pluginName: string, iife: string, sourceMap?: string): Promise<void> => {
   const adaptersDir = getAdaptersDir();
   const finalPath = join(adaptersDir, `${pluginName}.js`);
-  const tmpPath = join(adaptersDir, `${pluginName}.js.tmp`);
 
   let content = iife;
   if (sourceMap) {
@@ -104,13 +104,10 @@ const writeAdapterFile = async (pluginName: string, iife: string, sourceMap?: st
 
     // Write source map atomically
     const mapFinalPath = join(adaptersDir, `${pluginName}.js.map`);
-    const mapTmpPath = join(adaptersDir, `${pluginName}.js.map.tmp`);
-    await Bun.write(mapTmpPath, sourceMap);
-    await rename(mapTmpPath, mapFinalPath);
+    await atomicWrite(mapFinalPath, sourceMap);
   }
 
-  await Bun.write(tmpPath, content);
-  await rename(tmpPath, finalPath);
+  await atomicWrite(finalPath, content);
 };
 
 /**
@@ -984,9 +981,7 @@ const handlePluginLog = (params: Record<string, unknown> | undefined, callbacks:
 const writeExecFile = async (execId: string, code: string): Promise<string> => {
   await ensureAdaptersDir();
   const filename = `${EXEC_FILE_PREFIX}${execId}.js`;
-  const adaptersDir = getAdaptersDir();
-  const finalPath = join(adaptersDir, filename);
-  const tmpPath = join(adaptersDir, `${filename}.tmp`);
+  const finalPath = join(getAdaptersDir(), filename);
 
   // Wrap user code to capture sync/async results and errors.
   // The wrapper stores results at globalThis.__openTabs.__lastExecResult.
@@ -1015,8 +1010,7 @@ const writeExecFile = async (execId: string, code: string): Promise<string> => {
     '})();',
   ].join('\n');
 
-  await Bun.write(tmpPath, wrapped);
-  await rename(tmpPath, finalPath);
+  await atomicWrite(finalPath, wrapped);
   return filename;
 };
 

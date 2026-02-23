@@ -4,8 +4,9 @@
 
 import { atomicWriteConfig, getConfigPath, getExtensionDir, isConnectionRefused, readConfig } from '../config.js';
 import { resolvePort } from '../parse-port.js';
+import { atomicWrite } from '@opentabs-dev/shared';
 import pc from 'picocolors';
-import { chmod, mkdir, rename, unlink } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import type { Command } from 'commander';
 
@@ -358,25 +359,12 @@ const generateSecret = (): string => {
 /**
  * Write auth.json to the managed extension directory so the Chrome extension
  * can bootstrap the shared secret without an unauthenticated HTTP request.
- * Matches the atomic write pattern: write to .tmp, chmod 0600, rename.
  */
 const writeAuthFile = async (secret: string, port: number): Promise<void> => {
   const extensionDir = getExtensionDir();
   await mkdir(extensionDir, { recursive: true });
   const authPath = join(extensionDir, 'auth.json');
-  const tmpPath = authPath + '.tmp';
-  try {
-    await Bun.write(tmpPath, JSON.stringify({ secret, port }) + '\n');
-    await chmod(tmpPath, 0o600).catch((err: unknown) => {
-      console.warn(
-        `Warning: Could not set file permissions on ${tmpPath}: ${err instanceof Error ? err.message : String(err)}. The auth file may be readable by other users.`,
-      );
-    });
-    await rename(tmpPath, authPath);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
+  await atomicWrite(authPath, JSON.stringify({ secret, port }) + '\n', 0o600);
 };
 
 const handleRotateSecret = async (options: { port?: number }): Promise<void> => {

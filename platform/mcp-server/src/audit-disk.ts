@@ -10,7 +10,8 @@
 
 import { getConfigDir } from './config.js';
 import { log } from './logger.js';
-import { appendFile, chmod, rename, stat, unlink } from 'node:fs/promises';
+import { safeChmod } from '@opentabs-dev/shared';
+import { appendFile, rename, stat, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { AuditEntry } from './state.js';
 
@@ -67,11 +68,7 @@ const appendAuditEntryToDisk = async (entry: AuditEntry): Promise<void> => {
 
     // Set permissions on first write this session
     if (!initialized) {
-      await chmod(auditPath, 0o600).catch((err: unknown) => {
-        log.warn(
-          `Warning: Could not set file permissions on ${auditPath}: ${err instanceof Error ? err.message : String(err)}. The audit file may be readable by other users.`,
-        );
-      });
+      await safeChmod(auditPath, 0o600);
       initialized = true;
     }
   } catch (err) {

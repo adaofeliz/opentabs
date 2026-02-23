@@ -11,7 +11,8 @@
  */
 
 import { log } from './logger.js';
-import { chmod, mkdir, rename, unlink } from 'node:fs/promises';
+import { atomicWrite } from '@opentabs-dev/shared';
+import { mkdir } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 
@@ -68,26 +69,9 @@ const getExtensionVersionFile = (): string => join(getExtensionDir(), '.opentabs
 /** @public Directory for plugin adapter IIFEs inside the managed extension */
 const getAdaptersDir = (): string => join(getExtensionDir(), 'adapters');
 
-/**
- * Write config atomically: write to a temp file in the same directory,
- * set restrictive permissions, then rename over the target. The rename
- * is atomic on POSIX filesystems, so readers never see a partially-written file.
- */
-const atomicWriteConfig = async (configPath: string, content: string): Promise<void> => {
-  const tmpPath = configPath + '.tmp';
-  try {
-    await Bun.write(tmpPath, content);
-    await chmod(tmpPath, 0o600).catch((err: unknown) => {
-      log.warn(
-        `Warning: Could not set file permissions on ${tmpPath}: ${err instanceof Error ? err.message : String(err)}. The config file may be readable by other users.`,
-      );
-    });
-    await rename(tmpPath, configPath);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
-};
+/** Write config atomically with restrictive permissions via the shared helper. */
+const atomicWriteConfig = (configPath: string, content: string): Promise<void> =>
+  atomicWrite(configPath, content, 0o600);
 
 /** Generate a 256-bit cryptographic random secret as a 64-character hex string. */
 const generateSecret = (): string => {
@@ -406,28 +390,13 @@ const saveToolConfig = async (
 /**
  * Write auth.json to the managed extension directory so the Chrome extension
  * can bootstrap the shared secret without an unauthenticated HTTP request.
- *
- * The file is written atomically (write to .tmp, chmod 0600, rename) matching
- * the atomicWriteConfig pattern. Called on every reload so the port and secret
- * stay in sync with the running server.
+ * Called on every reload so the port and secret stay in sync with the running server.
  */
 const writeAuthFile = async (secret: string, port: number): Promise<void> => {
   const extensionDir = getExtensionDir();
   await mkdir(extensionDir, { recursive: true });
   const authPath = join(extensionDir, 'auth.json');
-  const tmpPath = authPath + '.tmp';
-  try {
-    await Bun.write(tmpPath, JSON.stringify({ secret, port }) + '\n');
-    await chmod(tmpPath, 0o600).catch((err: unknown) => {
-      log.warn(
-        `Warning: Could not set file permissions on ${tmpPath}: ${err instanceof Error ? err.message : String(err)}. The auth file may be readable by other users.`,
-      );
-    });
-    await rename(tmpPath, authPath);
-  } catch (err) {
-    await unlink(tmpPath).catch(() => {});
-    throw err;
-  }
+  await atomicWrite(authPath, JSON.stringify({ secret, port }) + '\n', 0o600);
 };
 
 export type { OpentabsConfig, PermissionsConfig, ToolPermission };
