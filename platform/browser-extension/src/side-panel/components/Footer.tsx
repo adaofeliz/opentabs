@@ -1,5 +1,5 @@
 import { Button } from './retro/Button.js';
-import { Input } from './retro/Input.js';
+import { NumberStepper } from './retro/NumberStepper.js';
 import { useTheme } from '../hooks/useTheme.js';
 import { Moon, Sun } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -15,8 +15,7 @@ const isValidPort = (value: string): boolean => {
 
 const PortEditor = () => {
   const [port, setPort] = useState(DEFAULT_PORT);
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState('');
+  const [draft, setDraft] = useState(String(DEFAULT_PORT));
   const [invalid, setInvalid] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -26,6 +25,7 @@ const PortEditor = () => {
         const stored = result[STORAGE_KEY] as number | undefined;
         if (typeof stored === 'number' && isValidPort(String(stored))) {
           setPort(stored);
+          setDraft(String(stored));
         }
       },
       () => {
@@ -34,73 +34,74 @@ const PortEditor = () => {
     );
   }, []);
 
-  const startEditing = useCallback(() => {
-    setDraft(String(port));
-    setInvalid(false);
-    setEditing(true);
-  }, [port]);
+  const commitPort = useCallback(
+    (value: string) => {
+      if (!isValidPort(value)) {
+        setInvalid(true);
+        return;
+      }
+      const newPort = Number(value);
+      if (newPort === port) {
+        setInvalid(false);
+        return;
+      }
+      setPort(newPort);
+      setInvalid(false);
+      chrome.storage.local.set({ [STORAGE_KEY]: newPort }).catch(() => {});
+      const message: PortChangedMessage = { type: 'port-changed', port: newPort };
+      chrome.runtime.sendMessage(message).catch(() => {});
+    },
+    [port],
+  );
 
-  const savePort = useCallback(() => {
-    if (!isValidPort(draft)) {
-      setInvalid(true);
-      return;
+  const handleChange = useCallback(
+    (value: string) => {
+      setDraft(value);
+      setInvalid(false);
+      // Stepper arrows produce valid clamped values — commit immediately
+      if (isValidPort(value)) {
+        commitPort(value);
+      }
+    },
+    [commitPort],
+  );
+
+  const handleBlur = useCallback(() => {
+    if (isValidPort(draft)) {
+      commitPort(draft);
+    } else {
+      // Revert to last valid port on blur if invalid
+      setDraft(String(port));
+      setInvalid(false);
     }
-    const newPort = Number(draft);
-    setPort(newPort);
-    setEditing(false);
-    setInvalid(false);
-    chrome.storage.local.set({ [STORAGE_KEY]: newPort }).catch(() => {});
-    const message: PortChangedMessage = { type: 'port-changed', port: newPort };
-    chrome.runtime.sendMessage(message).catch(() => {});
-  }, [draft]);
-
-  const cancelEditing = useCallback(() => {
-    setEditing(false);
-    setInvalid(false);
-  }, []);
-
-  useEffect(() => {
-    if (editing && inputRef.current) {
-      inputRef.current.focus();
-      inputRef.current.select();
-    }
-  }, [editing]);
-
-  if (editing) {
-    return (
-      <div className="flex items-center gap-1.5">
-        <span className="text-muted-foreground font-mono text-xs">Port:</span>
-        <Input
-          ref={inputRef}
-          type="text"
-          inputMode="numeric"
-          value={draft}
-          onChange={e => {
-            setDraft(e.target.value);
-            setInvalid(false);
-          }}
-          onKeyDown={e => {
-            if (e.key === 'Enter') savePort();
-            if (e.key === 'Escape') cancelEditing();
-          }}
-          onBlur={savePort}
-          aria-invalid={invalid || undefined}
-          aria-label="Server port"
-          placeholder="9515"
-          className="h-7 w-[5.5rem] px-2 py-0 font-mono text-xs"
-        />
-      </div>
-    );
-  }
+  }, [draft, port, commitPort]);
 
   return (
-    <button
-      type="button"
-      onClick={startEditing}
-      className="text-muted-foreground hover:text-foreground cursor-pointer font-mono text-xs transition"
-      aria-label="Edit server port">
-      Port: {port}
-    </button>
+    <div className="flex items-center gap-1.5">
+      <span className="text-muted-foreground font-mono text-xs">Port:</span>
+      <NumberStepper
+        ref={inputRef}
+        value={draft}
+        onChange={handleChange}
+        onBlur={handleBlur}
+        onKeyDown={e => {
+          if (e.key === 'Enter') {
+            e.currentTarget.blur();
+          }
+          if (e.key === 'Escape') {
+            setDraft(String(port));
+            setInvalid(false);
+            e.currentTarget.blur();
+          }
+        }}
+        min={1}
+        max={65535}
+        aria-invalid={invalid || undefined}
+        aria-label="Server port"
+        placeholder="9515"
+        className="h-7"
+      />
+    </div>
   );
 };
 
