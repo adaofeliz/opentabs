@@ -21,6 +21,11 @@ export interface WaitUntilOptions {
 }
 
 /**
+ * Returns a promise that resolves after `ms` milliseconds.
+ */
+export const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+
+/**
  * Retries `fn` on failure up to `maxAttempts` times. Waits `delay` ms between
  * attempts (doubled each time when `backoff` is true). Re-throws the last
  * error after all attempts are exhausted. Supports cancellation via AbortSignal.
@@ -31,12 +36,31 @@ export const retry = async <T>(fn: () => Promise<T>, opts?: RetryOptions): Promi
   const backoff = opts?.backoff ?? false;
   const signal = opts?.signal;
 
+  const abortReason = () => (signal?.reason instanceof Error ? signal.reason : new Error('retry: aborted'));
+
+  const abortableSleep = (ms: number): Promise<void> => {
+    if (!signal) return sleep(ms);
+    if (signal.aborted) return Promise.reject(abortReason());
+
+    return new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        signal.removeEventListener('abort', onAbort);
+        resolve();
+      }, ms);
+
+      const onAbort = () => {
+        clearTimeout(timer);
+        reject(abortReason());
+      };
+
+      signal.addEventListener('abort', onAbort, { once: true });
+    });
+  };
+
   let lastError: unknown;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-    if (signal?.aborted) {
-      throw signal.reason instanceof Error ? signal.reason : new Error('retry: aborted');
-    }
+    if (signal?.aborted) throw abortReason();
 
     try {
       return await fn();
@@ -45,11 +69,9 @@ export const retry = async <T>(fn: () => Promise<T>, opts?: RetryOptions): Promi
     }
 
     if (attempt < maxAttempts) {
-      if (signal?.aborted) {
-        throw signal.reason instanceof Error ? signal.reason : new Error('retry: aborted');
-      }
+      if (signal?.aborted) throw abortReason();
       const currentDelay = backoff ? baseDelay * 2 ** (attempt - 1) : baseDelay;
-      await sleep(currentDelay);
+      await abortableSleep(currentDelay);
     }
   }
 
@@ -57,47 +79,48 @@ export const retry = async <T>(fn: () => Promise<T>, opts?: RetryOptions): Promi
 };
 
 /**
- * Returns a promise that resolves after `ms` milliseconds.
- */
-export const sleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
-
-/**
  * Polls `predicate` at `interval` ms until it returns `true`, or rejects on
- * timeout with a descriptive error.
+ * timeout with a descriptive error. Uses recursive setTimeout to prevent
+ * overlapping calls when the predicate is async.
  */
 export const waitUntil = (predicate: () => boolean | Promise<boolean>, opts?: WaitUntilOptions): Promise<void> => {
   const interval = opts?.interval ?? 200;
   const timeout = opts?.timeout ?? 10_000;
 
   return new Promise<void>((resolve, reject) => {
-    const state = { settled: false };
+    let settled = false;
+    let poller: ReturnType<typeof setTimeout>;
+
+    const isSettled = () => settled;
 
     const cleanup = () => {
-      state.settled = true;
+      settled = true;
       clearTimeout(timer);
-      clearInterval(poller);
+      clearTimeout(poller);
     };
 
     const timer = setTimeout(() => {
-      if (state.settled) return;
+      if (isSettled()) return;
       cleanup();
       reject(new Error(`waitUntil: timed out after ${timeout}ms waiting for predicate to return true`));
     }, timeout);
 
     const check = async () => {
-      if (state.settled) return;
+      if (isSettled()) return;
       try {
         const result = await predicate();
         if (result) {
           cleanup();
           resolve();
+          return;
         }
       } catch {
         // Predicate threw — keep polling until timeout
       }
+      if (!isSettled()) {
+        poller = setTimeout(() => void check(), interval);
+      }
     };
-
-    const poller = setInterval(() => void check(), interval);
 
     // Check immediately on first call
     void check();
