@@ -62,8 +62,13 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       <body className={`${head.variable} ${sans.variable} ${mono.variable}`}>
         <ThemeProvider>
           <div className="bg-background text-foreground">
+            <a
+              href="#main-content"
+              className="bg-primary text-foreground sr-only focus:not-sr-only focus:absolute focus:z-[100] focus:p-4 focus:font-bold">
+              Skip to main content
+            </a>
             <TopNav />
-            {children}
+            <main id="main-content">{children}</main>
             <Toaster />
           </div>
         </ThemeProvider>

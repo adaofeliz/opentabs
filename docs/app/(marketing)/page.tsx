@@ -27,7 +27,7 @@ const steps = [
 
 export default function Home() {
   return (
-    <main>
+    <div>
       {/* ── Hero ──────────────────────────────────────────── */}
       <section className="container mx-auto max-w-6xl px-4 pt-14 pb-8 lg:px-0 lg:pt-20 lg:pb-10">
         <div className="mx-auto max-w-3xl text-center">
@@ -112,6 +112,6 @@ export default function Home() {
       </section>
 
       <Footer />
-    </main>
+    </div>
   );
 }
