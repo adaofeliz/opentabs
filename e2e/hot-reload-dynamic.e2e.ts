@@ -2,10 +2,8 @@
  * Dynamic hot reload E2E tests — plugin installation, removal, file watcher,
  * config changes, and multi-session notification.
  *
- * These tests go beyond the existing hot-reload-tools.e2e.ts (which verifies
- * that existing sessions survive a hot reload with the SAME plugins). Here we
- * verify that the MCP server correctly picks up CHANGES to the plugin set,
- * tool config, and plugin files across hot reloads.
+ * These tests verify that the MCP server correctly picks up CHANGES to the
+ * plugin set, tool config, and plugin files across hot reloads.
  *
  * Key scenarios:
  *   1. New plugin installed via config change + hot reload → tools appear
