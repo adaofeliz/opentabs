@@ -8,6 +8,7 @@ import {
   DispatchFlow,
   MonorepoStructure,
   PluginStructure,
+  ProgressFlow,
   QuickStartFlow,
 } from './illustrations';
 import { Table } from './retroui/Table';
@@ -96,6 +97,7 @@ const docComponents = {
   MonorepoStructure,
   QuickStartFlow,
   PluginStructure,
+  ProgressFlow,
 };
 
 const blogComponents = {

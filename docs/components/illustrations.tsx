@@ -1346,6 +1346,396 @@ export const DispatchFlow = () => (
 );
 
 /**
+ * ProgressFlow — vertical 6-step flow diagram for the Streaming & Progress guide.
+ * Shows the progress notification pipeline: Tool handler → Adapter IIFE → Content script →
+ * Extension background → MCP server → AI agent, with transport labels on each arrow.
+ */
+export const ProgressFlow = () => (
+  <div className="my-8">
+    <svg
+      viewBox="0 0 400 540"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className="w-full max-w-lg"
+      aria-hidden="true">
+      <defs>
+        <marker id="pf-arrow" markerWidth="10" markerHeight="10" refX="8" refY="4" orient="auto">
+          <path d="M0,0 L10,4 L0,8 Z" fill="var(--color-foreground)" />
+        </marker>
+      </defs>
+
+      {/* ── Step 1: Tool Handler (highlighted — developer's code) ── */}
+      {/* Shadow */}
+      <rect x="124" y="4" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="0"
+        width="160"
+        height="52"
+        fill="var(--color-primary)"
+        opacity="0.12"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="22"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Tool Handler
+      </text>
+      <text
+        x="200"
+        y="40"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        reportProgress()
+      </text>
+
+      {/* ── Arrow 1→2 ──────────────────────────────────── */}
+      <line
+        x1="200"
+        y1="56"
+        x2="200"
+        y2="88"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#pf-arrow)"
+      />
+      <text
+        x="282"
+        y="78"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5">
+        CustomEvent
+      </text>
+
+      {/* ── Step 2: Adapter IIFE ──────────────────────── */}
+      {/* Shadow */}
+      <rect x="124" y="96" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="92"
+        width="160"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="114"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Adapter IIFE
+      </text>
+      <text
+        x="200"
+        y="132"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        MAIN world
+      </text>
+
+      {/* ── Arrow 2→3 ──────────────────────────────────── */}
+      <line
+        x1="200"
+        y1="148"
+        x2="200"
+        y2="180"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#pf-arrow)"
+      />
+      <text
+        x="282"
+        y="170"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5">
+        window.postMessage
+      </text>
+
+      {/* ── Step 3: Content Script Relay ──────────────── */}
+      {/* Shadow */}
+      <rect x="124" y="188" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="184"
+        width="160"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="206"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Content Script
+      </text>
+      <text
+        x="200"
+        y="224"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        ISOLATED world relay
+      </text>
+
+      {/* ── Arrow 3→4 ──────────────────────────────────── */}
+      <line
+        x1="200"
+        y1="240"
+        x2="200"
+        y2="272"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#pf-arrow)"
+      />
+      <text
+        x="282"
+        y="262"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5">
+        chrome.runtime
+      </text>
+
+      {/* ── Step 4: Extension Background ─────────────── */}
+      {/* Shadow */}
+      <rect x="124" y="280" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="276"
+        width="160"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="298"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        Extension
+      </text>
+      <text
+        x="200"
+        y="316"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Background service worker
+      </text>
+
+      {/* ── Arrow 4→5 ──────────────────────────────────── */}
+      <line
+        x1="200"
+        y1="332"
+        x2="200"
+        y2="364"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#pf-arrow)"
+      />
+      <text
+        x="282"
+        y="354"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5">
+        WebSocket
+      </text>
+
+      {/* ── Step 5: MCP Server ───────────────────────── */}
+      {/* Shadow */}
+      <rect x="124" y="372" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="368"
+        width="160"
+        height="52"
+        fill="var(--color-background)"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="390"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        MCP Server
+      </text>
+      <text
+        x="200"
+        y="408"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Resets timeout, forwards
+      </text>
+
+      {/* ── Arrow 5→6 ──────────────────────────────────── */}
+      <line
+        x1="200"
+        y1="424"
+        x2="200"
+        y2="456"
+        stroke="var(--color-foreground)"
+        strokeWidth="2"
+        markerEnd="url(#pf-arrow)"
+      />
+      <text
+        x="282"
+        y="446"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5">
+        notifications/progress
+      </text>
+
+      {/* ── Step 6: AI Agent (highlighted — endpoint) ── */}
+      {/* Shadow */}
+      <rect x="124" y="464" width="160" height="52" fill="var(--color-foreground)" />
+      {/* Body */}
+      <rect
+        x="120"
+        y="460"
+        width="160"
+        height="52"
+        fill="var(--color-primary)"
+        opacity="0.12"
+        stroke="var(--color-foreground)"
+        strokeWidth="3"
+      />
+      <text
+        x="200"
+        y="482"
+        fontSize="12"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="middle">
+        AI Agent
+      </text>
+      <text
+        x="200"
+        y="500"
+        fontSize="9"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        opacity="0.5"
+        textAnchor="middle">
+        Live progress updates
+      </text>
+
+      {/* ── Step numbers ─────────────────────────────── */}
+      <text
+        x="108"
+        y="22"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        1
+      </text>
+      <text
+        x="108"
+        y="114"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        2
+      </text>
+      <text
+        x="108"
+        y="206"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        3
+      </text>
+      <text
+        x="108"
+        y="298"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        4
+      </text>
+      <text
+        x="108"
+        y="390"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        5
+      </text>
+      <text
+        x="108"
+        y="482"
+        fontSize="11"
+        fontFamily="var(--font-mono), monospace"
+        fill="var(--color-foreground)"
+        fontWeight="bold"
+        textAnchor="end">
+        6
+      </text>
+    </svg>
+  </div>
+);
+
+/**
  * PluginStructure — project structure diagram for the Plugin Development guide.
  * Shows the key files in a scaffolded plugin project as a tree.
  */
