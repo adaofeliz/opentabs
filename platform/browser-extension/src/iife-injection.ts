@@ -97,12 +97,8 @@ const verifyAdapterHash = async (tabId: number, pluginName: string, expectedHash
  * A per-tab cryptographic nonce prevents malicious page scripts from spoofing
  * log entries. The nonce is generated here and shared with both worlds:
  * - ISOLATED world: validates `data.nonce` on every received postMessage
- * - MAIN world: stored on `globalThis.__openTabs._logNonce` and automatically
- *   patched into `window.postMessage` calls by wrapping the native function
- *
- * The MAIN world patching intercepts postMessage calls with the
- * `opentabs:plugin-logs` type and injects the nonce transparently, so
- * existing adapter IIFEs (built before nonce support) work without changes.
+ * - MAIN world: stored on `globalThis.__openTabs._logNonce`, read by the
+ *   adapter IIFE's flushLogs() and included in every postMessage call
  */
 const injectLogRelay = async (tabId: number): Promise<void> => {
   const nonce = crypto.randomUUID();
@@ -147,14 +143,10 @@ const injectLogRelay = async (tabId: number): Promise<void> => {
       args: [nonce],
     });
 
-    // 2. Inject the nonce into MAIN world on globalThis.__openTabs._logNonce
-    //    and patch window.postMessage to inject the nonce into outgoing
-    //    'opentabs:plugin-logs' messages. The patch ensures existing adapter
-    //    IIFEs (built before nonce support) include the nonce transparently
-    //    without requiring a plugin rebuild. Only 'opentabs:plugin-logs'
-    //    messages are modified; all other postMessage traffic passes through
-    //    unchanged. The patch is idempotent — re-invocations update the nonce
-    //    but do not re-wrap postMessage.
+    // 2. Inject the nonce into MAIN world on globalThis.__openTabs._logNonce.
+    //    The adapter IIFE reads this value in its flushLogs() function and
+    //    includes it in every postMessage call. On re-injection, the nonce is
+    //    updated so the adapter picks up the new value on the next flush.
     await chrome.scripting.executeScript({
       target: { tabId },
       world: 'MAIN',
@@ -162,28 +154,6 @@ const injectLogRelay = async (tabId: number): Promise<void> => {
         const ot = ((globalThis as Record<string, unknown>).__openTabs ?? {}) as Record<string, unknown>;
         (globalThis as Record<string, unknown>).__openTabs = ot;
         ot._logNonce = n;
-
-        // Patch postMessage only once per page load
-        if (ot._postMessagePatched) return;
-        ot._postMessagePatched = true;
-
-        const origPostMessage = window.postMessage.bind(window);
-        window.postMessage = function (...args: Parameters<typeof window.postMessage>) {
-          const message: unknown = args[0];
-          if (
-            typeof message === 'object' &&
-            message !== null &&
-            (message as Record<string, unknown>).type === 'opentabs:plugin-logs'
-          ) {
-            const currentNonce = (
-              (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined
-            )?._logNonce;
-            if (typeof currentNonce === 'string') {
-              (message as Record<string, unknown>).nonce = currentNonce;
-            }
-          }
-          origPostMessage(...args);
-        };
       },
       args: [nonce],
     });
