@@ -15,7 +15,7 @@
 
 import { ALL_ALLOWED_METHODS } from '../known-methods.js';
 import { installLogCollector } from '../log-collector.js';
-import type { InternalMessage, WsStateMessage, WsDataMessage } from '../extension-messages.js';
+import type { DisconnectReason, InternalMessage, WsStateMessage, WsDataMessage } from '../extension-messages.js';
 
 /** Capture console output in a ring buffer for retrieval by debugging tools */
 const offscreenLogCollector = installLogCollector('offscreen');
@@ -81,6 +81,8 @@ let awaitingPong = false;
 let reconnectScheduledByWatchdog = false;
 /** Guard flag to prevent concurrent connect() calls during the async refreshWsUrl phase */
 let connecting = false;
+/** Tracks why the last connection attempt failed, for side panel error state display */
+let lastDisconnectReason: DisconnectReason | undefined;
 
 const sendToBackground = (message: InternalMessage): void => {
   chrome.runtime.sendMessage(message).catch(() => {
@@ -149,7 +151,12 @@ const sendPing = (): void => {
       }
       ws = null;
       clearPingInterval();
-      sendToBackground({ type: 'ws:state', connected: false } satisfies WsStateMessage);
+      lastDisconnectReason = 'connection_refused';
+      sendToBackground({
+        type: 'ws:state',
+        connected: false,
+        disconnectReason: 'connection_refused',
+      } satisfies WsStateMessage);
       scheduleReconnect();
     }
   }, PONG_TIMEOUT_MS);
@@ -184,8 +191,11 @@ const scheduleReconnect = (): void => {
  * Re-fetch the WebSocket URL and auth secret from /ws-info.
  * Called before each connection attempt so reconnects after secret rotation
  * pick up the new token automatically. Falls back to the current URL on error.
+ *
+ * Returns the disconnect reason if the server explicitly rejected us (auth_failed)
+ * or could not be reached (connection_refused). Returns undefined on success.
  */
-const refreshWsUrl = async (): Promise<void> => {
+const refreshWsUrl = async (): Promise<DisconnectReason | undefined> => {
   try {
     const httpBase = mcpServerUrl.replace(/^ws/, 'http').replace(/\/ws$/, '');
     const headers: Record<string, string> = {};
@@ -205,6 +215,9 @@ const refreshWsUrl = async (): Promise<void> => {
         cache: 'no-store',
       });
     }
+    if (res.status === 401) {
+      return 'auth_failed';
+    }
     if (res.ok) {
       const wsInfo = (await res.json()) as { wsUrl?: string };
       if (typeof wsInfo.wsUrl === 'string' && wsInfo.wsUrl !== '' && wsInfo.wsUrl !== mcpServerUrl) {
@@ -213,8 +226,10 @@ const refreshWsUrl = async (): Promise<void> => {
         }
       }
     }
+    return undefined;
   } catch {
     // Server may be down — use existing URL as fallback
+    return 'connection_refused';
   }
 };
 
@@ -227,13 +242,25 @@ const connect = async (): Promise<void> => {
 
   connecting = true;
   try {
-    await refreshWsUrl();
+    const reason = await refreshWsUrl();
+    if (reason) {
+      lastDisconnectReason = reason;
+      sendToBackground({ type: 'ws:state', connected: false, disconnectReason: reason } satisfies WsStateMessage);
+      scheduleReconnect();
+      return;
+    }
     // Send auth token via Sec-WebSocket-Protocol header (not URL query)
     // to keep it out of server logs, browser history, and proxy logs.
     const protocols: string[] = ['opentabs'];
     if (wsSecret) protocols.push(wsSecret);
     ws = protocols.length > 1 ? new WebSocket(mcpServerUrl, protocols) : new WebSocket(mcpServerUrl);
   } catch {
+    lastDisconnectReason = 'connection_refused';
+    sendToBackground({
+      type: 'ws:state',
+      connected: false,
+      disconnectReason: 'connection_refused',
+    } satisfies WsStateMessage);
     scheduleReconnect();
     return;
   } finally {
@@ -242,6 +269,7 @@ const connect = async (): Promise<void> => {
 
   ws.onopen = () => {
     backoffMs = INITIAL_BACKOFF_MS; // Reset backoff on success
+    lastDisconnectReason = undefined;
     startPingInterval();
     sendToBackground({ type: 'ws:state', connected: true } satisfies WsStateMessage);
   };
@@ -286,7 +314,7 @@ const connect = async (): Promise<void> => {
     }
   };
 
-  ws.onclose = () => {
+  ws.onclose = event => {
     // The pong watchdog sets ws = null before calling ws.close(), so onclose
     // fires with ws already null. Skip duplicate cleanup and notification.
     if (!ws) {
@@ -297,7 +325,21 @@ const connect = async (): Promise<void> => {
     ws = null;
     clearPingInterval();
     clearPongWatchdog();
-    sendToBackground({ type: 'ws:state', connected: false } satisfies WsStateMessage);
+
+    // Determine disconnect reason from the WebSocket close code.
+    // Code 4001 is sent by the MCP server when authentication fails during
+    // the WebSocket handshake (invalid or missing Sec-WebSocket-Protocol token).
+    if (event.code === 4001) {
+      lastDisconnectReason = 'auth_failed';
+    } else if (!lastDisconnectReason) {
+      lastDisconnectReason = 'connection_refused';
+    }
+
+    sendToBackground({
+      type: 'ws:state',
+      connected: false,
+      disconnectReason: lastDisconnectReason,
+    } satisfies WsStateMessage);
 
     // If the pong watchdog already scheduled a reconnect, skip to avoid double scheduling
     if (reconnectScheduledByWatchdog) {
@@ -332,7 +374,11 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
     }
 
     case 'ws:getState': {
-      sendResponse({ connected: ws?.readyState === WebSocket.OPEN });
+      const isConnected = ws?.readyState === WebSocket.OPEN;
+      sendResponse({
+        connected: isConnected,
+        disconnectReason: isConnected ? undefined : lastDisconnectReason,
+      });
       break;
     }
 

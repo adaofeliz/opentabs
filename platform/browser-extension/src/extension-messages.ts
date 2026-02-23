@@ -13,10 +13,15 @@ export interface OffscreenGetUrlMessage {
   type: 'offscreen:getUrl';
 }
 
+/** Reason the WebSocket disconnected — enables distinct error states in the side panel */
+export type DisconnectReason = 'connection_refused' | 'auth_failed';
+
 /** Background → Offscreen: WebSocket connection state changed */
 export interface WsStateMessage {
   type: 'ws:state';
   connected: boolean;
+  /** Present only when connected is false — indicates why the connection failed */
+  disconnectReason?: DisconnectReason;
 }
 
 /** Background/Offscreen: relay a JSON-RPC message from the MCP server */
@@ -77,7 +82,7 @@ export interface SpGetStateMessage {
 /** Background → Side panel: WebSocket connection state update */
 export interface SpConnectionStateMessage {
   type: 'sp:connectionState';
-  data: { connected: boolean };
+  data: { connected: boolean; disconnectReason?: DisconnectReason };
 }
 
 /** Content script relay → Background: batched plugin log entries from adapter IIFE */

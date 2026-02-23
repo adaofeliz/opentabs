@@ -5,7 +5,7 @@ import { forwardToSidePanel, sendToServer } from './messaging.js';
 import { invalidatePluginCache } from './plugin-storage.js';
 import { checkTabStateChanges, clearTabStateCache, sendTabSyncAll } from './tab-state.js';
 import { notifyDispatchProgress } from './tool-dispatch.js';
-import type { InternalMessage } from './extension-messages.js';
+import type { DisconnectReason, InternalMessage } from './extension-messages.js';
 
 // --- Side panel toggle ---
 
@@ -38,6 +38,8 @@ chrome.action.onClicked.addListener(({ windowId }) => {
  * on every message handler invocation.
  */
 let wsConnected = false;
+/** Tracks the reason for the last WebSocket disconnection */
+let lastDisconnectReason: DisconnectReason | undefined;
 
 /** Restore wsConnected from chrome.storage.session on service worker wake */
 chrome.storage.session
@@ -186,7 +188,14 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
       const wasConnected = wsConnected;
       const nowConnected = message.connected;
       persistWsConnected(nowConnected);
-      forwardToSidePanel({ type: 'sp:connectionState', data: { connected: nowConnected } });
+      lastDisconnectReason = nowConnected ? undefined : message.disconnectReason;
+      forwardToSidePanel({
+        type: 'sp:connectionState',
+        data: {
+          connected: nowConnected,
+          disconnectReason: lastDisconnectReason,
+        },
+      });
       if (nowConnected && !wasConnected) {
         sendTabSyncAll().catch((err: unknown) => console.warn('[opentabs] tab sync failed:', err));
       }
@@ -211,7 +220,10 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
     }
 
     case 'bg:getConnectionState': {
-      sendResponse({ connected: wsConnected });
+      sendResponse({
+        connected: wsConnected,
+        disconnectReason: wsConnected ? undefined : lastDisconnectReason,
+      });
       return true;
     }
 
