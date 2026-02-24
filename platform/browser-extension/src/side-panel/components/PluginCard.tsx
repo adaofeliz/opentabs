@@ -1,6 +1,7 @@
 import { PluginIcon } from './PluginIcon.js';
 import { Accordion } from './retro/Accordion.js';
 import { Alert } from './retro/Alert.js';
+import { Badge } from './retro/Badge.js';
 import { Switch } from './retro/Switch.js';
 import { Tooltip } from './retro/Tooltip.js';
 import { ToolRow } from './ToolRow.js';
@@ -86,16 +87,19 @@ const PluginCard = ({
           <div className="font-head text-foreground flex min-w-0 flex-1 items-center gap-1.5 truncate text-sm">
             {plugin.displayName}
             {plugin.source === 'local' && (
-              <span className="text-muted-foreground bg-muted inline-block rounded px-1 py-0.5 align-middle text-[9px] leading-none font-medium">
+              <Badge variant="default" size="sm" className="align-middle">
                 DEV
-              </span>
+              </Badge>
             )}
             {!plugin.sdkVersion && (
               <Tooltip>
                 <Tooltip.Trigger asChild>
-                  <span className="border-accent bg-accent/10 text-accent-foreground inline-block rounded border px-1 py-0.5 align-middle text-[9px] leading-none font-medium">
+                  <Badge
+                    variant="outline"
+                    size="sm"
+                    className="border-accent bg-accent/10 text-accent-foreground align-middle">
                     SDK
-                  </span>
+                  </Badge>
                 </Tooltip.Trigger>
                 <Tooltip.Content>SDK version mismatch — rebuild plugin</Tooltip.Content>
               </Tooltip>
