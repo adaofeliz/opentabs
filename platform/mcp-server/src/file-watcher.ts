@@ -521,7 +521,7 @@ const startConfigWatching = (state: ServerState, callbacks: FileWatcherCallbacks
   state.configLastSeenMtime = getFileMtimeMs(configPath);
 
   try {
-    state.configWatcher = watch(configDir, (_eventType, filename) => {
+    state.configWatcher = watch(configDir, (_eventType: string, filename: string | null) => {
       if (filename !== 'config.json') return;
 
       const key = 'config';
