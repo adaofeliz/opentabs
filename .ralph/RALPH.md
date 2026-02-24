@@ -31,7 +31,7 @@ You are running in a git worktree, not the main working directory. Key implicati
 
 - **Your branch is isolated.** Commits you make are on your worktree branch. Ralph merges them into the main branch after you finish.
 - **Other agents cannot see your changes** and you cannot see theirs. There are no type-check, lint, or build cross-contamination issues.
-- **Dependencies are installed and packages are pre-built.** Ralph runs `bun install`, `bun run build`, and builds the `plugins/e2e-test` plugin in your worktree before launching you. You do not need to run `bun install` or `bun run build` at the start — all `dist/` artifacts are fresh. Only re-run these if you modify `package.json` or source files that affect the build.
+- **Dependencies are installed and packages are pre-built.** Ralph runs `bun install`, `bun run build`, and builds the `plugins/e2e-test` plugin in your worktree before launching you. You do not need to run `bun install` or `bun run build` at the start — all `dist/` artifacts are fresh. Only re-run these if you modify `package.json` or source files that affect the build. **If `bun run build` fails on your first Phase 1 run, the failure is from your code changes — do not investigate workspace resolution, symlinks, or package versions.** The infrastructure is verified working before you start.
 - **The `.ralph/` directory** contains your PRD and progress files. These are copies managed by ralph — update them normally.
 - **Merge conflicts are possible.** After you finish, ralph merges your branch into main. If another agent's branch was merged first and touched the same files, a merge conflict occurs. Ralph preserves your branch for manual resolution and moves on. To minimize conflicts:
   - **Keep changes focused.** Only modify files relevant to your story. Do not refactor unrelated code.
@@ -122,6 +122,10 @@ Ralph runs a final verification gate (the full suite: build, type-check, lint, k
 ### RALPH.md overrides CLAUDE.md for verification
 
 The root `CLAUDE.md` says "run every check including `bun run test:e2e`" for every task. **This file (RALPH.md) overrides that instruction for ralph agents.** Follow the `e2eCheckpoint`-based rules above instead. The root CLAUDE.md's verification section applies to interactive development, not ralph-driven automation where the safety net provides the E2E guarantee.
+
+### Interpreting E2E results
+
+Playwright reports tests as "flaky" when they fail on the first attempt but pass on retry (configured via `retries: 1` in `playwright.config.ts`). **Flaky tests are passing tests.** Playwright exits 0 when all tests ultimately pass, including retried ones. Trust the exit code — do not re-run the entire E2E suite because the output mentions "flaky". Only re-run if the exit code is non-zero (meaning a test failed even after retries).
 
 ### E2E process isolation
 
