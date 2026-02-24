@@ -4,6 +4,7 @@ import { loadPlugin } from './loader.js';
 import { log } from './logger.js';
 import { buildRegistry } from './registry.js';
 import { discoverGlobalNpmPlugins, resolvePluginPath } from './resolver.js';
+import { isSkipNpmDiscovery } from './skip-npm-discovery.js';
 import { isErr, OFFICIAL_SCOPE, toErrorMessage } from '@opentabs-dev/shared';
 import type { LoadedPlugin } from './loader.js';
 import type { FailedPlugin, PluginRegistry } from './state.js';
@@ -43,7 +44,9 @@ const discoverPlugins = async (localPlugins: string[], configDir: string): Promi
   const failures: FailedPlugin[] = [];
 
   // Phase 1: Auto-discover npm plugins from global node_modules
-  const { dirs: npmDirs, errors: npmErrors } = await discoverGlobalNpmPlugins();
+  const { dirs: npmDirs, errors: npmErrors } = isSkipNpmDiscovery()
+    ? { dirs: [], errors: [] }
+    : await discoverGlobalNpmPlugins();
   for (const npmErr of npmErrors) {
     errors.push({ specifier: '(npm auto-discovery)', error: npmErr });
   }

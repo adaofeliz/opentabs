@@ -93,9 +93,12 @@ const pruneStaleState = (state: ServerState): void => {
   }
 
   // Keep only outdatedPlugins entries for still-present plugins
-  state.outdatedPlugins = state.outdatedPlugins.filter(o =>
-    Array.from(state.registry.plugins.values()).some(p => p.npmPackageName === o.name),
+  const npmPkgNames = new Set(
+    Array.from(state.registry.plugins.values())
+      .map(p => p.npmPackageName)
+      .filter((n): n is string => n !== undefined),
   );
+  state.outdatedPlugins = state.outdatedPlugins.filter(o => npmPkgNames.has(o.name));
 };
 
 /** Arguments for the shared reload core */
