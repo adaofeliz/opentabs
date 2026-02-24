@@ -183,7 +183,12 @@ const removeFromLocalPlugins = async (pkg: string): Promise<void> => {
   }
 };
 
-const handlePluginRemove = async (name: string, options: { port?: number }): Promise<void> => {
+interface PluginRemoveOptions {
+  port?: number;
+  confirm?: boolean;
+}
+
+const handlePluginRemove = async (name: string, options: PluginRemoveOptions): Promise<void> => {
   const candidates = resolvePluginPackageCandidates(name);
   const isShorthand = candidates.length > 1;
 
@@ -191,26 +196,14 @@ const handlePluginRemove = async (name: string, options: { port?: number }): Pro
     console.log(`Resolving plugin ${pc.bold(name)}...`);
   }
 
-  const pkg = await resolvePackageName(name);
-  if (!pkg) {
-    // Fall back to the primary candidate for uninstall (npm uninstall is lenient)
-    const fallback = normalizePluginName(name);
-    console.log(`Removing ${pc.bold(fallback)}...`);
+  const pkg = (await resolvePackageName(name)) ?? normalizePluginName(name);
 
-    const proc = Bun.spawn([platformExec('npm'), 'uninstall', '-g', fallback], {
-      stdio: ['inherit', 'inherit', 'inherit'],
-    });
-    const exitCode = await proc.exited;
-
-    if (exitCode !== 0) {
-      console.error(pc.red(`npm uninstall failed (exit code ${exitCode}).`));
-      process.exit(1);
-    }
-
-    console.log(pc.green(`Successfully removed ${fallback}.`));
-    await removeFromLocalPlugins(fallback);
-    await notifyServer(options);
-    return;
+  if (!options.confirm) {
+    console.error(`This will remove the plugin ${pc.bold(pkg)} globally.`);
+    console.error('');
+    console.error(`Run with ${pc.bold('--confirm')} (or ${pc.bold('-y')}) to proceed:`);
+    console.error(`  opentabs plugin remove ${name} --confirm`);
+    process.exit(1);
   }
 
   console.log(`Removing ${pc.bold(pkg)}...`);
@@ -632,13 +625,14 @@ Examples:
     .command('remove')
     .description('Remove a globally installed plugin')
     .argument('<name>', 'Plugin name or full package name (e.g., slack or opentabs-plugin-slack)')
+    .option('-y, --confirm', 'Confirm removal')
     .addHelpText(
       'after',
       `
 Examples:
-  $ opentabs plugin remove slack
-  $ opentabs plugin remove opentabs-plugin-slack
-  $ opentabs plugin remove @my-org/opentabs-plugin-custom`,
+  $ opentabs plugin remove slack --confirm
+  $ opentabs plugin remove opentabs-plugin-slack -y
+  $ opentabs plugin remove @my-org/opentabs-plugin-custom --confirm`,
     )
     .action((name: string, _options: unknown, command: Command) => handlePluginRemove(name, command.optsWithGlobals()));
 
