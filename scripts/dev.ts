@@ -270,6 +270,22 @@ children.push(mcp);
 void pipeWithPrefix(mcp.stdout, '[mcp]', GREEN, process.stdout);
 void pipeWithPrefix(mcp.stderr, '[mcp]', GREEN, process.stderr);
 
+// Print startup banner
+const port = Bun.env.PORT ?? '9515';
+const extensionPath = join(homedir(), '.opentabs', 'extension') + '/';
+const bannerLines = [
+  '┌─────────────────────────────────────────────┐',
+  '│  OpenTabs Dev Server                        │',
+  '├─────────────────────────────────────────────┤',
+  `│  MCP Server:  http://localhost:${port}/mcp`.padEnd(46) + '│',
+  `│  Extension:   ${extensionPath}`.padEnd(46) + '│',
+  '│  Mode:        dev (hot reload)              │',
+  '├─────────────────────────────────────────────┤',
+  `│  ${GREEN}${BOLD}Ready${RESET} — watching for changes...            │`,
+  '└─────────────────────────────────────────────┘',
+];
+console.log(`\n${bannerLines.join('\n')}\n`);
+
 // 5. Rebuild the extension on each tsc recompilation.
 //
 //    Previous approach watched browser-extension/dist/ for file changes, but
