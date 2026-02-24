@@ -5,3 +5,4 @@ export { registerLogsCommand } from './logs.js';
 export { registerStartCommand } from './start.js';
 export { registerStatusCommand } from './status.js';
 export { registerPluginCommand } from './plugin.js';
+export { registerUpdateCommand } from './update.js';

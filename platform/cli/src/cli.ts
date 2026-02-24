@@ -8,6 +8,7 @@ import {
   registerPluginCommand,
   registerStartCommand,
   registerStatusCommand,
+  registerUpdateCommand,
 } from './commands/index.js';
 import { parsePort } from './parse-port.js';
 import { Command } from 'commander';
@@ -38,5 +39,6 @@ registerDoctorCommand(program);
 registerLogsCommand(program);
 registerPluginCommand(program);
 registerConfigCommand(program);
+registerUpdateCommand(program);
 
 await program.parseAsync();
