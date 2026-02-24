@@ -1,4 +1,4 @@
-import { requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
+import { requireStringParam, requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
 import { bgLogCollector } from '../background-log-state.js';
 import {
   buildWsUrl,
@@ -171,15 +171,8 @@ export const handleExtensionCheckAdapter = async (
   id: string | number,
 ): Promise<void> => {
   try {
-    const pluginName = params.plugin;
-    if (typeof pluginName !== 'string' || pluginName.length === 0) {
-      sendToServer({
-        jsonrpc: '2.0',
-        error: { code: JSONRPC_INVALID_PARAMS, message: 'Missing or invalid plugin parameter' },
-        id,
-      });
-      return;
-    }
+    const pluginName = requireStringParam(params, 'plugin', id);
+    if (pluginName === null) return;
 
     const meta = await getPluginMeta(pluginName);
     if (!meta) {
@@ -351,15 +344,8 @@ export const handleBrowserExecuteScript = async (
   try {
     const tabId = requireTabId(params, id);
     if (tabId === null) return;
-    const execFile = params.execFile;
-    if (typeof execFile !== 'string' || execFile.length === 0) {
-      sendToServer({
-        jsonrpc: '2.0',
-        error: { code: JSONRPC_INVALID_PARAMS, message: 'Missing or invalid execFile parameter' },
-        id,
-      });
-      return;
-    }
+    const execFile = requireStringParam(params, 'execFile', id);
+    if (execFile === null) return;
     if (!/^__exec-[a-f0-9-]+\.js$/.test(execFile)) {
       sendToServer({ jsonrpc: '2.0', error: { code: JSONRPC_INVALID_PARAMS, message: 'Invalid execFile format' }, id });
       return;

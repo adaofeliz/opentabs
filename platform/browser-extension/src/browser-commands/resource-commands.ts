@@ -1,4 +1,4 @@
-import { requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
+import { requireStringParam, requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
 import { CDP_VERSION } from '../constants.js';
 import { JSONRPC_INVALID_PARAMS } from '../json-rpc-errors.js';
 import { sendToServer } from '../messaging.js';
@@ -145,15 +145,8 @@ export const handleBrowserGetResourceContent = async (
   try {
     const tabId = requireTabId(params, id);
     if (tabId === null) return;
-    const url = params.url;
-    if (typeof url !== 'string' || url.length === 0) {
-      sendToServer({
-        jsonrpc: '2.0',
-        error: { code: JSONRPC_INVALID_PARAMS, message: 'Missing or invalid url parameter' },
-        id,
-      });
-      return;
-    }
+    const url = requireStringParam(params, 'url', id);
+    if (url === null) return;
     const maxLength = typeof params.maxLength === 'number' ? params.maxLength : 500_000;
 
     await withDebugger(tabId, async () => {

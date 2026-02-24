@@ -17,8 +17,15 @@ await mock.module('../sanitize-error.js', () => ({
 }));
 
 // Import after mocking
-const { requireTabId, requireSelector, requireUrl, extractScriptResult, sendErrorResult, sendSuccessResult } =
-  await import('./helpers.js');
+const {
+  requireTabId,
+  requireSelector,
+  requireStringParam,
+  requireUrl,
+  extractScriptResult,
+  sendErrorResult,
+  sendSuccessResult,
+} = await import('./helpers.js');
 
 /** Safely extract the first argument from the first call to mockSendToServer */
 const firstSentMessage = (): Record<string, unknown> => {
@@ -111,6 +118,72 @@ describe('requireSelector', () => {
     expect(firstSentMessage()).toMatchObject({
       jsonrpc: '2.0',
       id: 'req-13',
+      error: { code: -32602 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// requireStringParam
+// ---------------------------------------------------------------------------
+
+describe('requireStringParam', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('returns the value for a valid non-empty string', () => {
+    const result = requireStringParam({ plugin: 'slack' }, 'plugin', 'req-60');
+    expect(result).toBe('slack');
+    expect(mockSendToServer).not.toHaveBeenCalled();
+  });
+
+  test('returns null and sends -32602 error for missing param', () => {
+    const result = requireStringParam({}, 'plugin', 'req-61');
+    expect(result).toBeNull();
+    expect(mockSendToServer).toHaveBeenCalledTimes(1);
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-61',
+      error: { code: -32602, message: 'Missing or invalid plugin parameter' },
+    });
+  });
+
+  test('returns null and sends -32602 error for wrong type', () => {
+    const result = requireStringParam({ plugin: 42 }, 'plugin', 'req-62');
+    expect(result).toBeNull();
+    expect(mockSendToServer).toHaveBeenCalledTimes(1);
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-62',
+      error: { code: -32602, message: 'Missing or invalid plugin parameter' },
+    });
+  });
+
+  test('returns null and sends -32602 error for empty string', () => {
+    const result = requireStringParam({ plugin: '' }, 'plugin', 'req-63');
+    expect(result).toBeNull();
+    expect(mockSendToServer).toHaveBeenCalledTimes(1);
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-63',
+      error: { code: -32602, message: 'Missing or invalid plugin parameter' },
+    });
+  });
+
+  test('includes paramName in error message', () => {
+    requireStringParam({}, 'execFile', 'req-64');
+    expect(firstSentMessage()).toMatchObject({
+      error: { message: 'Missing or invalid execFile parameter' },
+    });
+  });
+
+  test('works with numeric id', () => {
+    const result = requireStringParam({}, 'key', 99);
+    expect(result).toBeNull();
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 99,
       error: { code: -32602 },
     });
   });
