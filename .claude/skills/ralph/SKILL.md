@@ -51,7 +51,7 @@ No `workingDirectory` or `qualityChecks` — ralph uses the default suite.
 {
   "project": "OpenTabs Docs",
   "workingDirectory": "docs",
-  "qualityChecks": "cd docs && bun run build && bun run type-check && bun run lint && bun run knip",
+  "qualityChecks": "cd docs && bun run build && bun run type-check && bun run lint && bun run knip && bun run format:check",
   "userStories": [...]
 }
 ```
@@ -62,7 +62,7 @@ No `workingDirectory` or `qualityChecks` — ralph uses the default suite.
 {
   "project": "OpenTabs Plugin — <name>",
   "workingDirectory": "plugins/<name>",
-  "qualityChecks": "cd plugins/<name> && bun run build && bun run type-check && bun run lint",
+  "qualityChecks": "cd plugins/<name> && bun run build && bun run type-check && bun run lint && bun run format:check",
   "userStories": [...]
 }
 ```
@@ -75,8 +75,10 @@ Story acceptance criteria must reference the verification commands appropriate f
 
 - **Root monorepo stories (`e2eCheckpoint: false`)**: `bun run build passes`, `bun run type-check passes`, `bun run lint passes`, `bun run knip passes`, `bun run test passes`
 - **Root monorepo stories (`e2eCheckpoint: true`)**: `bun run build passes`, `bun run type-check passes`, `bun run lint passes`, `bun run knip passes`, `bun run test passes`, `bun run test:e2e passes`
-- **Docs stories**: `cd docs && bun run build passes`, `cd docs && bun run type-check passes`, `cd docs && bun run lint passes`, `cd docs && bun run knip passes`
-- **Plugin stories**: `cd plugins/<name> && bun run build passes`, `cd plugins/<name> && bun run type-check passes`, `cd plugins/<name> && bun run lint passes`
+- **Docs stories**: `cd docs && bun run build passes`, `cd docs && bun run type-check passes`, `cd docs && bun run lint passes`, `cd docs && bun run knip passes`, `cd docs && bun run format:check passes`
+- **Plugin stories**: `cd plugins/<name> && bun run build passes`, `cd plugins/<name> && bun run type-check passes`, `cd plugins/<name> && bun run lint passes`, `cd plugins/<name> && bun run format:check passes`
+
+Each standalone subproject also has `bun run check` as a single command that runs all its checks in sequence. Use the explicit list for `qualityChecks` (debuggability), but `bun run check` is a convenient alternative for acceptance criteria shorthand.
 
 Do NOT list checks that the target project doesn't have scripts for.
 

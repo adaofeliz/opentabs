@@ -15,6 +15,22 @@ bun run lint          # eslint
 bun run format:check  # prettier
 ```
 
+## Root-level commands
+
+You can also build and check all plugins from the repo root:
+
+```bash
+bun run build:plugins   # Build all plugins (install + build each)
+bun run check:plugins   # Type-check + lint + format:check all plugins
+```
+
+Each plugin also has a `check` script for running all quality checks at once:
+
+```bash
+cd plugins/<name>
+bun run check   # build + type-check + lint + format:check
+```
+
 ## Adding a new plugin
 
 ```bash

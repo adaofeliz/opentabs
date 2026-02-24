@@ -84,15 +84,48 @@ Each subdirectory has its own `CLAUDE.md` with package-specific details.
 ### Commands
 
 ```bash
-bun install           # Install dependencies
-bun run build         # Build all packages (tsc --build + side panel)
-bun run type-check    # TypeScript check (tsc --noEmit)
-bun run lint          # ESLint check
-bun run lint:fix      # ESLint auto-fix
-bun run format        # Prettier format
-bun run format:check  # Prettier check
-bun run knip          # Unused code detection
-bun run test:e2e      # E2E tests (Playwright)
+# Build
+bun run build           # Build all packages (tsc --build + extension bundle + icons)
+bun run build:tsc       # TypeScript only (no extension bundling or icons)
+bun run build:icons     # Generate extension icons from SVG
+bun run build:plugins   # Build all plugins (install + build each)
+bun run build:docs      # Build docs site (next build)
+
+# Dev
+bun run dev             # Full dev mode (tsc watch + MCP server + extension, colored output with startup banner)
+bun run dev:mcp         # MCP server only with hot reload (lightweight alternative to full dev)
+bun run dev:docs        # Docs dev server (next dev)
+
+# Quality checks
+bun run check           # Root checks: build + type-check + lint + format:check + knip + test
+bun run check:all       # Everything: root checks + E2E + docs + plugins
+bun run check:docs      # Docs checks: build + type-check + lint + knip + format:check
+bun run check:plugins   # Plugin checks: type-check + lint + format:check (all plugins)
+bun run type-check      # TypeScript check (tsc --noEmit)
+bun run lint            # ESLint check
+bun run lint:fix        # ESLint auto-fix
+bun run format          # Prettier format
+bun run format:check    # Prettier check
+bun run knip            # Unused code detection
+
+# Docs (from root)
+bun run lint:docs       # ESLint docs
+bun run type-check:docs # TypeScript check docs
+
+# Test
+bun run test            # Unit tests (bun test platform/)
+bun run test:unit       # Alias for test
+bun run test:e2e        # E2E tests (Playwright)
+
+# Clean
+bun run clean           # Remove build artifacts (dist/, tsbuildinfo, generated icons)
+bun run clean:all       # clean + remove node_modules across all workspaces and plugins
+
+# UI
+bun run storybook       # Launch Storybook dev server (browser extension components)
+
+# Setup
+bun install             # Install dependencies
 ```
 
 ### Loading the Extension
@@ -121,17 +154,23 @@ Plugin adapter changes are picked up via `POST /reload` (triggered by `opentabs-
 opentabs start
 ```
 
-**Dev mode** — file watchers, config watching, hot reload:
+**Dev mode** — MCP server only, with hot reload:
 
 ```bash
-bun --hot platform/mcp-server/dist/index.js --dev
+bun run dev:mcp
+```
+
+**Full dev mode** — tsc watch + MCP server + extension build, with colored output and startup banner:
+
+```bash
+bun run dev
 ```
 
 ---
 
 ## Development Workflow
 
-All development workflows below assume the MCP server is running in **dev mode** (`bun --hot platform/mcp-server/dist/index.js --dev`). In production mode, restart the server after any changes.
+All development workflows below assume the MCP server is running in dev mode. Use `bun run dev` for full dev mode (tsc watch + MCP server + extension) or `bun run dev:mcp` for server-only work with hot reload. In production mode, restart the server after any changes.
 
 ### MCP Server Changes (Hot Reload)
 
@@ -221,6 +260,8 @@ bun run test:e2e      # E2E tests (Playwright)
 ```
 
 **Every command must exit 0.** A task is not done until all six pass. No exceptions.
+
+For full repository verification including docs and plugins, use `bun run check:all`.
 
 - If a check fails, **fix it** — even if the failure looks pre-existing or unrelated to your change. You own the codebase.
 - Do not rationalize failures ("that's a known issue", "the build is the real type-check", "this was broken before I started"). If it fails, it is your problem. Fix it or explain to the user why you cannot.

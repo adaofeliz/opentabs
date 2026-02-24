@@ -59,8 +59,10 @@ This repository contains multiple projects with different build systems and veri
 | Target                    | `workingDirectory` | Default `qualityChecks`                                                                                   |
 | ------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
 | Root monorepo (platform/) | _(not set)_        | `bun run build && bun run type-check && bun run lint && bun run knip && bun run test && bun run test:e2e` |
-| Docs site                 | `docs`             | `cd docs && bun run build && bun run type-check && bun run lint && bun run knip`                          |
-| Plugins                   | `plugins/<name>`   | `cd plugins/<name> && bun run build && bun run type-check && bun run lint`                                |
+| Docs site                 | `docs`             | `cd docs && bun run build && bun run type-check && bun run lint && bun run knip && bun run format:check`  |
+| Plugins                   | `plugins/<name>`   | `cd plugins/<name> && bun run build && bun run type-check && bun run lint && bun run format:check`        |
+
+Each standalone subproject (docs, plugins) also has `bun run check` as a convenience alias that runs all its checks in sequence. Ralph agents should use the explicit command list for debuggability, but `bun run check` is available for interactive use.
 
 These are examples showing the full verification scope. For root monorepo work, `test:e2e` only runs when the current story has `e2eCheckpoint: true` (see Phase 2 below). Always trust the PRD's `qualityChecks` field over this table. If the PRD specifies a command, use it verbatim.
 
@@ -96,6 +98,8 @@ bun run build && bun run type-check && bun run lint && bun run knip && bun run t
 ```
 
 Loop on Phase 1 until all five commands exit 0. Fix lint errors, type errors, test failures — whatever it takes. Do NOT proceed to Phase 2 (or commit) until Phase 1 is green.
+
+**If builds are in a broken state** (stale artifacts, corrupted incremental caches), run `bun run clean` to remove all build artifacts, then `bun run build` to rebuild from scratch.
 
 #### Phase 2 — Full suite including E2E (conditional on `e2eCheckpoint`)
 

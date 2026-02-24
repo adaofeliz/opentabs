@@ -33,3 +33,19 @@ cd plugins/<name> && bun install && bun run build
 ```
 
 `opentabs-plugin build` auto-registers the plugin in `localPlugins` (first build only) and calls `POST /reload` to trigger server rediscovery. In dev mode, the file watcher also detects changes to `dist/tools.json` and `dist/adapter.iife.js`.
+
+## Quality Checks
+
+Each plugin has a `check` script that runs all quality checks:
+
+```bash
+cd plugins/<name>
+bun run check   # build + type-check + lint + format:check
+```
+
+From the repo root, you can build or check all plugins at once:
+
+```bash
+bun run build:plugins   # Build all plugins (install + build each)
+bun run check:plugins   # Type-check + lint + format:check all plugins
+```

@@ -16,6 +16,8 @@ bun install
 bun run build
 ```
 
+If builds get into a bad state, reset with `bun run clean` (removes all `dist/` and `.tsbuildinfo` files) then `bun run build` again. Use `bun run clean:all` to also remove `node_modules/` everywhere.
+
 Load the Chrome extension:
 
 1. Open `chrome://extensions/`
@@ -30,7 +32,15 @@ Load the Chrome extension:
 bun run dev
 ```
 
-This starts `tsc --build --watch`, the MCP server with `bun --hot`, and auto-rebuilds the Chrome extension on source changes. You still need to manually reload the extension from `chrome://extensions/` after rebuilds.
+This starts `tsc --build --watch`, the MCP server with `bun --hot`, and auto-rebuilds the Chrome extension on source changes. Output is color-coded by subprocess (`[tsc]`, `[mcp]`, `[ext]`) and a startup banner shows the MCP server URL and extension path when everything is ready. You still need to manually reload the extension from `chrome://extensions/` after rebuilds.
+
+**MCP server only** (lightweight alternative for server-only work):
+
+```bash
+bun run dev:mcp
+```
+
+This starts just the MCP server with `bun --hot` for hot reload — no tsc watcher or extension rebuilds. Useful when you're only changing server code and want faster iteration.
 
 **Manual workflow:**
 
@@ -66,7 +76,7 @@ bun run build  # builds, registers, and notifies the server
 **Unit tests:**
 
 ```bash
-bun run test
+bun run test        # or: bun run test:unit (alias)
 ```
 
 **E2E tests** (requires the test plugin to be built):
@@ -81,18 +91,32 @@ This builds the `e2e-test` plugin automatically, then runs Playwright.
 
 ```bash
 bun run check       # build + type-check + lint + format + knip + unit tests
-bun run check:all   # everything above + E2E tests
+bun run check:all   # everything above + E2E tests + docs checks + plugin checks
 ```
 
-| Command                | What it checks                     |
-| ---------------------- | ---------------------------------- |
-| `bun run build`        | Production build (tsc + extension) |
-| `bun run type-check`   | TypeScript type checking           |
-| `bun run lint`         | ESLint                             |
-| `bun run format:check` | Prettier formatting                |
-| `bun run knip`         | Unused exports and dependencies    |
-| `bun run test`         | Unit tests (Bun test runner)       |
-| `bun run test:e2e`     | E2E tests (Playwright)             |
+| Command                 | What it does                                                    |
+| ----------------------- | --------------------------------------------------------------- |
+| `bun run build`         | Production build (tsc + extension)                              |
+| `bun run build:tsc`     | TypeScript only (no extension bundle or icons)                  |
+| `bun run build:docs`    | Build docs site                                                 |
+| `bun run build:plugins` | Build all plugins (install + build each)                        |
+| `bun run type-check`    | TypeScript type checking                                        |
+| `bun run lint`          | ESLint                                                          |
+| `bun run format:check`  | Prettier formatting                                             |
+| `bun run knip`          | Unused exports and dependencies                                 |
+| `bun run test`          | Unit tests (Bun test runner)                                    |
+| `bun run test:unit`     | Unit tests (alias for `test`)                                   |
+| `bun run test:e2e`      | E2E tests (Playwright)                                          |
+| `bun run check`         | All root checks (build through unit tests)                      |
+| `bun run check:all`     | Everything: root + E2E + docs + plugins                         |
+| `bun run check:docs`    | Docs quality checks (build + type-check + lint + knip + format) |
+| `bun run check:plugins` | Plugin quality checks (type-check + lint + format)              |
+| `bun run dev`           | Full dev mode (tsc watch + MCP server + extension)              |
+| `bun run dev:mcp`       | MCP server only with hot reload                                 |
+| `bun run dev:docs`      | Docs dev server                                                 |
+| `bun run storybook`     | Storybook dev server (extension components)                     |
+| `bun run clean`         | Remove all build artifacts                                      |
+| `bun run clean:all`     | Remove build artifacts + node_modules everywhere                |
 
 All checks must pass before merging.
 
