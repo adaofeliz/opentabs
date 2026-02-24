@@ -69,16 +69,18 @@ interface PluginInstallResult {
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// npm subprocess timeout (60 seconds)
+// npm subprocess timeout (60 seconds, with 5s SIGKILL grace period)
 // ---------------------------------------------------------------------------
 
 const NPM_SUBPROCESS_TIMEOUT_MS = 60_000;
+const SIGKILL_GRACE_MS = 5_000;
 
 /**
  * Run an npm command globally with the given package name.
- * Applies a 60s timeout, collects stdout/stderr, and throws on non-zero exit.
+ * Applies a 60s timeout (SIGTERM → 5s grace → SIGKILL), and races proc.exited
+ * against an overall deadline so the function never hangs.
  *
- * @throws Error with code -32603 and data { stderr, stdout } on non-zero exit
+ * @throws Error with code -32603 and data { stderr, stdout } on non-zero exit or timeout
  */
 const runNpmGlobal = async (command: string, packageName: string): Promise<{ stdout: string; stderr: string }> => {
   const proc = Bun.spawn([platformExec('npm'), command, '-g', packageName], {
@@ -86,14 +88,36 @@ const runNpmGlobal = async (command: string, packageName: string): Promise<{ std
     stderr: 'pipe',
   });
 
+  let sigkillTimerId: ReturnType<typeof setTimeout> | undefined;
+
   const timeoutId = setTimeout(() => {
     proc.kill();
+    sigkillTimerId = setTimeout(() => {
+      try {
+        proc.kill('SIGKILL');
+      } catch {
+        // Process may have already exited
+      }
+    }, SIGKILL_GRACE_MS);
   }, NPM_SUBPROCESS_TIMEOUT_MS);
 
   const [stdout, stderr] = await Promise.all([new Response(proc.stdout).text(), new Response(proc.stderr).text()]);
-  clearTimeout(timeoutId);
 
-  const exitCode = await proc.exited;
+  let deadlineTimerId: ReturnType<typeof setTimeout> | undefined;
+  const overallDeadlineMs = NPM_SUBPROCESS_TIMEOUT_MS + SIGKILL_GRACE_MS + 5_000;
+  const exitCode = await Promise.race([
+    proc.exited,
+    new Promise<never>((_, reject) => {
+      deadlineTimerId = setTimeout(
+        () => reject(new Error(`npm ${command} for ${packageName} timed out after ${NPM_SUBPROCESS_TIMEOUT_MS}ms`)),
+        overallDeadlineMs,
+      );
+    }),
+  ]);
+
+  clearTimeout(timeoutId);
+  if (sigkillTimerId !== undefined) clearTimeout(sigkillTimerId);
+  if (deadlineTimerId !== undefined) clearTimeout(deadlineTimerId);
 
   if (exitCode !== 0) {
     log.error(`npm ${command} failed for ${packageName}: exit code ${exitCode}, stderr: ${stderr}`);
