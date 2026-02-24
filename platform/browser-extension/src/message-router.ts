@@ -34,7 +34,7 @@ import {
   handleExtensionGetLogs,
   handleExtensionGetSidePanel,
   handleExtensionGetState,
-} from './browser-commands.js';
+} from './browser-commands/index.js';
 import { isValidPluginName, RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
 import { cleanupAdaptersInMatchingTabs, injectPluginIntoMatchingTabs } from './iife-injection.js';
 import { forwardToSidePanel, sendToServer } from './messaging.js';

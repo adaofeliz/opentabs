@@ -129,7 +129,7 @@ await mock.module('./resource-prompt-dispatch.js', () => ({
   handlePromptGet: mockHandlePromptGet,
 }));
 
-await mock.module('./browser-commands.js', () => ({
+await mock.module('./browser-commands/index.js', () => ({
   handleBrowserListTabs: mockHandleBrowserListTabs,
   handleBrowserOpenTab: mockHandleBrowserOpenTab,
   handleBrowserCloseTab: mockHandleBrowserCloseTab,
