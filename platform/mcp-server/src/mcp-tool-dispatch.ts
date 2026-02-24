@@ -1,0 +1,480 @@
+/**
+ * Tool dispatch handlers for browser tools and plugin tools.
+ *
+ * Extracted from the monolith tools/call handler in mcp-setup.ts so each
+ * dispatch path can be tested independently. The tools/call handler in
+ * mcp-setup.ts delegates to these functions after resolving the tool name.
+ */
+
+import {
+  dispatchToExtension,
+  isDispatchError,
+  sendInvocationStart,
+  sendInvocationEnd,
+  sendConfirmationRequest,
+} from './extension-protocol.js';
+import { log } from './logger.js';
+import { evaluatePermission } from './permissions.js';
+import { sanitizeErrorMessage } from './sanitize-error.js';
+import { isBrowserToolEnabled, appendAuditEntry, isSessionAllowed } from './state.js';
+import { toErrorMessage } from '@opentabs-dev/shared';
+import type { ServerState, CachedBrowserTool, ToolLookupEntry, AuditEntry, ConfirmationDecision } from './state.js';
+import type { ZodError } from 'zod';
+
+/** Maximum concurrent tool dispatches per plugin to prevent tab performance degradation */
+const MAX_CONCURRENT_DISPATCHES_PER_PLUGIN = 5;
+
+/** Keys that could trigger prototype pollution in JSON deserialization */
+const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
+/**
+ * Recursively remove dangerous keys from objects to prevent prototype pollution
+ * in MCP clients that use naive JSON deserialization.
+ */
+const sanitizeOutput = (obj: unknown, depth = 0): unknown => {
+  if (obj === null || obj === undefined || typeof obj !== 'object') return obj;
+  if (depth > 50) return '[Object too deep]';
+  if (Array.isArray(obj)) return obj.map(item => sanitizeOutput(item, depth + 1));
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+    if (!DANGEROUS_KEYS.has(key)) result[key] = sanitizeOutput(value, depth + 1);
+  }
+  return result;
+};
+
+/**
+ * Extract the target domain hostname for a browser tool call.
+ *
+ * - Tools with a `url` param (get_cookies, set_cookie, delete_cookies, open_tab):
+ *   parse the hostname from the URL
+ * - Tools with a `tabId` param: dispatch browser.getTabInfo to get the tab's URL,
+ *   then parse the hostname
+ * - Tools with neither: return null (observe-tier tools, extension diagnostics)
+ */
+const resolveToolDomain = async (
+  toolName: string,
+  args: Record<string, unknown>,
+  state: ServerState,
+): Promise<string | null> => {
+  // URL-based tools: parse domain from the url parameter
+  const urlArg = args.url;
+  if (typeof urlArg === 'string' && urlArg !== '') {
+    try {
+      return new URL(urlArg).hostname;
+    } catch {
+      return null;
+    }
+  }
+
+  // Tab-based tools: get the tab's URL via a lightweight dispatch
+  const tabIdArg = args.tabId;
+  if (typeof tabIdArg === 'number') {
+    try {
+      const tabInfo = (await dispatchToExtension(state, 'browser.getTabInfo', { tabId: tabIdArg })) as {
+        url?: string;
+      };
+      if (typeof tabInfo.url === 'string' && tabInfo.url !== '') {
+        return new URL(tabInfo.url).hostname;
+      }
+    } catch {
+      // Tab may be closed or unreachable — domain resolution is best-effort
+    }
+    return null;
+  }
+
+  return null;
+};
+
+/**
+ * Truncate tool parameters into a short preview for the confirmation dialog.
+ * Shows the first ~200 characters of the JSON-stringified args.
+ */
+const truncateParamsPreview = (args: Record<string, unknown>): string => {
+  const json = JSON.stringify(args, null, 2);
+  if (json.length <= 200) return json;
+  return json.slice(0, 200) + '…';
+};
+
+/**
+ * Format a structured error response for MCP clients.
+ *
+ * When the error data contains structured fields (category, retryable, retryAfterMs),
+ * produces a human-readable prefix line followed by a machine-readable JSON block.
+ * When only the code is present (legacy), produces [CODE] message.
+ */
+const formatStructuredError = (code: string, message: string, data?: Record<string, unknown>): string => {
+  const category = typeof data?.category === 'string' ? data.category : undefined;
+  const retryable = typeof data?.retryable === 'boolean' ? data.retryable : undefined;
+  const retryAfterMs = typeof data?.retryAfterMs === 'number' ? data.retryAfterMs : undefined;
+
+  const hasStructuredFields = category !== undefined || retryable !== undefined || retryAfterMs !== undefined;
+
+  if (!hasStructuredFields) {
+    return `[${code}] ${message}`;
+  }
+
+  // Build the human-readable prefix with only present fields
+  const parts = [`code=${code}`];
+  if (category !== undefined) parts.push(`category=${category}`);
+  if (retryable !== undefined) parts.push(`retryable=${String(retryable)}`);
+  if (retryAfterMs !== undefined) parts.push(`retryAfterMs=${retryAfterMs}`);
+  const prefix = `[ERROR ${parts.join(' ')}] ${message}`;
+
+  // Build the machine-readable JSON block with only present fields
+  const jsonObj: Record<string, unknown> = { code };
+  if (category !== undefined) jsonObj.category = category;
+  if (retryable !== undefined) jsonObj.retryable = retryable;
+  if (retryAfterMs !== undefined) jsonObj.retryAfterMs = retryAfterMs;
+
+  return `${prefix}\n\n\`\`\`json\n${JSON.stringify(jsonObj)}\n\`\`\``;
+};
+
+/** Format a ZodError into a readable validation message listing each failing field */
+const formatZodError = (err: ZodError): string => {
+  const issues = err.issues.map(issue => {
+    const path = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+    return `  - ${path}: ${issue.message}`;
+  });
+  return `Invalid arguments:\n${issues.join('\n')}`;
+};
+
+/** Result shape returned by both handleBrowserToolCall and handlePluginToolCall */
+interface ToolCallResult {
+  content: Array<{ type: 'text'; text: string }>;
+  isError?: boolean;
+}
+
+/** Extra context passed to request handlers by the MCP SDK */
+interface RequestHandlerExtra {
+  signal: AbortSignal;
+  sessionId?: string;
+  _meta?: { progressToken?: string | number };
+  sendNotification: (notification: { method: string; params?: Record<string, unknown> }) => Promise<void>;
+}
+
+/**
+ * Handle a browser tool call: Zod validation, permission evaluation,
+ * confirmation flow, execution, output sanitization, and audit logging.
+ */
+const handleBrowserToolCall = async (
+  state: ServerState,
+  toolName: string,
+  args: Record<string, unknown>,
+  cachedBt: CachedBrowserTool,
+  extra: RequestHandlerExtra,
+): Promise<ToolCallResult> => {
+  if (!isBrowserToolEnabled(state, toolName)) {
+    return {
+      content: [{ type: 'text' as const, text: `Tool ${toolName} is disabled via configuration` }],
+      isError: true,
+    };
+  }
+
+  // Validate args through the tool's Zod input schema
+  const parseResult = cachedBt.tool.input.safeParse(args);
+  if (!parseResult.success) {
+    return {
+      content: [{ type: 'text' as const, text: formatZodError(parseResult.error) }],
+      isError: true,
+    };
+  }
+
+  // Permission evaluation: resolve domain, check session permissions,
+  // evaluate against policy, and hold for confirmation if needed.
+  const parsedArgs = parseResult.data;
+  const domain = await resolveToolDomain(toolName, parsedArgs, state);
+
+  // Check session permissions first (set by previous "Allow Always" actions)
+  const permission = isSessionAllowed(state.sessionPermissions, toolName, domain)
+    ? ('allow' as const)
+    : evaluatePermission(toolName, domain, state);
+
+  if (permission === 'deny') {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `PERMISSION_DENIED: Tool "${toolName}" is denied${domain ? ` for domain "${domain}"` : ''} by permission policy. Ask the user to update their OpenTabs permission configuration if this tool is needed.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  if (permission === 'ask') {
+    // Send progress notification to MCP client (if progressToken is available)
+    const progressToken = extra._meta?.progressToken;
+    if (progressToken !== undefined) {
+      extra
+        .sendNotification({
+          method: 'notifications/progress',
+          params: {
+            progressToken,
+            progress: 0,
+            total: 1,
+            message: 'Waiting for human approval in the OpenTabs side panel...',
+          },
+        })
+        .catch(() => {
+          // Fire-and-forget
+        });
+    }
+
+    try {
+      const paramsPreview = truncateParamsPreview(parsedArgs);
+      const tabIdArg = parsedArgs.tabId;
+      const decision: ConfirmationDecision = await sendConfirmationRequest(
+        state,
+        toolName,
+        domain,
+        typeof tabIdArg === 'number' ? tabIdArg : undefined,
+        paramsPreview,
+      );
+
+      if (decision === 'deny') {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `PERMISSION_DENIED: The user denied "${toolName}"${domain ? ` on "${domain}"` : ''}. Inform the user that the operation was blocked by their decision.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      // decision is 'allow_once' or 'allow_always' — proceed with dispatch
+      // (allow_always session rules are handled by handleConfirmationResponse in extension-protocol)
+    } catch (err) {
+      const msg = toErrorMessage(err);
+      if (msg === 'CONFIRMATION_TIMEOUT') {
+        return {
+          content: [
+            {
+              type: 'text' as const,
+              text: `CONFIRMATION_TIMEOUT: Human approval for "${toolName}"${domain ? ` on "${domain}"` : ''} timed out after 30 seconds. The user did not respond in the OpenTabs side panel. Ask the user to try again.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return {
+        content: [{ type: 'text' as const, text: `Confirmation error: ${msg}` }],
+        isError: true,
+      };
+    }
+  }
+
+  const btStartTs = Date.now();
+  let btSuccess = true;
+  let btErrorInfo: AuditEntry['error'] | undefined;
+  try {
+    const result = await cachedBt.tool.handler(parseResult.data, state);
+    const cleaned = sanitizeOutput(result);
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(cleaned, null, 2) }],
+    };
+  } catch (err) {
+    btSuccess = false;
+    const msg = toErrorMessage(err);
+    btErrorInfo = { code: 'UNKNOWN', message: msg };
+    return {
+      content: [{ type: 'text' as const, text: `Browser tool error: ${msg}` }],
+      isError: true,
+    };
+  } finally {
+    appendAuditEntry(state, {
+      timestamp: new Date(btStartTs).toISOString(),
+      tool: toolName,
+      plugin: 'browser',
+      success: btSuccess,
+      durationMs: Date.now() - btStartTs,
+      error: btErrorInfo,
+    });
+  }
+};
+
+/**
+ * Handle a plugin tool call: Ajv validation, concurrency limiting,
+ * dispatch to extension, error formatting, and audit logging.
+ *
+ * The caller must have already verified the tool is callable via checkToolCallable.
+ */
+const handlePluginToolCall = async (
+  state: ServerState,
+  toolName: string,
+  args: Record<string, unknown>,
+  pluginName: string,
+  toolBaseName: string,
+  lookup: ToolLookupEntry,
+  extra: RequestHandlerExtra,
+): Promise<ToolCallResult> => {
+  // Validate args against the tool's JSON Schema before dispatching.
+  // The validator is pre-compiled at discovery time for performance.
+  // If schema compilation failed, reject the call entirely — unvalidated
+  // input must never reach plugin handlers.
+  if (!lookup.validate) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Tool "${toolName}" cannot be called: schema compilation failed. ${lookup.validationErrors()}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Wrap validation in try-catch: compiled Ajv validators can throw on
+  // pathological input (e.g., regex catastrophic backtracking from a
+  // community plugin's pattern keyword). Normal schemas complete in
+  // microseconds; this guard catches the unexpected edge case.
+  let valid: boolean;
+  try {
+    valid = lookup.validate(args);
+  } catch (err) {
+    log.warn(`Schema validation threw for tool "${toolName}":`, err);
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Tool "${toolName}" validation failed unexpectedly. The tool's schema may be invalid.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+  if (!valid) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Invalid arguments for tool "${toolName}":\n${lookup.validationErrors()}`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  log.debug('tool.call: input validated for', toolName);
+
+  // Concurrency limit: prevent a runaway MCP client from flooding a single
+  // plugin's tab with simultaneous executeScript calls. Each dispatch runs
+  // in the page's MAIN world, so too many concurrent dispatches can degrade
+  // the target tab's performance.
+  const currentDispatches = state.activeDispatches.get(pluginName) ?? 0;
+  if (currentDispatches >= MAX_CONCURRENT_DISPATCHES_PER_PLUGIN) {
+    return {
+      content: [
+        {
+          type: 'text' as const,
+          text: `Too many concurrent dispatches for plugin "${pluginName}" (limit: ${MAX_CONCURRENT_DISPATCHES_PER_PLUGIN}). Wait for in-flight requests to complete.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  // Send invocation start notification to extension (for side panel)
+  sendInvocationStart(state, pluginName, toolBaseName);
+  const startTs = Date.now();
+  let success = true;
+  let errorInfo: AuditEntry['error'] | undefined;
+
+  try {
+    state.activeDispatches.set(pluginName, currentDispatches + 1);
+    if (!state.extensionWs) {
+      success = false;
+      return {
+        content: [
+          {
+            type: 'text' as const,
+            text: 'Extension not connected. Please ensure the OpenTabs Chrome extension is running.',
+          },
+        ],
+        isError: true,
+      };
+    }
+
+    log.debug('tool.call: dispatching', pluginName + '/' + toolBaseName);
+
+    // Extract progressToken from MCP request _meta and build onProgress callback
+    const progressToken = extra._meta?.progressToken;
+    const onProgress =
+      progressToken !== undefined
+        ? (progress: number, total: number, message?: string) => {
+            const params: Record<string, unknown> = { progressToken, progress, total };
+            if (message !== undefined) params.message = message;
+            extra.sendNotification({ method: 'notifications/progress', params }).catch(() => {
+              // Fire-and-forget — errors in the progress chain must not affect tool execution
+            });
+          }
+        : undefined;
+
+    const result = await dispatchToExtension(
+      state,
+      'tool.dispatch',
+      { plugin: pluginName, tool: toolBaseName, input: args },
+      { label: `${pluginName}/${toolBaseName}`, progressToken, onProgress },
+    );
+    const rawOutput = (result as Record<string, unknown>).output ?? result;
+    const cleaned = sanitizeOutput(rawOutput);
+    return {
+      content: [{ type: 'text' as const, text: JSON.stringify(cleaned, null, 2) }],
+    };
+  } catch (err) {
+    success = false;
+
+    if (isDispatchError(err)) {
+      const code = err.code;
+      let errorMsg = err.message;
+
+      if (code === -32001) {
+        errorMsg = `Tab closed: ${errorMsg}`;
+      } else if (code === -32002) {
+        errorMsg = `Tab unavailable: ${errorMsg}`;
+      }
+
+      const toolErrorCode = err.data?.code;
+      const category = typeof err.data?.category === 'string' ? err.data.category : undefined;
+      if (typeof toolErrorCode === 'string') {
+        errorMsg = formatStructuredError(toolErrorCode, errorMsg, err.data);
+        errorInfo = { code: toolErrorCode, message: err.message, category };
+      } else {
+        errorInfo = { code: String(code), message: err.message };
+      }
+
+      return {
+        content: [{ type: 'text' as const, text: errorMsg }],
+        isError: true,
+      };
+    }
+
+    const msg = sanitizeErrorMessage(toErrorMessage(err));
+    errorInfo = { code: 'UNKNOWN', message: msg };
+    return {
+      content: [{ type: 'text' as const, text: `Tool dispatch error: ${msg}` }],
+      isError: true,
+    };
+  } finally {
+    const prev = state.activeDispatches.get(pluginName) ?? 1;
+    if (prev <= 1) {
+      state.activeDispatches.delete(pluginName);
+    } else {
+      state.activeDispatches.set(pluginName, prev - 1);
+    }
+    const durationMs = Date.now() - startTs;
+    log.debug('tool.call:', pluginName + '/' + toolBaseName, 'completed in', `${durationMs}ms`);
+    sendInvocationEnd(state, pluginName, toolBaseName, durationMs, success);
+    appendAuditEntry(state, {
+      timestamp: new Date(startTs).toISOString(),
+      tool: toolName,
+      plugin: pluginName,
+      success,
+      durationMs,
+      error: errorInfo,
+    });
+  }
+};
+
+export type { ToolCallResult, RequestHandlerExtra };
+export { sanitizeOutput, formatZodError, handleBrowserToolCall, handlePluginToolCall };
