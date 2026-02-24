@@ -63,6 +63,7 @@ export const PASSTHROUGH_METHODS = [
   'tool.invocationStart',
   'tool.invocationEnd',
   'confirmation.request',
+  'plugins.changed',
 ] as const;
 
 /** All methods the offscreen document allows through the WebSocket filter */

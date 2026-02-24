@@ -1,5 +1,6 @@
+import { requireStringParam } from './browser-commands/helpers.js';
 import { MAX_INPUT_SIZE, MAX_SCRIPT_TIMEOUT_MS, SCRIPT_TIMEOUT_MS } from './constants.js';
-import { dispatchWithTabFallback, requireStringParam, resolvePlugin } from './dispatch-helpers.js';
+import { dispatchWithTabFallback, resolvePlugin } from './dispatch-helpers.js';
 import { JSONRPC_INTERNAL_ERROR, JSONRPC_INVALID_PARAMS } from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import { toErrorMessage } from '@opentabs-dev/shared';

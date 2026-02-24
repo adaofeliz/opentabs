@@ -1,6 +1,7 @@
-// Side panel toggle — manages per-window open state using Chrome's
-// authoritative onOpened/onClosed events (Chrome 141+) and toggles
-// the side panel via the action click handler.
+// Side panel toggle — manages per-window open state and toggles the side panel
+// via the action click handler. The onOpened/onClosed events and close() method
+// require Chrome 141+. On older versions (114–140), the toggle-to-close behavior
+// is unavailable and the action click always opens the side panel.
 
 const openWindows = new Set<number>();
 
@@ -9,16 +10,23 @@ export const initSidePanelToggle = (): void => {
   // Take manual control of the side panel so we can open/close it on action click.
   chrome.sidePanel.setPanelBehavior({ openPanelOnActionClick: false }).catch(() => {});
 
-  chrome.sidePanel.onOpened.addListener(({ windowId }) => {
-    openWindows.add(windowId);
-  });
+  // Chrome 141+ — track open/close state per window for toggle behavior.
+  // On older Chrome (114–140), these APIs are undefined; openWindows stays
+  // empty and the action click always opens the side panel.
+  const canToggle = 'onOpened' in chrome.sidePanel;
 
-  chrome.sidePanel.onClosed.addListener(({ windowId }) => {
-    openWindows.delete(windowId);
-  });
+  if (canToggle) {
+    chrome.sidePanel.onOpened.addListener(({ windowId }) => {
+      openWindows.add(windowId);
+    });
+
+    chrome.sidePanel.onClosed.addListener(({ windowId }) => {
+      openWindows.delete(windowId);
+    });
+  }
 
   chrome.action.onClicked.addListener(({ windowId }) => {
-    if (openWindows.has(windowId)) {
+    if (canToggle && openWindows.has(windowId)) {
       chrome.sidePanel.close({ windowId }).catch(() => {});
     } else {
       chrome.sidePanel.open({ windowId }).catch(() => {});

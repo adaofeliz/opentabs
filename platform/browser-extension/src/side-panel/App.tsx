@@ -64,7 +64,7 @@ const App = () => {
       });
   }, []);
 
-  const handleNotification = useServerNotifications({
+  const { handleNotification, clearConfirmationTimeout } = useServerNotifications({
     setPlugins,
     setActiveTools,
     setPendingConfirmations,
@@ -159,18 +159,20 @@ const App = () => {
       decision: 'allow_once' | 'allow_always' | 'deny',
       scope?: 'tool_domain' | 'tool_all' | 'domain_all',
     ) => {
+      clearConfirmationTimeout(id);
       sendConfirmationResponse(id, decision, scope);
       setPendingConfirmations(prev => prev.filter(c => c.id !== id));
     },
-    [],
+    [clearConfirmationTimeout],
   );
 
   const handleDenyAll = useCallback(() => {
     for (const c of pendingConfirmations) {
+      clearConfirmationTimeout(c.id);
       sendConfirmationResponse(c.id, 'deny');
     }
     setPendingConfirmations([]);
-  }, [pendingConfirmations]);
+  }, [pendingConfirmations, clearConfirmationTimeout]);
 
   const totalTools = plugins.reduce((sum, p) => sum + p.tools.length, 0);
   const hasContent = plugins.length > 0 || failedPlugins.length > 0;

@@ -44,8 +44,7 @@ const mockTabsGet = mock<(tabId: number) => Promise<chrome.tabs.Tab>>();
 };
 
 // Import after mocking
-const { requireStringParam, resolvePlugin, isAdapterNotReady, dispatchWithTabFallback } =
-  await import('./dispatch-helpers.js');
+const { resolvePlugin, isAdapterNotReady, dispatchWithTabFallback } = await import('./dispatch-helpers.js');
 
 /** Helper to build a minimal PluginMeta for tests */
 const makePlugin = (overrides?: Partial<PluginMeta>): PluginMeta => ({
@@ -66,61 +65,6 @@ const firstSentMessage = (): Record<string, unknown> => {
   if (!firstCall) throw new Error('Expected at least one call');
   return firstCall[0] as Record<string, unknown>;
 };
-
-// ---------------------------------------------------------------------------
-// requireStringParam
-// ---------------------------------------------------------------------------
-
-describe('requireStringParam', () => {
-  beforeEach(() => {
-    mockSendToServer.mockReset();
-  });
-
-  test('returns the value for a valid non-empty string', () => {
-    const result = requireStringParam({ name: 'slack' }, 'name', 'req-1');
-    expect(result).toBe('slack');
-    expect(mockSendToServer).not.toHaveBeenCalled();
-  });
-
-  test('returns null and sends -32602 error for missing param', () => {
-    const result = requireStringParam({}, 'name', 'req-2');
-    expect(result).toBeNull();
-    expect(mockSendToServer).toHaveBeenCalledTimes(1);
-    expect(firstSentMessage()).toMatchObject({
-      jsonrpc: '2.0',
-      id: 'req-2',
-      error: { code: -32602 },
-    });
-  });
-
-  test('returns null and sends -32602 error for empty string', () => {
-    const result = requireStringParam({ name: '' }, 'name', 'req-3');
-    expect(result).toBeNull();
-    expect(mockSendToServer).toHaveBeenCalledTimes(1);
-    expect(firstSentMessage()).toMatchObject({
-      jsonrpc: '2.0',
-      id: 'req-3',
-      error: { code: -32602 },
-    });
-  });
-
-  test('returns null and sends -32602 error for non-string value', () => {
-    const result = requireStringParam({ name: 42 }, 'name', 'req-4');
-    expect(result).toBeNull();
-    expect(mockSendToServer).toHaveBeenCalledTimes(1);
-    expect(firstSentMessage()).toMatchObject({
-      jsonrpc: '2.0',
-      id: 'req-4',
-      error: { code: -32602 },
-    });
-  });
-
-  test('error message includes the param name', () => {
-    requireStringParam({ plugin: null }, 'plugin', 'req-5');
-    const msg = firstSentMessage() as { error: { message: string } };
-    expect(msg.error.message).toContain('plugin');
-  });
-});
 
 // ---------------------------------------------------------------------------
 // resolvePlugin

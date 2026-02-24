@@ -191,6 +191,31 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     }
     state.requests.push(completed);
     state.requestIdToRequest.set(requestId, completed);
+  } else if (method === 'Network.loadingFailed') {
+    const requestId = paramsRecord?.requestId as string | undefined;
+    if (!requestId) return;
+
+    const pending = state.pendingRequests.get(requestId);
+    if (!pending) return;
+    state.pendingRequests.delete(requestId);
+    state.requestIdToRequest.delete(requestId);
+
+    const errorText = typeof paramsRecord?.errorText === 'string' ? paramsRecord.errorText : 'Unknown error';
+
+    const completed: CapturedRequest = {
+      url: pending.url ?? '',
+      method: pending.method ?? 'GET',
+      status: 0,
+      statusText: errorText,
+      requestHeaders: pending.requestHeaders,
+      requestBody: pending.requestBody,
+      timestamp: pending.timestamp ?? Date.now(),
+    };
+
+    if (state.requests.length >= state.maxRequests) {
+      state.requests.shift();
+    }
+    state.requests.push(completed);
   } else if (method === 'Network.loadingFinished') {
     const requestId = paramsRecord?.requestId as string | undefined;
     if (!requestId) return;

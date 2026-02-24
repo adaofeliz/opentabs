@@ -171,6 +171,12 @@ const handleSpConfirmationResponse: MessageHandler = (message, sendResponse) => 
   sendResponse({ ok: true });
 };
 
+/** Handle sp:confirmationTimeout — confirmation timed out without user response */
+const handleSpConfirmationTimeout: MessageHandler = (_message, sendResponse) => {
+  clearConfirmationBadge();
+  sendResponse({ ok: true });
+};
+
 /** Handle port-changed — relay port change to offscreen document for reconnect */
 const handlePortChanged: MessageHandler = (message, sendResponse) => {
   chrome.runtime.sendMessage(message as unknown as InternalMessage).catch(() => {
@@ -192,6 +198,7 @@ const backgroundHandlers = new Map<InternalMessage['type'], MessageHandler>([
   ['plugin:logs', handlePluginLogs],
   ['tool:progress', handleToolProgress],
   ['sp:confirmationResponse', handleSpConfirmationResponse],
+  ['sp:confirmationTimeout', handleSpConfirmationTimeout],
   ['port-changed', handlePortChanged],
 ]);
 
@@ -243,6 +250,7 @@ export {
   handlePluginLogs,
   handlePortChanged,
   handleSpConfirmationResponse,
+  handleSpConfirmationTimeout,
   handleToolProgress,
   handleWsMessage,
   handleWsState,

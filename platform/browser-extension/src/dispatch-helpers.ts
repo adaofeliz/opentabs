@@ -1,9 +1,4 @@
-import {
-  JSONRPC_ADAPTER_NOT_READY,
-  JSONRPC_INTERNAL_ERROR,
-  JSONRPC_INVALID_PARAMS,
-  JSONRPC_NO_USABLE_TAB,
-} from './json-rpc-errors.js';
+import { JSONRPC_ADAPTER_NOT_READY, JSONRPC_INTERNAL_ERROR, JSONRPC_NO_USABLE_TAB } from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import { getPluginMeta } from './plugin-storage.js';
 import { sanitizeErrorMessage } from './sanitize-error.js';
@@ -30,27 +25,6 @@ type DispatchResult =
  */
 const isAdapterNotReady = (result: DispatchResult): boolean =>
   result.type === 'error' && result.code === JSONRPC_ADAPTER_NOT_READY;
-
-/**
- * Validate that a required parameter is a non-empty string.
- * Sends a JSONRPC_INVALID_PARAMS error via sendToServer if invalid.
- * Returns the validated string on success, or null on failure.
- */
-const requireStringParam = (params: Record<string, unknown>, paramName: string, id: string | number): string | null => {
-  const value = params[paramName];
-  if (typeof value !== 'string' || value.length === 0) {
-    sendToServer({
-      jsonrpc: '2.0',
-      error: {
-        code: JSONRPC_INVALID_PARAMS,
-        message: `Missing or invalid "${paramName}" param (expected non-empty string)`,
-      },
-      id,
-    });
-    return null;
-  }
-  return value;
-};
 
 /**
  * Look up plugin metadata by name.
@@ -221,5 +195,5 @@ const dispatchWithTabFallback = async (config: TabFallbackConfig): Promise<void>
   }
 };
 
-export { dispatchWithTabFallback, executeWithTimeout, requireStringParam, resolvePlugin, isAdapterNotReady };
+export { dispatchWithTabFallback, executeWithTimeout, resolvePlugin, isAdapterNotReady };
 export type { DispatchResult };

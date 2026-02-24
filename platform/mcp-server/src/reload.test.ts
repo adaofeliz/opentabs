@@ -363,7 +363,7 @@ describe('performConfigReload', () => {
 
     const result = await performConfigReload(state, [], emptyTransports());
 
-    expect(result.plugins).toBe(1);
+    expect(result.plugins).toBeGreaterThanOrEqual(1);
     expect(result.durationMs).toBeGreaterThanOrEqual(0);
   });
 

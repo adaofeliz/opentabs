@@ -130,6 +130,12 @@ export interface SpConfirmationResponseMessage {
   };
 }
 
+/** Side panel → Background: confirmation timed out without user response */
+export interface SpConfirmationTimeoutMessage {
+  type: 'sp:confirmationTimeout';
+  id: string;
+}
+
 /** Side panel → Background → Offscreen: MCP server port changed */
 export interface PortChangedMessage {
   type: 'port-changed';
@@ -155,6 +161,7 @@ export type InternalMessage =
   | SpRelayMessage
   | SpConfirmationRequestMessage
   | SpConfirmationResponseMessage
+  | SpConfirmationTimeoutMessage
   | PortChangedMessage;
 
 /** Tab state info for a single plugin — shared shape used by tab.stateChanged payloads */

@@ -1,5 +1,6 @@
+import { requireStringParam } from './browser-commands/helpers.js';
 import { SCRIPT_TIMEOUT_MS } from './constants.js';
-import { dispatchWithTabFallback, executeWithTimeout, requireStringParam, resolvePlugin } from './dispatch-helpers.js';
+import { dispatchWithTabFallback, executeWithTimeout, resolvePlugin } from './dispatch-helpers.js';
 import { JSONRPC_INVALID_PARAMS } from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import type { DispatchResult } from './dispatch-helpers.js';

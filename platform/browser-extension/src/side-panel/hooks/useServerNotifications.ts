@@ -1,5 +1,5 @@
 import { VALID_PLUGIN_NAME } from '../../constants.js';
-import { useCallback } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import type { PluginState } from '../bridge.js';
 import type { ConfirmationData } from '../components/ConfirmationDialog.js';
 import type { TabState } from '@opentabs-dev/shared';
@@ -13,17 +13,43 @@ interface UseServerNotificationsParams {
   pendingTabStates: React.RefObject<Map<string, TabState>>;
 }
 
+interface UseServerNotificationsResult {
+  handleNotification: (data: Record<string, unknown>) => void;
+  clearConfirmationTimeout: (id: string) => void;
+}
+
 /**
  * Returns a stable callback that processes server notification messages
- * (confirmation.request, tab.stateChanged, tool.invocationStart, tool.invocationEnd).
+ * (confirmation.request, tab.stateChanged, tool.invocationStart, tool.invocationEnd)
+ * and a function to clear a confirmation's auto-removal timeout.
  */
 const useServerNotifications = ({
   setPlugins,
   setActiveTools,
   setPendingConfirmations,
   pendingTabStates,
-}: UseServerNotificationsParams): ((data: Record<string, unknown>) => void) =>
-  useCallback(
+}: UseServerNotificationsParams): UseServerNotificationsResult => {
+  const timeoutIds = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+
+  useEffect(() => {
+    const map = timeoutIds.current;
+    return () => {
+      for (const id of map.values()) {
+        clearTimeout(id);
+      }
+      map.clear();
+    };
+  }, []);
+
+  const clearConfirmationTimeout = useCallback((id: string) => {
+    const tid = timeoutIds.current.get(id);
+    if (tid !== undefined) {
+      clearTimeout(tid);
+      timeoutIds.current.delete(id);
+    }
+  }, []);
+
+  const handleNotification = useCallback(
     (data: Record<string, unknown>): void => {
       if (data.method === 'confirmation.request' && data.params) {
         const params = data.params as Record<string, unknown>;
@@ -39,9 +65,12 @@ const useServerNotifications = ({
           };
           setPendingConfirmations(prev => [...prev, confirmation]);
           const removeDelay = params.timeoutMs + 1000;
-          setTimeout(() => {
+          const tid = setTimeout(() => {
+            timeoutIds.current.delete(confirmation.id);
             setPendingConfirmations(prev => prev.filter(c => c.id !== confirmation.id));
+            chrome.runtime.sendMessage({ type: 'sp:confirmationTimeout', id: confirmation.id }).catch(() => {});
           }, removeDelay);
+          timeoutIds.current.set(confirmation.id, tid);
         }
       }
 
@@ -95,5 +124,8 @@ const useServerNotifications = ({
     },
     [setPlugins, setActiveTools, setPendingConfirmations, pendingTabStates],
   );
+
+  return { handleNotification, clearConfirmationTimeout };
+};
 
 export { useServerNotifications };
