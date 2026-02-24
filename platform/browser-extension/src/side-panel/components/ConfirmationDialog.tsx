@@ -1,8 +1,8 @@
 import { Button } from './retro/Button.js';
 import { Menu } from './retro/Menu.js';
+import { Progress } from './retro/Progress.js';
 import { Text } from './retro/Text.js';
 import { COUNTDOWN_POLL_INTERVAL_MS } from '../constants.js';
-import { cn } from '../lib/cn.js';
 import { ShieldAlert, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import type { SpConfirmationRequestMessage } from '../../extension-messages.js';
@@ -40,15 +40,11 @@ const CountdownBar = ({ timeoutMs, receivedAt }: { timeoutMs: number; receivedAt
 
   return (
     <div className="mt-2 flex items-center gap-2">
-      <div className="bg-muted border-border h-1.5 flex-1 overflow-hidden rounded border">
-        <div
-          className={cn(
-            'h-full transition-all duration-200',
-            fraction > 0.33 ? 'bg-accent-foreground' : 'bg-destructive',
-          )}
-          style={{ width: `${fraction * 100}%` }}
-        />
-      </div>
+      <Progress
+        value={fraction * 100}
+        className="flex-1"
+        indicatorClassName={fraction > 0.33 ? 'bg-accent-foreground' : 'bg-destructive'}
+      />
       <span className="text-muted-foreground font-mono text-xs tabular-nums">{seconds}s</span>
     </div>
   );
