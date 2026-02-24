@@ -65,7 +65,7 @@ interface SiteAnalysis {
  */
 const executeInTab = async (state: ServerState, tabId: number, code: string): Promise<unknown> => {
   const execId = crypto.randomUUID();
-  const filename = await writeExecFile(execId, code);
+  const filename = await writeExecFile(state, execId, code);
   try {
     const result = (await dispatchToExtension(state, 'browser.executeScript', {
       tabId,

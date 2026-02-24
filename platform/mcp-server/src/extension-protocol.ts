@@ -54,7 +54,7 @@ const sendSyncFull = async (state: ServerState): Promise<void> => {
   // Uses allSettled so a single plugin's write failure doesn't block the sync notification.
   // Races against a timeout so stalled writes don't hang hot reload indefinitely.
   const pluginList = Array.from(state.registry.plugins.values());
-  await ensureAdaptersDir();
+  await ensureAdaptersDir(state);
 
   // Remove stale adapter files from plugins that are no longer in the current set
   const currentPluginNames = new Set(pluginList.map(p => p.name));
@@ -267,7 +267,7 @@ const sendPluginUpdate = async (
   const plugin = state.registry.plugins.get(pluginName);
   if (!plugin) return;
 
-  await ensureAdaptersDir();
+  await ensureAdaptersDir(state);
   await writeAdapterFile(pluginName, iife, sourceMap);
 
   const sent = sendToExtension(state, {

@@ -8,17 +8,17 @@ import { log } from './logger.js';
 import { atomicWrite } from '@opentabs-dev/shared';
 import { mkdir, readdir } from 'node:fs/promises';
 import { join } from 'node:path';
+import type { ServerState } from './state.js';
 
 /**
  * Ensure the adapters directory exists, creating it if necessary.
- * Caches the result so mkdir is called at most once per module evaluation
- * (resets on bun --hot reload, which is correct since the config dir could change).
+ * Caches the result on ServerState so mkdir is called at most once per
+ * server lifetime. The flag survives bun --hot reloads (via globalThis state).
  */
-let adaptersDirReady = false;
-const ensureAdaptersDir = async (): Promise<void> => {
-  if (adaptersDirReady) return;
+const ensureAdaptersDir = async (state: ServerState): Promise<void> => {
+  if (state.adaptersDirReady) return;
   await mkdir(getAdaptersDir(), { recursive: true });
-  adaptersDirReady = true;
+  state.adaptersDirReady = true;
 };
 
 /** Prefix for dynamically generated exec script files */
@@ -127,8 +127,8 @@ const cleanupStaleAdapterFiles = async (currentPluginNames: Set<string>): Promis
  *
  * Returns the filename (relative to adapters/) for the extension to inject.
  */
-const writeExecFile = async (execId: string, code: string): Promise<string> => {
-  await ensureAdaptersDir();
+const writeExecFile = async (state: ServerState, execId: string, code: string): Promise<string> => {
+  await ensureAdaptersDir(state);
   const filename = `${EXEC_FILE_PREFIX}${execId}.js`;
   const finalPath = join(getAdaptersDir(), filename);
 

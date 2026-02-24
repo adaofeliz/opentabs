@@ -40,7 +40,7 @@ const executeScript = defineBrowserTool({
   }),
   handler: async (args, state) => {
     const execId = crypto.randomUUID();
-    const filename = await writeExecFile(execId, args.code);
+    const filename = await writeExecFile(state, execId, args.code);
     try {
       return await dispatchToExtension(state, 'browser.executeScript', {
         tabId: args.tabId,

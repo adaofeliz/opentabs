@@ -1,6 +1,6 @@
 import { mock, describe, expect, test, beforeEach } from 'bun:test';
 
-const mockWriteExecFile = mock<(execId: string, code: string) => Promise<string>>();
+const mockWriteExecFile = mock<(state: unknown, execId: string, code: string) => Promise<string>>();
 const mockDispatchToExtension =
   mock<(state: unknown, method: string, params: Record<string, unknown>) => Promise<unknown>>();
 const mockDeleteExecFile = mock<(filename: string) => Promise<void>>();
