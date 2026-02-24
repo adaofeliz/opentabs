@@ -1,0 +1,203 @@
+import { mock, describe, expect, test, beforeEach } from 'bun:test';
+
+// ---------------------------------------------------------------------------
+// Module mocks — set up before importing handler modules
+// ---------------------------------------------------------------------------
+
+const mockSendToServer = mock<(data: unknown) => void>();
+
+await mock.module('../messaging.js', () => ({
+  sendToServer: mockSendToServer,
+  forwardToSidePanel: mock(),
+}));
+
+await mock.module('../sanitize-error.js', () => ({
+  sanitizeErrorMessage: (msg: string) => msg,
+}));
+
+// Stub chrome APIs
+const mockTabsQuery = mock<() => Promise<chrome.tabs.Tab[]>>().mockResolvedValue([]);
+const mockTabsCreate = mock<(opts: unknown) => Promise<chrome.tabs.Tab>>().mockResolvedValue({} as chrome.tabs.Tab);
+const mockTabsRemove = mock<(tabId: number) => Promise<void>>().mockResolvedValue(undefined);
+const mockTabsUpdate =
+  mock<(tabId: number, props: unknown) => Promise<chrome.tabs.Tab | undefined>>().mockResolvedValue(undefined);
+const mockTabsGet = mock<(tabId: number) => Promise<chrome.tabs.Tab>>().mockResolvedValue({} as chrome.tabs.Tab);
+const mockWindowsUpdate = mock<(windowId: number, props: unknown) => Promise<void>>().mockResolvedValue(undefined);
+
+Object.assign(globalThis, {
+  chrome: {
+    ...((globalThis as Record<string, unknown>).chrome as object),
+    runtime: { id: 'test-extension-id' },
+    tabs: {
+      query: mockTabsQuery,
+      create: mockTabsCreate,
+      remove: mockTabsRemove,
+      update: mockTabsUpdate,
+      get: mockTabsGet,
+    },
+    windows: { update: mockWindowsUpdate },
+  },
+});
+
+// Import after mocking
+const {
+  handleBrowserOpenTab,
+  handleBrowserCloseTab,
+  handleBrowserNavigateTab,
+  handleBrowserFocusTab,
+  handleBrowserGetTabInfo,
+} = await import('./tab-commands.js');
+
+/** Extract the first argument from the first call to mockSendToServer */
+const firstSentMessage = (): Record<string, unknown> => {
+  const calls = mockSendToServer.mock.calls;
+  expect(calls.length).toBeGreaterThanOrEqual(1);
+  const firstCall = calls[0];
+  if (!firstCall) throw new Error('Expected at least one call');
+  return firstCall[0] as Record<string, unknown>;
+};
+
+// ---------------------------------------------------------------------------
+// handleBrowserOpenTab
+// ---------------------------------------------------------------------------
+
+describe('handleBrowserOpenTab', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('rejects missing url', async () => {
+    await handleBrowserOpenTab({}, 'req-1');
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-1',
+      error: { code: -32602, message: 'Missing or invalid url parameter' },
+    });
+  });
+
+  test('rejects non-string url', async () => {
+    await handleBrowserOpenTab({ url: 42 }, 'req-2');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+
+  test('rejects javascript: url', async () => {
+    await handleBrowserOpenTab({ url: 'javascript:alert(1)' }, 'req-3');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+
+  test('rejects data: url', async () => {
+    await handleBrowserOpenTab({ url: 'data:text/html,<h1>hi</h1>' }, 'req-4');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleBrowserCloseTab
+// ---------------------------------------------------------------------------
+
+describe('handleBrowserCloseTab', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('rejects missing tabId', async () => {
+    await handleBrowserCloseTab({}, 'req-10');
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-10',
+      error: { code: -32602, message: 'Missing or invalid tabId parameter' },
+    });
+  });
+
+  test('rejects non-number tabId', async () => {
+    await handleBrowserCloseTab({ tabId: 'abc' }, 'req-11');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleBrowserNavigateTab
+// ---------------------------------------------------------------------------
+
+describe('handleBrowserNavigateTab', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('rejects missing tabId', async () => {
+    await handleBrowserNavigateTab({ url: 'https://example.com' }, 'req-20');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602, message: 'Missing or invalid tabId parameter' },
+    });
+  });
+
+  test('rejects missing url', async () => {
+    await handleBrowserNavigateTab({ tabId: 1 }, 'req-21');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602, message: 'Missing or invalid url parameter' },
+    });
+  });
+
+  test('rejects blocked url scheme', async () => {
+    await handleBrowserNavigateTab({ tabId: 1, url: 'file:///etc/passwd' }, 'req-22');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleBrowserFocusTab
+// ---------------------------------------------------------------------------
+
+describe('handleBrowserFocusTab', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('rejects missing tabId', async () => {
+    await handleBrowserFocusTab({}, 'req-30');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602, message: 'Missing or invalid tabId parameter' },
+    });
+  });
+
+  test('rejects non-number tabId', async () => {
+    await handleBrowserFocusTab({ tabId: true }, 'req-31');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// handleBrowserGetTabInfo
+// ---------------------------------------------------------------------------
+
+describe('handleBrowserGetTabInfo', () => {
+  beforeEach(() => {
+    mockSendToServer.mockReset();
+  });
+
+  test('rejects missing tabId', async () => {
+    await handleBrowserGetTabInfo({}, 'req-40');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602, message: 'Missing or invalid tabId parameter' },
+    });
+  });
+
+  test('rejects non-number tabId', async () => {
+    await handleBrowserGetTabInfo({ tabId: null }, 'req-41');
+    expect(firstSentMessage()).toMatchObject({
+      error: { code: -32602 },
+    });
+  });
+});

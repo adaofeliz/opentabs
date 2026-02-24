@@ -1,4 +1,4 @@
-import type { TrustTier, WireToolDef } from '@opentabs-dev/shared';
+import type { TabState, TrustTier, WireToolDef } from '@opentabs-dev/shared';
 
 // ---------------------------------------------------------------------------
 // Internal Chrome extension message types — discriminated union
@@ -14,7 +14,7 @@ export interface OffscreenGetUrlMessage {
 }
 
 /** Reason the WebSocket disconnected — enables distinct error states in the side panel */
-export type DisconnectReason = 'connection_refused' | 'auth_failed';
+export type DisconnectReason = 'connection_refused' | 'auth_failed' | 'timeout';
 
 /** Background → Offscreen: WebSocket connection state changed */
 export interface WsStateMessage {
@@ -156,6 +156,13 @@ export type InternalMessage =
   | SpConfirmationRequestMessage
   | SpConfirmationResponseMessage
   | PortChangedMessage;
+
+/** Tab state info for a single plugin — shared shape used by tab.stateChanged payloads */
+export interface PluginTabStateInfo {
+  state: TabState;
+  tabId: number | null;
+  url: string | null;
+}
 
 /** Lightweight plugin metadata stored in the `plugins_meta` index (no IIFE content) */
 export interface PluginMeta {

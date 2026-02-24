@@ -1,5 +1,11 @@
-import { requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
-import { sendToServer } from '../messaging.js';
+import {
+  requireStringParam,
+  requireTabId,
+  sendErrorResult,
+  sendSuccessResult,
+  sendValidationError,
+} from './helpers.js';
+import { CDP_VERSION } from '../constants.js';
 import { isCapturing } from '../network-capture.js';
 import { sanitizeErrorMessage } from '../sanitize-error.js';
 import { toErrorMessage } from '@opentabs-dev/shared';
@@ -70,7 +76,7 @@ export const withDebugger = async <T>(tabId: number, fn: () => Promise<T>): Prom
   const alreadyAttached = isCapturing(tabId);
   if (!alreadyAttached) {
     try {
-      await chrome.debugger.attach({ tabId }, '1.3');
+      await chrome.debugger.attach({ tabId }, CDP_VERSION);
     } catch (err) {
       const msg = toErrorMessage(err);
       throw new Error(
@@ -143,11 +149,8 @@ export const handleBrowserGetResourceContent = async (
   try {
     const tabId = requireTabId(params, id);
     if (tabId === null) return;
-    const url = params.url;
-    if (typeof url !== 'string' || url.length === 0) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid url parameter' }, id });
-      return;
-    }
+    const url = requireStringParam(params, 'url', id);
+    if (url === null) return;
     const maxLength = typeof params.maxLength === 'number' ? params.maxLength : 500_000;
 
     await withDebugger(tabId, async () => {
@@ -160,14 +163,10 @@ export const handleBrowserGetResourceContent = async (
 
       const match = findFrameForResource(treeResult.frameTree, url);
       if (!match) {
-        sendToServer({
-          jsonrpc: '2.0',
-          error: {
-            code: -32602,
-            message: `Resource not found in page: ${url}. Use browser_list_resources to find valid resource URLs.`,
-          },
+        sendValidationError(
           id,
-        });
+          `Resource not found in page: ${url}. Use browser_list_resources to find valid resource URLs.`,
+        );
         return;
       }
 

@@ -1,15 +1,16 @@
 import { IS_READY_TIMEOUT_MS } from './constants.js';
-import { forwardToSidePanel, sendToServer } from './messaging.js';
+import { forwardToSidePanel, sendTabStateNotification, sendToServer } from './messaging.js';
 import { getAllPluginMeta } from './plugin-storage.js';
 import { findAllMatchingTabs, urlMatchesPatterns } from './tab-matching.js';
-import type { PluginMeta } from './extension-messages.js';
+import type { PluginMeta, PluginTabStateInfo } from './extension-messages.js';
 import type { TabState } from '@opentabs-dev/shared';
 
 /**
- * Last-known tab state cache per plugin. Used by checkTabStateChanges to
- * suppress redundant tab.stateChanged notifications when a tab event fires
- * but the plugin's effective state hasn't actually changed (e.g., a page
- * reload where the plugin was "ready" before and is still "ready" after).
+ * Last-known tab state cache per plugin. Used by checkTabChanged and
+ * checkTabRemoved to suppress redundant tab.stateChanged notifications
+ * when a tab event fires but the plugin's effective state hasn't actually
+ * changed (e.g., a page reload where the plugin was "ready" before and
+ * is still "ready" after).
  *
  * The cache is populated by sendTabSyncAll (full sync on connect) and
  * updated on every state change notification sent to the server.
@@ -20,11 +21,28 @@ const lastKnownState = new Map<string, TabState>();
 
 /**
  * Per-plugin promise chain for serializing state computations. Concurrent
- * checkTabStateChanges calls for the same plugin are chained sequentially
- * so lastKnownState reads and writes are atomic within each plugin. Different
- * plugins still run in parallel.
+ * calls for the same plugin are chained sequentially so lastKnownState reads
+ * and writes are atomic within each plugin. Different plugins run in parallel.
  */
 const pluginLocks = new Map<string, Promise<void>>();
+
+/**
+ * Chain an async operation onto a plugin's lock so it runs sequentially
+ * with any other pending operations for the same plugin. Returns the
+ * promise for the operation itself (rejections are logged on the lock
+ * chain but propagated to the caller via the returned promise).
+ */
+const withPluginLock = (pluginName: string, fn: () => Promise<void>): Promise<void> => {
+  const prev = pluginLocks.get(pluginName) ?? Promise.resolve();
+  const next = prev.then(fn);
+  pluginLocks.set(
+    pluginName,
+    next.catch((err: unknown) => {
+      console.warn('[opentabs] tab state operation failed for plugin', pluginName, ':', err);
+    }),
+  );
+  return next;
+};
 
 /**
  * Probe a single tab for adapter readiness. Returns true if the adapter's
@@ -63,9 +81,7 @@ const probeTabReadiness = async (tabId: number, pluginName: string): Promise<boo
  * for adapter readiness. Reports 'ready' if ANY matching tab is ready,
  * 'unavailable' if tabs exist but none are ready, 'closed' if no tabs match.
  */
-export const computePluginTabState = async (
-  plugin: PluginMeta,
-): Promise<{ state: TabState; tabId: number | null; url: string | null }> => {
+const computePluginTabState = async (plugin: PluginMeta): Promise<PluginTabStateInfo> => {
   const tabs = await findAllMatchingTabs(plugin);
   if (tabs.length === 0) {
     return { state: 'closed', tabId: null, url: null };
@@ -101,10 +117,10 @@ export const computePluginTabState = async (
  * Scan all open tabs and send tab.syncAll to MCP server with current state
  * of all known plugins. Called on WebSocket connect/reconnect.
  *
- * Also populates the lastKnownState cache so subsequent checkTabStateChanges
- * calls can suppress redundant notifications.
+ * Also populates the lastKnownState cache so subsequent checkTabChanged /
+ * checkTabRemoved calls can suppress redundant notifications.
  */
-export const sendTabSyncAll = async (): Promise<void> => {
+const sendTabSyncAll = async (): Promise<void> => {
   const index = await getAllPluginMeta();
   const plugins = Object.values(index);
   if (plugins.length === 0) return;
@@ -112,7 +128,7 @@ export const sendTabSyncAll = async (): Promise<void> => {
   const settled = await Promise.allSettled(
     plugins.map(async plugin => [plugin.name, await computePluginTabState(plugin)] as const),
   );
-  const entries: (readonly [string, { state: TabState; tabId: number | null; url: string | null }])[] = [];
+  const entries: (readonly [string, PluginTabStateInfo])[] = [];
   for (const result of settled) {
     if (result.status === 'fulfilled') {
       entries.push(result.value);
@@ -121,8 +137,7 @@ export const sendTabSyncAll = async (): Promise<void> => {
     }
   }
   if (entries.length === 0) return;
-  const tabSyncPayload: Record<string, { state: TabState; tabId: number | null; url: string | null }> =
-    Object.fromEntries(entries);
+  const tabSyncPayload: Record<string, PluginTabStateInfo> = Object.fromEntries(entries);
 
   // Populate the cache from the full sync
   lastKnownState.clear();
@@ -154,7 +169,7 @@ export const sendTabSyncAll = async (): Promise<void> => {
  * Clear the last-known state cache. Called on WebSocket disconnect so the
  * next connect triggers a full sync without stale cache interference.
  */
-export const clearTabStateCache = (): void => {
+const clearTabStateCache = (): void => {
   lastKnownState.clear();
   pluginLocks.clear();
 };
@@ -164,60 +179,83 @@ export const clearTabStateCache = (): void => {
  * is uninstalled or removed during sync.full so the maps do not grow
  * unboundedly during long-running sessions.
  */
-export const clearPluginTabState = (pluginName: string): void => {
+const clearPluginTabState = (pluginName: string): void => {
   lastKnownState.delete(pluginName);
   pluginLocks.delete(pluginName);
 };
 
 /**
- * Update the last-known state for a single plugin. Called by handlePluginUpdate
- * in message-router.ts after computing the new state via computePluginTabState,
- * so the cache stays in sync when tab.stateChanged is sent directly (bypassing
- * checkTabStateChanges).
+ * Update the last-known state for a single plugin, serialized through the
+ * plugin lock so it cannot interleave with checkTabChanged / checkTabRemoved
+ * reads and writes for the same plugin. Called by handlePluginUpdate in
+ * message-router.ts after computing the new state via computePluginTabState.
  */
-export const updateLastKnownState = (pluginName: string, state: TabState): void => {
-  lastKnownState.set(pluginName, state);
-};
+const updateLastKnownState = (pluginName: string, state: TabState): Promise<void> =>
+  withPluginLock(pluginName, () => {
+    lastKnownState.set(pluginName, state);
+    return Promise.resolve();
+  });
 
 /** Return a snapshot of last-known tab states for all plugins. */
-export const getLastKnownStates = (): ReadonlyMap<string, TabState> => lastKnownState;
+const getLastKnownStates = (): ReadonlyMap<string, TabState> => lastKnownState;
 
 /**
- * Check if a tab change (URL update or removal) affects any plugin's tab state,
- * and send tab.stateChanged notifications for affected plugins whose state has
- * actually changed since the last notification.
- *
- * Optimized to avoid O(n × scripting calls) per tab event:
- *   - On URL change: plugins whose patterns match the new URL OR plugins with active
- *     state (not 'closed') are checked, catching navigate-away transitions
- *   - On status=complete: the changed tab's URL is fetched once and matched against all
- *     plugin patterns, avoiding a findMatchingTab (which queries chrome.tabs) per plugin
- *   - On tab removal: all plugins are checked (chrome.tabs.get fails for removed tabs
- *     and onRemoved provides no URL)
- *
- * Redundant notifications are suppressed: if a plugin's computed state matches
- * the lastKnownState cache, no tab.stateChanged is sent. This avoids unnecessary
- * WebSocket traffic on events like page reloads where the effective state is unchanged.
+ * Compute state for each affected plugin, diff against the lastKnownState
+ * cache, and send tab.stateChanged only when the state actually changed.
+ * Each plugin's computation is serialized via withPluginLock to prevent
+ * interleaving with concurrent calls or updateLastKnownState writes.
  */
-export const checkTabStateChanges = async (
-  changedTabId: number,
-  changeInfo?: { url?: string; status?: string },
-  removed?: boolean,
-): Promise<void> => {
+const notifyAffectedPlugins = async (affectedPlugins: PluginMeta[]): Promise<void> => {
+  await Promise.all(
+    affectedPlugins.map(plugin =>
+      withPluginLock(plugin.name, async () => {
+        const newState = await computePluginTabState(plugin);
+
+        // Suppress redundant notifications: only send if state actually changed
+        const previous = lastKnownState.get(plugin.name);
+        if (previous === newState.state) return;
+
+        // Update the cache before sending so rapid sequential events see the
+        // latest state and don't produce duplicate notifications.
+        lastKnownState.set(plugin.name, newState.state);
+
+        sendTabStateNotification(plugin.name, newState);
+      }),
+    ),
+  );
+};
+
+/**
+ * Check if a tab removal affects any plugin's tab state. All plugins are
+ * checked because chrome.tabs.get fails for removed tabs and onRemoved
+ * provides no URL, so pattern matching is not possible.
+ */
+const checkTabRemoved = async (_removedTabId: number): Promise<void> => {
   const index = await getAllPluginMeta();
   const plugins = Object.values(index);
   if (plugins.length === 0) return;
 
-  // Pre-filter: determine which plugins could be affected by this tab event
-  // without making per-plugin chrome.tabs or chrome.scripting calls.
+  await notifyAffectedPlugins(plugins);
+};
+
+/**
+ * Check if a tab URL change or page load affects any plugin's tab state.
+ * Only plugins whose patterns match the changed URL or that have an active
+ * (non-closed) state are checked, avoiding O(n × scripting calls) per event.
+ *
+ * Optimized paths:
+ *   - URL change: plugins matching the new URL OR plugins with active state
+ *   - status=complete: the tab's URL is fetched once and matched against all
+ *     plugin patterns, avoiding per-plugin chrome.tabs queries
+ */
+const checkTabChanged = async (changedTabId: number, changeInfo: chrome.tabs.OnUpdatedInfo): Promise<void> => {
+  const index = await getAllPluginMeta();
+  const plugins = Object.values(index);
+  if (plugins.length === 0) return;
+
   let affectedPlugins: PluginMeta[];
 
-  if (removed) {
-    // Tab was removed — any plugin with active state could be affected.
-    // chrome.tabs.get fails for removed tabs and onRemoved provides no URL,
-    // so all plugins must be checked.
-    affectedPlugins = plugins;
-  } else if (changeInfo?.url) {
+  if (changeInfo.url) {
     // URL changed — check plugins matching the new URL plus plugins with
     // active state (not 'closed'). Active plugins may have been on this tab
     // before navigation, so recomputing their state discovers they no longer
@@ -228,7 +266,7 @@ export const checkTabStateChanges = async (
         urlMatchesPatterns(changedUrl, p.urlPatterns) ||
         (lastKnownState.has(p.name) && lastKnownState.get(p.name) !== 'closed'),
     );
-  } else if (changeInfo?.status === 'complete') {
+  } else if (changeInfo.status === 'complete') {
     // Page finished loading — fetch the tab's current URL once and filter
     // plugins by pattern match instead of calling findMatchingTab per plugin.
     let tabUrl: string | undefined;
@@ -251,59 +289,16 @@ export const checkTabStateChanges = async (
 
   if (affectedPlugins.length === 0) return;
 
-  const results = await Promise.allSettled(
-    affectedPlugins.map(plugin => {
-      // Chain onto the existing lock for this plugin so concurrent calls
-      // for the same plugin are serialized. Different plugins run in parallel.
-      const prev = pluginLocks.get(plugin.name) ?? Promise.resolve();
-      const next = prev.then(async () => {
-        const newState = await computePluginTabState(plugin);
+  await notifyAffectedPlugins(affectedPlugins);
+};
 
-        // Suppress redundant notifications: only send if state actually changed
-        const previous = lastKnownState.get(plugin.name);
-        if (previous === newState.state) return;
-
-        // Update the cache before sending so rapid sequential events see the
-        // latest state and don't produce duplicate notifications.
-        lastKnownState.set(plugin.name, newState.state);
-
-        sendToServer({
-          jsonrpc: '2.0',
-          method: 'tab.stateChanged',
-          params: {
-            plugin: plugin.name,
-            state: newState.state,
-            tabId: newState.tabId,
-            url: newState.url,
-          },
-        });
-
-        forwardToSidePanel({
-          type: 'sp:serverMessage',
-          data: {
-            jsonrpc: '2.0',
-            method: 'tab.stateChanged',
-            params: {
-              plugin: plugin.name,
-              state: newState.state,
-              tabId: newState.tabId,
-              url: newState.url,
-            },
-          },
-        });
-      });
-      pluginLocks.set(
-        plugin.name,
-        next.catch((err: unknown) => {
-          console.warn('[opentabs] tab state check failed for plugin', plugin.name, ':', err);
-        }),
-      );
-      return next;
-    }),
-  );
-  for (const result of results) {
-    if (result.status === 'rejected') {
-      console.warn('[opentabs] Tab state check failed for a plugin:', result.reason);
-    }
-  }
+export {
+  checkTabChanged,
+  checkTabRemoved,
+  clearPluginTabState,
+  clearTabStateCache,
+  computePluginTabState,
+  getLastKnownStates,
+  sendTabSyncAll,
+  updateLastKnownState,
 };

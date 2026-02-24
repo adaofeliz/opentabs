@@ -35,9 +35,11 @@ import {
   handleExtensionGetSidePanel,
   handleExtensionGetState,
 } from './browser-commands/index.js';
+import { notifyConfirmationRequest } from './confirmation-badge.js';
 import { isValidPluginName, RELOAD_FLUSH_DELAY_MS, WS_CONNECTED_KEY } from './constants.js';
 import { cleanupAdaptersInMatchingTabs, injectPluginIntoMatchingTabs } from './iife-injection.js';
-import { forwardToSidePanel, sendToServer } from './messaging.js';
+import { JSONRPC_INTERNAL_ERROR, JSONRPC_INVALID_PARAMS, JSONRPC_METHOD_NOT_FOUND } from './json-rpc-errors.js';
+import { forwardToSidePanel, sendTabStateNotification, sendToServer } from './messaging.js';
 import { getAllPluginMeta, removePlugin, removePluginsBatch, storePluginsBatch } from './plugin-storage.js';
 import { checkRateLimit } from './rate-limiter.js';
 import { handleResourceRead, handlePromptGet } from './resource-prompt-dispatch.js';
@@ -57,11 +59,24 @@ const wrapAsync =
     }
   };
 
-/** Wraps a sync request handler with the id !== undefined guard */
+/** Wraps a sync request handler with the id !== undefined guard and try-catch error logging */
 const wrapSync =
-  (fn: (params: Record<string, unknown>, id: string | number) => void): MessageHandler =>
+  (method: string, fn: (params: Record<string, unknown>, id: string | number) => void): MessageHandler =>
   (params, id) => {
-    if (id !== undefined) fn(params, id);
+    if (id !== undefined) {
+      try {
+        fn(params, id);
+      } catch (err: unknown) {
+        console.warn(`[opentabs] ${method} handler failed:`, err);
+      }
+    }
+  };
+
+/** Wraps an async notification handler (no id guard — always executes) with .catch logging */
+const wrapNotification =
+  (method: string, fn: (params: Record<string, unknown>) => Promise<void>): MessageHandler =>
+  params => {
+    fn(params).catch((err: unknown) => console.warn(`[opentabs] ${method} handler failed:`, err));
   };
 
 /**
@@ -181,103 +196,31 @@ const validatePluginPayload = (raw: unknown): ValidatedPluginPayload | null => {
 };
 
 // ---------------------------------------------------------------------------
-// Dispatch table
-// ---------------------------------------------------------------------------
-
-/** Dispatch table mapping JSON-RPC methods to handlers */
-const methodHandlers = new Map<string, MessageHandler>([
-  [
-    'extension.reload',
-    (_params, id) => {
-      if (id !== undefined) {
-        sendToServer({ jsonrpc: '2.0', result: { reloading: true }, id });
-      }
-      // Clear wsConnected from session storage before reload so the restarted
-      // background script does not read a stale "true" value. Without this,
-      // the ws:state connected=true message from the new offscreen document
-      // would be treated as a no-op (wasConnected already true), skipping
-      // sendTabSyncAll and leaving the MCP server without tab state.
-      //
-      // The reload is scheduled after the storage write completes (with a
-      // small delay for the response to flush over WebSocket).
-      void chrome.storage.session
-        .set({ [WS_CONNECTED_KEY]: false })
-        .catch(() => {})
-        .then(() => {
-          setTimeout(() => {
-            chrome.runtime.reload();
-          }, RELOAD_FLUSH_DELAY_MS);
-        });
-    },
-  ],
-  [
-    'sync.full',
-    params => {
-      handleSyncFull(params).catch((err: unknown) => console.warn('[opentabs] sync.full handler failed:', err));
-    },
-  ],
-  [
-    'plugin.update',
-    params => {
-      handlePluginUpdate(params).catch((err: unknown) => console.warn('[opentabs] plugin.update handler failed:', err));
-    },
-  ],
-  [
-    'plugin.uninstall',
-    (params, id) => {
-      if (id !== undefined) {
-        handlePluginUninstall(params, id).catch((err: unknown) =>
-          console.warn('[opentabs] plugin.uninstall handler failed:', err),
-        );
-      }
-    },
-  ],
-  ['tool.dispatch', wrapAsync('tool.dispatch', handleToolDispatch)],
-  ['resource.read', wrapAsync('resource.read', handleResourceRead)],
-  ['prompt.get', wrapAsync('prompt.get', handlePromptGet)],
-  ['browser.listTabs', wrapAsync('browser.listTabs', (_params, id) => handleBrowserListTabs(id))],
-  ['browser.openTab', wrapAsync('browser.openTab', handleBrowserOpenTab)],
-  ['browser.closeTab', wrapAsync('browser.closeTab', handleBrowserCloseTab)],
-  ['browser.navigateTab', wrapAsync('browser.navigateTab', handleBrowserNavigateTab)],
-  ['browser.focusTab', wrapAsync('browser.focusTab', handleBrowserFocusTab)],
-  ['browser.getTabInfo', wrapAsync('browser.getTabInfo', handleBrowserGetTabInfo)],
-  ['browser.screenshotTab', wrapAsync('browser.screenshotTab', handleBrowserScreenshotTab)],
-  ['browser.getTabContent', wrapAsync('browser.getTabContent', handleBrowserGetTabContent)],
-  ['browser.getPageHtml', wrapAsync('browser.getPageHtml', handleBrowserGetPageHtml)],
-  ['browser.getStorage', wrapAsync('browser.getStorage', handleBrowserGetStorage)],
-  ['browser.clickElement', wrapAsync('browser.clickElement', handleBrowserClickElement)],
-  ['browser.typeText', wrapAsync('browser.typeText', handleBrowserTypeText)],
-  ['browser.selectOption', wrapAsync('browser.selectOption', handleBrowserSelectOption)],
-  ['browser.waitForElement', wrapAsync('browser.waitForElement', handleBrowserWaitForElement)],
-  ['browser.queryElements', wrapAsync('browser.queryElements', handleBrowserQueryElements)],
-  ['browser.getCookies', wrapAsync('browser.getCookies', handleBrowserGetCookies)],
-  ['browser.setCookie', wrapAsync('browser.setCookie', handleBrowserSetCookie)],
-  ['browser.deleteCookies', wrapAsync('browser.deleteCookies', handleBrowserDeleteCookies)],
-  ['browser.enableNetworkCapture', wrapAsync('browser.enableNetworkCapture', handleBrowserEnableNetworkCapture)],
-  ['browser.getNetworkRequests', wrapSync(handleBrowserGetNetworkRequests)],
-  ['browser.disableNetworkCapture', wrapSync(handleBrowserDisableNetworkCapture)],
-  ['browser.getConsoleLogs', wrapSync(handleBrowserGetConsoleLogs)],
-  ['browser.clearConsoleLogs', wrapSync(handleBrowserClearConsoleLogs)],
-  ['browser.executeScript', wrapAsync('browser.executeScript', handleBrowserExecuteScript)],
-  ['browser.listResources', wrapAsync('browser.listResources', handleBrowserListResources)],
-  ['browser.getResourceContent', wrapAsync('browser.getResourceContent', handleBrowserGetResourceContent)],
-  ['browser.pressKey', wrapAsync('browser.pressKey', handleBrowserPressKey)],
-  ['browser.scroll', wrapAsync('browser.scroll', handleBrowserScroll)],
-  ['browser.hoverElement', wrapAsync('browser.hoverElement', handleBrowserHoverElement)],
-  ['browser.handleDialog', wrapAsync('browser.handleDialog', handleBrowserHandleDialog)],
-  ['extension.getState', wrapAsync('extension.getState', (_params, id) => handleExtensionGetState(id))],
-  ['extension.getLogs', wrapAsync('extension.getLogs', handleExtensionGetLogs)],
-  ['extension.getSidePanel', wrapAsync('extension.getSidePanel', (_params, id) => handleExtensionGetSidePanel(id))],
-  ['extension.checkAdapter', wrapAsync('extension.checkAdapter', handleExtensionCheckAdapter)],
-  [
-    'extension.forceReconnect',
-    wrapAsync('extension.forceReconnect', (_params, id) => handleExtensionForceReconnect(id)),
-  ],
-]);
-
-// ---------------------------------------------------------------------------
 // Handlers
 // ---------------------------------------------------------------------------
+
+/** Handle extension.reload: respond if id is present, then clear ws state and reload */
+const handleExtensionReload: MessageHandler = (_params, id) => {
+  if (id !== undefined) {
+    sendToServer({ jsonrpc: '2.0', result: { reloading: true }, id });
+  }
+  // Clear wsConnected from session storage before reload so the restarted
+  // background script does not read a stale "true" value. Without this,
+  // the ws:state connected=true message from the new offscreen document
+  // would be treated as a no-op (wasConnected already true), skipping
+  // sendTabSyncAll and leaving the MCP server without tab state.
+  //
+  // The reload is scheduled after the storage write completes (with a
+  // small delay for the response to flush over WebSocket).
+  void chrome.storage.session
+    .set({ [WS_CONNECTED_KEY]: false })
+    .catch(() => {})
+    .then(() => {
+      setTimeout(() => {
+        chrome.runtime.reload();
+      }, RELOAD_FLUSH_DELAY_MS);
+    });
+};
 
 const handleSyncFull = async (params: Record<string, unknown>): Promise<void> => {
   const rawPlugins = params.plugins;
@@ -366,32 +309,11 @@ const handlePluginUpdate = async (params: Record<string, unknown>): Promise<void
 
   // Report updated tab state to the server after re-injection so the MCP
   // server's tabMapping reflects the new adapter's readiness immediately.
+  // updateLastKnownState goes through the plugin lock to avoid interleaving
+  // with concurrent checkTabChanged / checkTabRemoved for the same plugin.
   const newState = await computePluginTabState(meta);
-  updateLastKnownState(meta.name, newState.state);
-  sendToServer({
-    jsonrpc: '2.0',
-    method: 'tab.stateChanged',
-    params: {
-      plugin: meta.name,
-      state: newState.state,
-      tabId: newState.tabId,
-      url: newState.url,
-    },
-  });
-
-  forwardToSidePanel({
-    type: 'sp:serverMessage',
-    data: {
-      jsonrpc: '2.0',
-      method: 'tab.stateChanged',
-      params: {
-        plugin: meta.name,
-        state: newState.state,
-        tabId: newState.tabId,
-        url: newState.url,
-      },
-    },
-  });
+  await updateLastKnownState(meta.name, newState.state);
+  sendTabStateNotification(meta.name, newState);
 
   // Notify the side panel so it refreshes its plugin list without user interaction
   forwardToSidePanel({
@@ -405,7 +327,7 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
   if (typeof pluginName !== 'string' || pluginName.length === 0) {
     sendToServer({
       jsonrpc: '2.0',
-      error: { code: -32602, message: 'Missing plugin name' },
+      error: { code: JSONRPC_INVALID_PARAMS, message: 'Missing plugin name' },
       id,
     });
     return;
@@ -414,18 +336,24 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
   if (!isValidPluginName(pluginName)) {
     sendToServer({
       jsonrpc: '2.0',
-      error: { code: -32602, message: `Invalid plugin name format: "${pluginName}"` },
+      error: { code: JSONRPC_INVALID_PARAMS, message: `Invalid plugin name format: "${pluginName}"` },
       id,
     });
     return;
   }
 
   // Clean up injected adapters from matching tabs before removing storage
-  // (need URL patterns from meta to find the right tabs)
+  // (need URL patterns from meta to find the right tabs).
+  // Best-effort: a cleanup failure must not prevent plugin removal from
+  // storage and tab state, matching handleSyncFull's allSettled approach.
   const meta = await getAllPluginMeta();
   const pluginMeta = meta[pluginName];
   if (pluginMeta) {
-    await cleanupAdaptersInMatchingTabs(pluginName, pluginMeta.urlPatterns);
+    try {
+      await cleanupAdaptersInMatchingTabs(pluginName, pluginMeta.urlPatterns);
+    } catch (err: unknown) {
+      console.warn(`[opentabs] Failed to clean up adapters for ${pluginName}:`, err);
+    }
   }
 
   await removePlugin(pluginName);
@@ -436,6 +364,59 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
     id,
   });
 };
+
+// ---------------------------------------------------------------------------
+// Dispatch table
+// ---------------------------------------------------------------------------
+
+/** Dispatch table mapping JSON-RPC methods to handlers */
+const methodHandlers = new Map<string, MessageHandler>([
+  ['extension.reload', handleExtensionReload],
+  ['sync.full', wrapNotification('sync.full', handleSyncFull)],
+  ['plugin.update', wrapNotification('plugin.update', handlePluginUpdate)],
+  ['plugin.uninstall', wrapAsync('plugin.uninstall', handlePluginUninstall)],
+  ['tool.dispatch', wrapAsync('tool.dispatch', handleToolDispatch)],
+  ['resource.read', wrapAsync('resource.read', handleResourceRead)],
+  ['prompt.get', wrapAsync('prompt.get', handlePromptGet)],
+  ['browser.listTabs', wrapAsync('browser.listTabs', (_params, id) => handleBrowserListTabs(id))],
+  ['browser.openTab', wrapAsync('browser.openTab', handleBrowserOpenTab)],
+  ['browser.closeTab', wrapAsync('browser.closeTab', handleBrowserCloseTab)],
+  ['browser.navigateTab', wrapAsync('browser.navigateTab', handleBrowserNavigateTab)],
+  ['browser.focusTab', wrapAsync('browser.focusTab', handleBrowserFocusTab)],
+  ['browser.getTabInfo', wrapAsync('browser.getTabInfo', handleBrowserGetTabInfo)],
+  ['browser.screenshotTab', wrapAsync('browser.screenshotTab', handleBrowserScreenshotTab)],
+  ['browser.getTabContent', wrapAsync('browser.getTabContent', handleBrowserGetTabContent)],
+  ['browser.getPageHtml', wrapAsync('browser.getPageHtml', handleBrowserGetPageHtml)],
+  ['browser.getStorage', wrapAsync('browser.getStorage', handleBrowserGetStorage)],
+  ['browser.clickElement', wrapAsync('browser.clickElement', handleBrowserClickElement)],
+  ['browser.typeText', wrapAsync('browser.typeText', handleBrowserTypeText)],
+  ['browser.selectOption', wrapAsync('browser.selectOption', handleBrowserSelectOption)],
+  ['browser.waitForElement', wrapAsync('browser.waitForElement', handleBrowserWaitForElement)],
+  ['browser.queryElements', wrapAsync('browser.queryElements', handleBrowserQueryElements)],
+  ['browser.getCookies', wrapAsync('browser.getCookies', handleBrowserGetCookies)],
+  ['browser.setCookie', wrapAsync('browser.setCookie', handleBrowserSetCookie)],
+  ['browser.deleteCookies', wrapAsync('browser.deleteCookies', handleBrowserDeleteCookies)],
+  ['browser.enableNetworkCapture', wrapAsync('browser.enableNetworkCapture', handleBrowserEnableNetworkCapture)],
+  ['browser.getNetworkRequests', wrapSync('browser.getNetworkRequests', handleBrowserGetNetworkRequests)],
+  ['browser.disableNetworkCapture', wrapSync('browser.disableNetworkCapture', handleBrowserDisableNetworkCapture)],
+  ['browser.getConsoleLogs', wrapSync('browser.getConsoleLogs', handleBrowserGetConsoleLogs)],
+  ['browser.clearConsoleLogs', wrapSync('browser.clearConsoleLogs', handleBrowserClearConsoleLogs)],
+  ['browser.executeScript', wrapAsync('browser.executeScript', handleBrowserExecuteScript)],
+  ['browser.listResources', wrapAsync('browser.listResources', handleBrowserListResources)],
+  ['browser.getResourceContent', wrapAsync('browser.getResourceContent', handleBrowserGetResourceContent)],
+  ['browser.pressKey', wrapAsync('browser.pressKey', handleBrowserPressKey)],
+  ['browser.scroll', wrapAsync('browser.scroll', handleBrowserScroll)],
+  ['browser.hoverElement', wrapAsync('browser.hoverElement', handleBrowserHoverElement)],
+  ['browser.handleDialog', wrapAsync('browser.handleDialog', handleBrowserHandleDialog)],
+  ['extension.getState', wrapAsync('extension.getState', (_params, id) => handleExtensionGetState(id))],
+  ['extension.getLogs', wrapAsync('extension.getLogs', handleExtensionGetLogs)],
+  ['extension.getSidePanel', wrapAsync('extension.getSidePanel', (_params, id) => handleExtensionGetSidePanel(id))],
+  ['extension.checkAdapter', wrapAsync('extension.checkAdapter', handleExtensionCheckAdapter)],
+  [
+    'extension.forceReconnect',
+    wrapAsync('extension.forceReconnect', (_params, id) => handleExtensionForceReconnect(id)),
+  ],
+]);
 
 /** Handle a JSON-RPC message received from the MCP server */
 const handleServerMessage = (message: Record<string, unknown>): void => {
@@ -467,7 +448,7 @@ const handleServerMessage = (message: Record<string, unknown>): void => {
       if (id !== undefined) {
         sendToServer({
           jsonrpc: '2.0',
-          error: { code: -32603, message: `Rate limited: ${method}` },
+          error: { code: JSONRPC_INTERNAL_ERROR, message: `Rate limited: ${method}` },
           id,
         });
       }
@@ -477,87 +458,18 @@ const handleServerMessage = (message: Record<string, unknown>): void => {
     return;
   }
 
-  // Unrecognized method with an id — send JSON-RPC -32601 'Method not found'
+  // Unrecognized method with an id — send JSONRPC_METHOD_NOT_FOUND
   if (id !== undefined) {
     sendToServer({
       jsonrpc: '2.0',
-      error: { code: -32601, message: `Method not found: ${method}` },
+      error: { code: JSONRPC_METHOD_NOT_FOUND, message: `Method not found: ${method}` },
       id,
     });
   }
 };
 
-/** Pending confirmation count for badge tracking */
-let pendingConfirmationCount = 0;
-
-/** Update the extension badge to show pending confirmation count */
-const updateConfirmationBadge = (): void => {
-  if (pendingConfirmationCount > 0) {
-    chrome.action.setBadgeText({ text: String(pendingConfirmationCount) }).catch(() => {});
-    chrome.action.setBadgeBackgroundColor({ color: '#ffdb33' }).catch(() => {});
-  } else {
-    chrome.action.setBadgeText({ text: '' }).catch(() => {});
-  }
-};
-
-/**
- * Show badge and Chrome notification when a confirmation request arrives.
- * The badge count persists until confirmations are resolved via clearConfirmationBadge().
- */
-const notifyConfirmationRequest = (params: Record<string, unknown>): void => {
-  pendingConfirmationCount++;
-  updateConfirmationBadge();
-
-  const tool = typeof params.tool === 'string' ? params.tool : 'unknown tool';
-  const domain = typeof params.domain === 'string' ? params.domain : 'unknown domain';
-
-  chrome.notifications
-    .create(`opentabs-confirm-${typeof params.id === 'string' ? params.id : Date.now()}`, {
-      type: 'basic',
-      iconUrl: chrome.runtime.getURL('icons/icon-128.png'),
-      title: 'OpenTabs: Approval Required',
-      message: `${tool} on ${domain} — Click to open side panel`,
-      priority: 2,
-      requireInteraction: true,
-    })
-    .catch(() => {});
-};
-
-/** Decrement pending confirmation count and update badge */
-const clearConfirmationBadge = (): void => {
-  pendingConfirmationCount = Math.max(0, pendingConfirmationCount - 1);
-  updateConfirmationBadge();
-};
-
-/** Reset all pending confirmation tracking (e.g., on disconnect) */
-const clearAllConfirmationBadges = (): void => {
-  pendingConfirmationCount = 0;
-  updateConfirmationBadge();
-};
-
-// Open the side panel when the user clicks a confirmation notification
-chrome.notifications.onClicked.addListener(notificationId => {
-  if (notificationId.startsWith('opentabs-confirm-')) {
-    chrome.windows
-      .getCurrent()
-      .then(w => {
-        if (w.id !== undefined) {
-          chrome.sidePanel.open({ windowId: w.id }).catch(() => {});
-        }
-      })
-      .catch(() => {});
-    chrome.notifications.clear(notificationId).catch(() => {});
-  }
-});
-
 /** Method names registered in the dispatch table, exported for test verification */
 const methodHandlerNames = Array.from(methodHandlers.keys());
 
-export {
-  handleServerMessage,
-  methodHandlerNames,
-  validatePluginPayload,
-  clearConfirmationBadge,
-  clearAllConfirmationBadges,
-};
+export { handleServerMessage, methodHandlerNames, validatePluginPayload };
 export type { ValidatedPluginPayload };

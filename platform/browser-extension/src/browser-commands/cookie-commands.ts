@@ -1,5 +1,4 @@
-import { requireUrl, sendErrorResult, sendSuccessResult } from './helpers.js';
-import { sendToServer } from '../messaging.js';
+import { requireStringParam, requireUrl, sendErrorResult, sendSuccessResult, sendValidationError } from './helpers.js';
 
 /**
  * Retrieves cookies for a URL, optionally filtered by cookie name.
@@ -42,14 +41,11 @@ export const handleBrowserSetCookie = async (params: Record<string, unknown>, id
   try {
     const url = requireUrl(params, id);
     if (url === null) return;
-    const name = params.name;
-    if (typeof name !== 'string' || name.length === 0) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid name parameter' }, id });
-      return;
-    }
+    const name = requireStringParam(params, 'name', id);
+    if (name === null) return;
     const value = params.value;
     if (typeof value !== 'string') {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid value parameter' }, id });
+      sendValidationError(id, 'Missing or invalid value parameter');
       return;
     }
     const details: chrome.cookies.SetDetails = { url, name, value };
@@ -60,7 +56,7 @@ export const handleBrowserSetCookie = async (params: Record<string, unknown>, id
     if (typeof params.expirationDate === 'number') details.expirationDate = params.expirationDate;
     const cookie = await chrome.cookies.set(details);
     if (!cookie) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32603, message: 'Failed to set cookie' }, id });
+      sendErrorResult(id, new Error('Failed to set cookie'));
       return;
     }
     sendSuccessResult(id, {
@@ -85,11 +81,8 @@ export const handleBrowserDeleteCookies = async (
   try {
     const url = requireUrl(params, id);
     if (url === null) return;
-    const name = params.name;
-    if (typeof name !== 'string' || name.length === 0) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid name parameter' }, id });
-      return;
-    }
+    const name = requireStringParam(params, 'name', id);
+    if (name === null) return;
     await chrome.cookies.remove({ url, name });
     sendSuccessResult(id, { deleted: true, name, url });
   } catch (err) {

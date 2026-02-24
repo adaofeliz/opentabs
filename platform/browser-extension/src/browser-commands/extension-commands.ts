@@ -1,7 +1,25 @@
-import { requireTabId, sendErrorResult, sendSuccessResult } from './helpers.js';
+import {
+  requireStringParam,
+  requireTabId,
+  sendErrorResult,
+  sendSuccessResult,
+  sendValidationError,
+} from './helpers.js';
 import { bgLogCollector } from '../background-log-state.js';
-import { IS_READY_TIMEOUT_MS, SCRIPT_TIMEOUT_MS, WS_CONNECTED_KEY, WS_FLUSH_DELAY_MS } from '../constants.js';
-import { sendToServer } from '../messaging.js';
+import {
+  buildWsUrl,
+  DEFAULT_LOG_LIMIT,
+  DEFAULT_SERVER_PORT,
+  EXEC_MAX_ASYNC_WAIT_MS,
+  EXEC_POLL_INTERVAL_MS,
+  EXEC_RESULT_TRUNCATION_LIMIT,
+  IS_READY_TIMEOUT_MS,
+  SCRIPT_TIMEOUT_MS,
+  SERVER_PORT_KEY,
+  SIDE_PANEL_TIMEOUT_MS,
+  WS_CONNECTED_KEY,
+  WS_FLUSH_DELAY_MS,
+} from '../constants.js';
 import { getActiveCapturesSummary } from '../network-capture.js';
 import { getAllPluginMeta, getPluginMeta } from '../plugin-storage.js';
 import { findAllMatchingTabs } from '../tab-matching.js';
@@ -19,10 +37,13 @@ export const handleExtensionGetState = async (id: string | number): Promise<void
 
     // MCP server URL derived from port in chrome.storage.local
     const localData: Record<string, unknown> = await chrome.storage.local
-      .get('serverPort')
+      .get(SERVER_PORT_KEY)
       .catch(() => ({}) as Record<string, unknown>);
-    const port = typeof localData.serverPort === 'number' && localData.serverPort > 0 ? localData.serverPort : 9515;
-    const mcpServerUrl = `ws://localhost:${port}/ws`;
+    const port =
+      typeof localData[SERVER_PORT_KEY] === 'number' && localData[SERVER_PORT_KEY] > 0
+        ? localData[SERVER_PORT_KEY]
+        : DEFAULT_SERVER_PORT;
+    const mcpServerUrl = buildWsUrl(port);
 
     // Plugin metadata with tab states
     const pluginIndex = await getAllPluginMeta();
@@ -109,7 +130,7 @@ export const handleExtensionGetLogs = async (params: Record<string, unknown>, id
     const merged = [...bgEntries, ...offscreenEntries].sort((a, b) => b.timestamp - a.timestamp);
 
     // Apply limit to the merged result
-    const limit = filterOptions.limit ?? 100;
+    const limit = filterOptions.limit ?? DEFAULT_LOG_LIMIT;
     const entries = merged.slice(0, limit);
 
     sendSuccessResult(id, {
@@ -127,27 +148,21 @@ export const handleExtensionGetLogs = async (params: Record<string, unknown>, id
 
 export const handleExtensionGetSidePanel = async (id: string | number): Promise<void> => {
   try {
-    const SIDE_PANEL_TIMEOUT_MS = 3000;
-
     const sidePanelResult = await Promise.race([
       chrome.runtime.sendMessage({ type: 'sp:getState' } satisfies SpGetStateMessage).then((raw: unknown) => raw),
       new Promise<null>(resolve => setTimeout(() => resolve(null), SIDE_PANEL_TIMEOUT_MS)),
     ]);
 
     if (!sidePanelResult || typeof sidePanelResult !== 'object') {
-      sendToServer({ jsonrpc: '2.0', result: { open: false }, id });
+      sendSuccessResult(id, { open: false });
       return;
     }
 
     const response = sidePanelResult as { state?: unknown; html?: string };
-    sendToServer({
-      jsonrpc: '2.0',
-      result: { open: true, state: response.state, html: response.html },
-      id,
-    });
+    sendSuccessResult(id, { open: true, state: response.state, html: response.html });
   } catch {
     // Side panel not open or message failed — return { open: false }
-    sendToServer({ jsonrpc: '2.0', result: { open: false }, id });
+    sendSuccessResult(id, { open: false });
   }
 };
 
@@ -156,23 +171,12 @@ export const handleExtensionCheckAdapter = async (
   id: string | number,
 ): Promise<void> => {
   try {
-    const pluginName = params.plugin;
-    if (typeof pluginName !== 'string' || pluginName.length === 0) {
-      sendToServer({
-        jsonrpc: '2.0',
-        error: { code: -32602, message: 'Missing or invalid plugin parameter' },
-        id,
-      });
-      return;
-    }
+    const pluginName = requireStringParam(params, 'plugin', id);
+    if (pluginName === null) return;
 
     const meta = await getPluginMeta(pluginName);
     if (!meta) {
-      sendToServer({
-        jsonrpc: '2.0',
-        error: { code: -32602, message: `Plugin not found: "${pluginName}"` },
-        id,
-      });
+      sendValidationError(id, `Plugin not found: "${pluginName}"`);
       return;
     }
 
@@ -310,7 +314,7 @@ export const handleExtensionForceReconnect = async (id: string | number): Promis
     // Send the success response FIRST, before the WebSocket is torn down.
     // The response travels over the current WebSocket connection; if we
     // close it first, the response would never reach the MCP server.
-    sendToServer({ jsonrpc: '2.0', result: { reconnecting: true }, id });
+    sendSuccessResult(id, { reconnecting: true });
 
     await new Promise(resolve => setTimeout(resolve, WS_FLUSH_DELAY_MS));
 
@@ -336,13 +340,10 @@ export const handleBrowserExecuteScript = async (
   try {
     const tabId = requireTabId(params, id);
     if (tabId === null) return;
-    const execFile = params.execFile;
-    if (typeof execFile !== 'string' || execFile.length === 0) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Missing or invalid execFile parameter' }, id });
-      return;
-    }
+    const execFile = requireStringParam(params, 'execFile', id);
+    if (execFile === null) return;
     if (!/^__exec-[a-f0-9-]+\.js$/.test(execFile)) {
-      sendToServer({ jsonrpc: '2.0', error: { code: -32602, message: 'Invalid execFile format' }, id });
+      sendValidationError(id, 'Invalid execFile format');
       return;
     }
 
@@ -360,15 +361,13 @@ export const handleBrowserExecuteScript = async (
       // immediately by the wrapper. For async code (Promises), the wrapper
       // sets __lastExecAsync=true and resolves __lastExecResult when the
       // Promise settles. Poll until the result is available.
-      const maxAsyncWait = 10_000;
-      const pollInterval = 50;
       let elapsed = 0;
 
-      while (elapsed <= maxAsyncWait) {
+      while (elapsed <= EXEC_MAX_ASYNC_WAIT_MS) {
         const results = await chrome.scripting.executeScript({
           target: { tabId },
           world: 'MAIN',
-          func: () => {
+          func: (truncLimit: number) => {
             const ot = (globalThis as Record<string, unknown>).__openTabs as
               | {
                   __lastExecResult?: { value?: unknown; error?: string };
@@ -389,7 +388,8 @@ export const handleBrowserExecuteScript = async (
               if (captured.value !== null && typeof captured.value === 'object') {
                 try {
                   const json = JSON.stringify(captured.value);
-                  captured.value = json.length > 50_000 ? json.slice(0, 50_000) + '... (truncated)' : JSON.parse(json);
+                  captured.value =
+                    json.length > truncLimit ? json.slice(0, truncLimit) + '... (truncated)' : JSON.parse(json);
                 } catch {
                   captured.value = String(captured.value);
                 }
@@ -406,6 +406,7 @@ export const handleBrowserExecuteScript = async (
             // Sync code produced no __lastExecResult (should not happen)
             return { pending: false, result: { error: 'No result captured' } };
           },
+          args: [EXEC_RESULT_TRUNCATION_LIMIT],
         });
 
         const first = results[0] as { result?: { pending: boolean; result?: unknown } } | undefined;
@@ -416,8 +417,8 @@ export const handleBrowserExecuteScript = async (
         }
 
         // Still pending — wait and retry
-        await new Promise(resolve => setTimeout(resolve, pollInterval));
-        elapsed += pollInterval;
+        await new Promise(resolve => setTimeout(resolve, EXEC_POLL_INTERVAL_MS));
+        elapsed += EXEC_POLL_INTERVAL_MS;
       }
 
       // Async timed out — clean up and report error
@@ -435,7 +436,7 @@ export const handleBrowserExecuteScript = async (
         })
         .catch(() => {});
 
-      return { value: { error: `Async code did not resolve within ${maxAsyncWait}ms` } };
+      return { value: { error: `Async code did not resolve within ${EXEC_MAX_ASYNC_WAIT_MS}ms` } };
     })();
 
     const timeoutPromise = new Promise<never>((_resolve, reject) => {
