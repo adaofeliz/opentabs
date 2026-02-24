@@ -16,7 +16,10 @@ const FailedPluginCard = ({ plugin }: { plugin: FailedPluginState }) => {
         {plugin.error}
       </div>
       {plugin.error.length > 100 && (
-        <button onClick={() => setExpanded(!expanded)} className="text-muted-foreground mt-1 text-xs underline">
+        <button
+          type="button"
+          onClick={() => setExpanded(!expanded)}
+          className="text-muted-foreground mt-1 cursor-pointer text-xs underline">
           {expanded ? 'Show less' : 'Show more'}
         </button>
       )}
