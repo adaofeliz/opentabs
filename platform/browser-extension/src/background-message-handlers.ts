@@ -2,7 +2,7 @@ import { clearAllConfirmationBadges, clearConfirmationBadge } from './confirmati
 import { buildWsUrl, SERVER_PORT_KEY, WS_CONNECTED_KEY } from './constants.js';
 import { handleServerMessage } from './message-router.js';
 import { forwardToSidePanel, sendToServer } from './messaging.js';
-import { clearTabStateCache, sendTabSyncAll } from './tab-state.js';
+import { clearTabStateCache } from './tab-state.js';
 import { notifyDispatchProgress } from './tool-dispatch.js';
 import type { DisconnectReason, InternalMessage } from './extension-messages.js';
 
@@ -76,9 +76,6 @@ const handleWsState: MessageHandler = (message, sendResponse) => {
       disconnectReason: lastDisconnectReason,
     },
   });
-  if (nowConnected && !wasConnected) {
-    sendTabSyncAll().catch((err: unknown) => console.warn('[opentabs] tab sync failed:', err));
-  }
   if (!nowConnected && wasConnected) {
     clearTabStateCache();
     clearAllConfirmationBadges();

@@ -12,10 +12,10 @@ import type { TabState } from '@opentabs-dev/shared';
  * changed (e.g., a page reload where the plugin was "ready" before and
  * is still "ready" after).
  *
- * The cache is populated by sendTabSyncAll (full sync on connect) and
+ * The cache is populated by sendTabSyncAll (called after sync.full) and
  * updated on every state change notification sent to the server.
- * It is cleared on disconnect (the background script handles reconnect
- * via sendTabSyncAll which repopulates it).
+ * It is cleared on disconnect and repopulated when sync.full arrives on
+ * the next connection.
  */
 const lastKnownState = new Map<string, TabState>();
 
@@ -115,7 +115,8 @@ const computePluginTabState = async (plugin: PluginMeta): Promise<PluginTabState
 
 /**
  * Scan all open tabs and send tab.syncAll to MCP server with current state
- * of all known plugins. Called on WebSocket connect/reconnect.
+ * of all known plugins. Called after sync.full is processed so the extension
+ * has up-to-date plugin metadata before reporting tab states.
  *
  * Also populates the lastKnownState cache so subsequent checkTabChanged /
  * checkTabRemoved calls can suppress redundant notifications.
