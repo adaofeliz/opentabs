@@ -232,8 +232,8 @@ const createTestHandlers = (
   return { handlers, state, transports };
 };
 
-/** Minimal mock bunServer (only needed for WebSocket upgrade paths, not HTTP) */
-const mockBunServer = {
+/** Minimal mock server adapter (only needed for WebSocket upgrade paths, not HTTP) */
+const mockServer = {
   upgrade: () => false,
   timeout: () => {},
 };
@@ -266,7 +266,7 @@ interface WsInfoResponse {
 /** Fetch a route and parse the JSON response with a typed shape */
 const fetchJson = async <T>(handlers: HotHandlers, url: string, headers?: Record<string, string>): Promise<T> => {
   const req = new Request(url, { headers: { Host: new URL(url).host, ...headers } });
-  const res = await handlers.fetch(req, mockBunServer);
+  const res = await handlers.fetch(req, mockServer);
   expect(res).toBeInstanceOf(Response);
   return (res as Response).json() as Promise<T>;
 };
@@ -359,7 +359,7 @@ describe('/health endpoint', () => {
     state.wsSecret = secret;
 
     const req = new Request('http://localhost:9876/health', { headers: { Host: 'localhost:9876' } });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
     expect(res).toBeInstanceOf(Response);
     const text = await (res as Response).text();
 
@@ -456,7 +456,7 @@ describe('/health endpoint', () => {
     state.wsSecret = 'test-secret';
 
     const req = new Request('http://localhost:9876/health', { headers: { Host: 'localhost:9876' } });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -480,7 +480,7 @@ describe('/ws-info endpoint', () => {
     const req = new Request('http://localhost:9876/ws-info', {
       headers: { Host: 'localhost:9876', Authorization: 'Bearer my-test-secret' },
     });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
     expect(res).toBeInstanceOf(Response);
     const body = (await (res as Response).json()) as WsInfoResponse;
 
@@ -493,7 +493,7 @@ describe('/ws-info endpoint', () => {
     state.wsSecret = 'my-test-secret';
 
     const req = new Request('http://localhost:9876/ws-info', { headers: { Host: 'localhost:9876' } });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(401);
   });
@@ -505,7 +505,7 @@ describe('/ws-info endpoint', () => {
     const req = new Request('http://localhost:9876/ws-info', {
       headers: { Host: 'localhost:9876', Authorization: 'Bearer wrong-token' },
     });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(401);
   });
@@ -517,7 +517,7 @@ describe('POST /reload endpoint', () => {
     state.wsSecret = 'test-secret';
 
     const req = new Request('http://localhost:9876/reload', { method: 'POST', headers: { Host: 'localhost:9876' } });
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(401);
@@ -709,7 +709,7 @@ describe('CORS protection', () => {
       headers: { Host: 'localhost:9876', Origin: 'http://evil.com' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(403);
@@ -721,7 +721,7 @@ describe('CORS protection', () => {
       headers: { Host: 'localhost:9876', Origin: 'https://attacker.io' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(403);
@@ -733,7 +733,7 @@ describe('CORS protection', () => {
       headers: { Host: 'localhost:9876', Origin: 'chrome-extension://abc123' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -743,7 +743,7 @@ describe('CORS protection', () => {
     const { handlers } = createTestHandlers();
     const req = new Request('http://localhost:9876/health', { headers: { Host: 'localhost:9876' } });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -757,7 +757,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
       headers: { Host: 'evil.com' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(403);
@@ -770,7 +770,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
       headers: { Host: 'localhost' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -782,7 +782,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
       headers: { Host: 'localhost:9515' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -794,7 +794,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
       headers: { Host: '127.0.0.1' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -806,7 +806,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
       headers: { Host: '[::1]' },
     });
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(200);
@@ -816,7 +816,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
     const { handlers } = createTestHandlers();
     const req = new Request('http://localhost:9876/health');
 
-    const res = await handlers.fetch(req, mockBunServer);
+    const res = await handlers.fetch(req, mockServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(403);
@@ -826,7 +826,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
 
 describe('WebSocket upgrade origin check', () => {
   /** Mock bunServer that reports successful upgrades */
-  const upgradingBunServer = {
+  const upgradingServer = {
     upgrade: () => true,
     timeout: () => {},
   };
@@ -841,7 +841,7 @@ describe('WebSocket upgrade origin check', () => {
       },
     });
 
-    const res = await handlers.fetch(req, upgradingBunServer);
+    const res = await handlers.fetch(req, upgradingServer);
 
     expect(res).toBeInstanceOf(Response);
     expect((res as Response).status).toBe(403);
@@ -854,7 +854,7 @@ describe('WebSocket upgrade origin check', () => {
       headers: { Host: 'localhost:9876', Upgrade: 'websocket' },
     });
 
-    const res = await handlers.fetch(req, upgradingBunServer);
+    const res = await handlers.fetch(req, upgradingServer);
 
     // Successful upgrade returns undefined (Bun convention)
     expect(res).toBeUndefined();
@@ -871,7 +871,7 @@ describe('WebSocket upgrade origin check', () => {
       },
     });
 
-    const res = await handlers.fetch(req, upgradingBunServer);
+    const res = await handlers.fetch(req, upgradingServer);
 
     // Successful upgrade returns undefined (Bun convention)
     expect(res).toBeUndefined();
@@ -890,7 +890,7 @@ describe('/mcp session creation rate limiting', () => {
         headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
         body: JSON.stringify({ not: 'an initialize request' }),
       });
-      const res = (await handlers.fetch(req, mockBunServer)) as Response;
+      const res = (await handlers.fetch(req, mockServer)) as Response;
       expect(res.status).toBe(400);
     }
 
@@ -900,7 +900,7 @@ describe('/mcp session creation rate limiting', () => {
       headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
       body: JSON.stringify({ not: 'an initialize request' }),
     });
-    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    const res = (await handlers.fetch(req, mockServer)) as Response;
     expect(res.status).toBe(429);
     expect(res.headers.get('Retry-After')).toBe('60');
   });
@@ -916,7 +916,7 @@ describe('/mcp session creation rate limiting', () => {
         headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
         body: JSON.stringify({ not: 'an initialize request' }),
       });
-      await handlers.fetch(req, mockBunServer);
+      await handlers.fetch(req, mockServer);
     }
 
     // A request with an unknown session ID falls through to the new session path
@@ -930,7 +930,7 @@ describe('/mcp session creation rate limiting', () => {
       },
       body: JSON.stringify({ method: 'tools/list' }),
     });
-    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    const res = (await handlers.fetch(req, mockServer)) as Response;
     expect(res.status).toBe(429);
   });
 
@@ -945,7 +945,7 @@ describe('/mcp session creation rate limiting', () => {
         headers: { Host: 'localhost:9876', 'Content-Type': 'application/json' },
         body: JSON.stringify({ not: 'an initialize request' }),
       });
-      await handlers.fetch(req, mockBunServer);
+      await handlers.fetch(req, mockServer);
     }
 
     // GET requests should not be rate-limited
@@ -953,7 +953,7 @@ describe('/mcp session creation rate limiting', () => {
       method: 'GET',
       headers: { Host: 'localhost:9876' },
     });
-    const res = (await handlers.fetch(req, mockBunServer)) as Response;
+    const res = (await handlers.fetch(req, mockServer)) as Response;
     // GET without session ID returns 400, not 429
     expect(res.status).toBe(400);
   });

@@ -2,7 +2,7 @@
  * HTTP and WebSocket route handlers.
  *
  * Extracted from index.ts so that the entry point is a thin frozen shell
- * (Bun.serve() delegate, HotState management, reload orchestration) while
+ * (server delegate, HotState management, reload orchestration) while
  * all routing logic lives here and hot-reloads freely.
  *
  * Includes sweepStaleSessions() to prevent memory leaks in the sessionServers
@@ -189,8 +189,8 @@ const computeAuditSummary = (auditLog: AuditEntry[]) => {
   };
 };
 
-/** Bun server subset needed by route handlers */
-interface BunServer {
+/** Server adapter subset needed by route handlers (Bun.serve() or Node.js adapter) */
+interface ServerAdapter {
   upgrade: (req: Request, opts: { data: unknown; headers?: HeadersInit }) => boolean;
   timeout: (req: Request, seconds: number) => void;
 }
@@ -200,7 +200,7 @@ interface BunServer {
 // dependencies it needs. The router in createHandleFetch delegates to these.
 
 /** WebSocket upgrade for extension connections (/ws) */
-const handleWsUpgrade = (req: Request, bunServer: BunServer, state: ServerState): Response | undefined => {
+const handleWsUpgrade = (req: Request, server: ServerAdapter, state: ServerState): Response | undefined => {
   // Authenticate WebSocket connections using a shared secret sent via
   // the Sec-WebSocket-Protocol header (not URL query params, which leak
   // into server logs, browser history, and proxy logs).
@@ -219,7 +219,7 @@ const handleWsUpgrade = (req: Request, bunServer: BunServer, state: ServerState)
     if (!secretMatched) {
       return new Response('Unauthorized', { status: 401 });
     }
-    const upgraded = bunServer.upgrade(req, {
+    const upgraded = server.upgrade(req, {
       data: undefined,
       headers: { 'sec-websocket-protocol': 'opentabs' },
     });
@@ -228,7 +228,7 @@ const handleWsUpgrade = (req: Request, bunServer: BunServer, state: ServerState)
     }
     return undefined;
   }
-  const upgraded = bunServer.upgrade(req, { data: undefined });
+  const upgraded = server.upgrade(req, { data: undefined });
   if (!upgraded) {
     return new Response('WebSocket upgrade failed', { status: 400 });
   }
@@ -380,19 +380,19 @@ const handleExtensionReload = (req: Request, state: ServerState): Response => {
 /** MCP Streamable HTTP transport (/mcp — POST/GET/DELETE) */
 const handleMcp = async (
   req: Request,
-  bunServer: BunServer,
+  server: ServerAdapter,
   state: ServerState,
   transports: Map<string, WebStandardStreamableHTTPServerTransport>,
   sessionServers: McpServerInstance[],
 ): Promise<Response> => {
   const authError = checkBearerAuth(req, state.wsSecret);
   if (authError) return authError;
-  // Disable Bun's per-connection idle timeout for MCP requests.
+  // Disable per-connection idle timeout for MCP requests.
   // Tool dispatches can take up to DISPATCH_TIMEOUT_MS (30s) and the
   // Streamable HTTP transport holds the response open until the tool
   // result arrives. The default idle timeout (10s) would close the
   // connection before long-running dispatches complete.
-  bunServer.timeout(req, 0);
+  server.timeout(req, 0);
 
   const sessionId = req.headers.get('mcp-session-id');
 
@@ -494,7 +494,7 @@ const handleMcp = async (
 
 const createHandleFetch =
   ({ state, transports, sessionServers, getHotState }: RouteDeps) =>
-  async (req: Request, bunServer: BunServer): Promise<Response | undefined> => {
+  async (req: Request, server: ServerAdapter): Promise<Response | undefined> => {
     const url = new URL(req.url);
 
     // --- Host header validation (DNS rebinding protection) ---
@@ -520,14 +520,14 @@ const createHandleFetch =
       return new Response('Forbidden: browser requests are not allowed', { status: 403 });
     }
 
-    if (url.pathname === '/ws') return handleWsUpgrade(req, bunServer, state);
+    if (url.pathname === '/ws') return handleWsUpgrade(req, server, state);
     if (url.pathname === '/ws-info' && req.method === 'GET') return handleWsInfo(req, url, state);
     if (url.pathname === '/health' && req.method === 'GET') return handleHealth(req, state, transports, getHotState);
     if (url.pathname === '/audit' && req.method === 'GET') return handleAudit(url, state, req);
     if (url.pathname === '/reload' && req.method === 'POST')
       return handleReload(req, state, sessionServers, transports);
     if (url.pathname === '/extension/reload' && req.method === 'POST') return handleExtensionReload(req, state);
-    if (url.pathname === '/mcp') return handleMcp(req, bunServer, state, transports, sessionServers);
+    if (url.pathname === '/mcp') return handleMcp(req, server, state, transports, sessionServers);
 
     return new Response('Not Found', { status: 404 });
   };
@@ -598,10 +598,10 @@ const createHandleWsClose =
     }
   };
 
-/** Hot-reloadable handler functions for the Bun.serve() delegate shell */
+/** Hot-reloadable handler functions for the server delegate shell */
 interface HotHandlers {
   /** HTTP request handler — all routing logic */
-  fetch: (req: Request, bunServer: BunServer) => Promise<Response | undefined>;
+  fetch: (req: Request, server: ServerAdapter) => Promise<Response | undefined>;
   /** Extension WebSocket opened */
   wsOpen: (ws: WsHandle) => void;
   /** Extension WebSocket message received */
@@ -665,5 +665,5 @@ const sweepStaleSessions = (
   return swept;
 };
 
-export type { HotHandlers };
+export type { HotHandlers, ServerAdapter };
 export { checkBearerAuth, constantTimeEqual, createHandlers, isLocalhostHost, sweepStaleSessions };

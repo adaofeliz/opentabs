@@ -68,7 +68,7 @@
     },
     "platform/cli": {
       "name": "@opentabs-dev/cli",
-      "version": "0.0.23",
+      "version": "0.0.25",
       "bin": {
         "opentabs": "./dist/cli.js",
       },
@@ -86,7 +86,7 @@
     },
     "platform/create-plugin": {
       "name": "@opentabs-dev/create-plugin",
-      "version": "0.0.23",
+      "version": "0.0.25",
       "bin": {
         "create-opentabs-plugin": "./dist/index.js",
       },
@@ -101,20 +101,22 @@
     },
     "platform/mcp-server": {
       "name": "@opentabs-dev/mcp-server",
-      "version": "0.0.22",
+      "version": "0.0.25",
       "dependencies": {
         "@modelcontextprotocol/sdk": "^1.26.0",
         "@opentabs-dev/shared": "workspace:*",
         "ajv": "^8.18.0",
+        "ws": "^8.19.0",
         "zod": "^4.3.6",
       },
       "devDependencies": {
+        "@types/ws": "^8.18.1",
         "bun-types": "^1.3.9",
       },
     },
     "platform/plugin-sdk": {
       "name": "@opentabs-dev/plugin-sdk",
-      "version": "0.0.23",
+      "version": "0.0.25",
       "dependencies": {
         "@opentabs-dev/shared": "^0.0.18",
       },
@@ -129,7 +131,7 @@
     },
     "platform/plugin-tools": {
       "name": "@opentabs-dev/plugin-tools",
-      "version": "0.0.23",
+      "version": "0.0.25",
       "bin": {
         "opentabs-plugin": "./dist/cli.js",
       },
@@ -146,7 +148,7 @@
     },
     "platform/shared": {
       "name": "@opentabs-dev/shared",
-      "version": "0.0.23",
+      "version": "0.0.25",
       "devDependencies": {
         "bun-types": "^1.3.9",
       },
