@@ -1,3 +1,4 @@
+import { cn } from '../../lib/cn';
 import { useRef } from 'react';
 import type { InputHTMLAttributes } from 'react';
 
@@ -21,7 +22,7 @@ const NumberStepper = ({
   max = 65535,
   step = 1,
   onChange,
-  className = '',
+  className,
   ...props
 }: NumberStepperProps) => {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -48,7 +49,10 @@ const NumberStepper = ({
 
   return (
     <div
-      className={`border-border inline-flex items-stretch rounded border-2 shadow-sm transition focus-within:shadow-xs ${className}`}>
+      className={cn(
+        'border-border inline-flex items-stretch rounded border-2 shadow-sm transition focus-within:shadow-xs',
+        className,
+      )}>
       <input
         ref={inputRef}
         type="number"
