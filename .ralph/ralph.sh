@@ -202,24 +202,59 @@ cleanup() {
 
   for (( s=0; s<MAX_WORKERS; s++ )); do
     local pid="${WORKER_PIDS[$s]}"
+    local wt="${WORKER_WORKTREES[$s]}"
+    local br="${WORKER_BRANCHES[$s]}"
+    local prd="${WORKER_PRDS[$s]}"
+
     if [ -n "$pid" ] && kill -0 "$pid" 2>/dev/null; then
       echo -e "$(ts) ${DIM}Killing worker $s (PID $pid) and child processes...${RESET}"
-      # Two-phase kill for complete cleanup:
-      # 1. PGID kill — catches everything in the same process group (fast)
-      # 2. Tree kill — catches processes that escaped via setsid() (e.g., Chromium)
+      # Three-phase kill (see kill_worktree_processes comment for rationale):
+      # 1. PGID kill — catches everything in the same process group
+      # 2. Tree kill — catches processes that escaped via setsid()
+      # 3. Worktree path kill — catches orphans re-parented to PID 1
       kill -- -"$pid" 2>/dev/null || true
       kill_tree "$pid"
       wait "$pid" 2>/dev/null || true
     fi
+    # Phase 3 runs unconditionally — the worker subshell may already be dead
+    # but orphaned Playwright workers / test servers may still be running.
+    kill_worktree_processes "$wt"
 
-    local wt="${WORKER_WORKTREES[$s]}"
-    local br="${WORKER_BRANCHES[$s]}"
+    # Sync PRD and progress from worktree back to main .ralph/ so the
+    # agent's progress (which stories passed) survives the shutdown.
+    if [ -n "$wt" ] && [ -d "$wt" ] && [ -n "$prd" ]; then
+      local prd_bn progress_bn
+      prd_bn=$(basename "$prd")
+      progress_bn=$(basename "$(progress_file_for "$prd")")
+      [ -f "$wt/.ralph/$prd_bn" ] && cp "$wt/.ralph/$prd_bn" "$prd" 2>/dev/null || true
+      [ -f "$wt/.ralph/$progress_bn" ] && cp "$wt/.ralph/$progress_bn" "$(progress_file_for "$prd")" 2>/dev/null || true
+    fi
+
+    # Remove the worktree (ephemeral checkout) but preserve branches that
+    # have unmerged commits — these contain completed story work from the
+    # interrupted run. On restart, dispatch_prd creates a new worktree from
+    # the preserved branch so the agent resumes where it left off.
     if [ -n "$wt" ] && [ -d "$wt" ]; then
       echo -e "$(ts) ${DIM}Removing worktree: $wt${RESET}"
       remove_worktree "$wt"
     fi
     if [ -n "$br" ]; then
-      git branch -D "$br" 2>/dev/null || true
+      local unmerged
+      unmerged=$(git rev-list --count "HEAD..$br" 2>/dev/null || echo "0")
+      if [ "$unmerged" -gt 0 ]; then
+        echo -e "$(ts) ${YELLOW}Preserving branch $br ($unmerged unmerged commit(s)).${RESET}"
+      else
+        git branch -D "$br" 2>/dev/null || true
+      fi
+    fi
+
+    # Revert PRD from ~running back to ready so it's picked up on restart.
+    if [ -n "$prd" ] && [ -f "$prd" ]; then
+      local ready_prd="${prd/\~running.json/.json}"
+      if [ "$prd" != "$ready_prd" ]; then
+        mv "$prd" "$ready_prd" 2>/dev/null || true
+        echo -e "$(ts) ${DIM}Reverted to ready: $(basename "$ready_prd")${RESET}"
+      fi
     fi
 
     # Clean up temp files
@@ -275,6 +310,36 @@ kill_tree() {
   done
 
   kill -"$sig" "$pid" 2>/dev/null || true
+}
+
+# Kill orphaned processes whose command line references a worktree path.
+# When a worker subshell exits, its child processes (Playwright workers,
+# test servers, Chromium) get re-parented to PID 1. At that point,
+# pgrep -P can no longer find them via parent-child walk from the original
+# subshell PID. This function finds them by matching the worktree path in
+# their command line arguments — a reliable identifier since each worktree
+# has a unique directory path.
+kill_worktree_processes() {
+  local wt="$1"
+  [ -z "$wt" ] && return
+
+  local pids
+  pids=$(pgrep -f "$wt" 2>/dev/null) || true
+  [ -z "$pids" ] && return
+
+  for p in $pids; do
+    # Skip our own process and the ralph daemon itself
+    [ "$p" = "$$" ] && continue
+    kill -TERM "$p" 2>/dev/null || true
+  done
+
+  # Give processes a moment to exit, then force-kill any survivors
+  sleep 1
+  pids=$(pgrep -f "$wt" 2>/dev/null) || true
+  for p in $pids; do
+    [ "$p" = "$$" ] && continue
+    kill -KILL "$p" 2>/dev/null || true
+  done
 }
 
 # Robustly remove a git worktree directory.
@@ -399,6 +464,7 @@ clean_name() {
   local name="$1"
   name="${name/~running/}"
   name="${name/~done/}"
+  name="${name/~draft/}"
   echo "$name"
 }
 
@@ -639,8 +705,29 @@ You are an autonomous coding agent running in a git worktree. The safety net ver
   total=$(jq '.userStories | length' "$wt_prd" 2>/dev/null || echo "?")
 
   if [ "$remaining" -eq 0 ]; then
-    echo "All stories already pass. Nothing to do."
-    return 0
+    echo "All stories already pass."
+
+    # Run E2E safety net — this PRD may be resuming after a shutdown that
+    # interrupted the safety net or merge. The branch hasn't been merged yet,
+    # so we must verify before letting reap_workers merge it.
+    if _run_e2e_safety_net; then
+      _sync_back
+      return 0
+    fi
+
+    # E2E failed — launch up to 3 fix iterations
+    local max_e2e_fixes=3
+    for fix_i in $(seq 1 $max_e2e_fixes); do
+      _run_e2e_fix_iteration "$fix_i"
+      if _run_e2e_safety_net; then
+        _sync_back
+        return 0
+      fi
+    done
+
+    echo "ERROR: Safety net still failing after $max_e2e_fixes fix attempts."
+    _sync_back
+    return 1
   fi
 
   buffer=$(( (remaining + 2) / 3 ))
@@ -794,29 +881,37 @@ dispatch_prd() {
     echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${DIM}Cleaning up stale worktree...${RESET}"
     remove_worktree "$worktree_dir"
   fi
-  # Only delete the branch if it has no unmerged commits. A branch with
-  # commits not on HEAD was preserved from a previous merge conflict —
-  # deleting it would lose completed work that needs manual resolution.
+  # Check if the branch exists with unmerged commits from a previous run.
+  # If so, resume from that branch instead of starting fresh from HEAD.
+  # The agent's PRD file tracks which stories already passed, so it will
+  # skip completed stories and continue where it left off.
+  local resume_branch=false
   if git rev-parse --verify "$branch_name" >/dev/null 2>&1; then
     local unmerged
     unmerged=$(git rev-list --count "HEAD..$branch_name" 2>/dev/null || echo "0")
     if [ "$unmerged" -gt 0 ]; then
-      echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${YELLOW}Branch $branch_name has $unmerged unmerged commit(s) from a previous conflict — skipping PRD.${RESET}"
-      echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${YELLOW}Resolve first: git merge $branch_name${RESET}"
-      # Revert PRD from ~running back to ready so it can be retried after resolution
+      echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${GREEN}Resuming from branch $branch_name ($unmerged unmerged commit(s) from previous run).${RESET}"
+      resume_branch=true
+    else
+      git branch -D "$branch_name" 2>/dev/null || true
+    fi
+  fi
+
+  # Create worktree — either from the existing branch (resume) or a new
+  # branch from HEAD (fresh start).
+  echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${DIM}Creating worktree...${RESET}"
+  if [ "$resume_branch" = true ]; then
+    if ! git worktree add "$worktree_dir" "$branch_name" >/dev/null 2>&1; then
+      echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}Failed to create worktree from existing branch. Skipping PRD.${RESET}"
       mv "$prd_file" "${prd_file/\~running.json/.json}" 2>/dev/null || true
       return 1
     fi
-    git branch -D "$branch_name" 2>/dev/null || true
-  fi
-
-  # Create worktree branching from current HEAD
-  echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${DIM}Creating worktree...${RESET}"
-  if ! git worktree add "$worktree_dir" -b "$branch_name" HEAD >/dev/null 2>&1; then
-    echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}Failed to create worktree. Skipping PRD.${RESET}"
-    # Revert PRD from ~running back to ready so it can be retried
-    mv "$prd_file" "${prd_file/\~running.json/.json}" 2>/dev/null || true
-    return 1
+  else
+    if ! git worktree add "$worktree_dir" -b "$branch_name" HEAD >/dev/null 2>&1; then
+      echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}Failed to create worktree. Skipping PRD.${RESET}"
+      mv "$prd_file" "${prd_file/\~running.json/.json}" 2>/dev/null || true
+      return 1
+    fi
   fi
 
   # Copy PRD and progress files into the worktree's .ralph/ directory.
@@ -836,7 +931,10 @@ dispatch_prd() {
   if ! (cd "$worktree_dir" && bun install --frozen-lockfile 2>&1 | tail -1); then
     echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}bun install failed. Aborting worker.${RESET}"
     remove_worktree "$worktree_dir"
-    git branch -D "$branch_name" 2>/dev/null || true
+    # Preserve the branch if resuming (it has commits from a previous run).
+    if [ "$resume_branch" = false ]; then
+      git branch -D "$branch_name" 2>/dev/null || true
+    fi
     # Revert PRD from ~running back to ready so it can be retried
     mv "$prd_file" "${prd_file/\~running.json/.json}" 2>/dev/null || true
     return 1
@@ -849,7 +947,10 @@ dispatch_prd() {
   if ! (cd "$worktree_dir" && bun run build 2>&1 | tail -3); then
     echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}bun run build failed. Aborting worker.${RESET}"
     remove_worktree "$worktree_dir"
-    git branch -D "$branch_name" 2>/dev/null || true
+    # Preserve the branch if resuming (it has commits from a previous run).
+    if [ "$resume_branch" = false ]; then
+      git branch -D "$branch_name" 2>/dev/null || true
+    fi
     mv "$prd_file" "${prd_file/\~running.json/.json}" 2>/dev/null || true
     return 1
   fi
@@ -987,18 +1088,21 @@ reap_workers() {
     # Worker finished — collect results
     wait "$pid" 2>/dev/null || true
 
-    # Two-phase kill for complete cleanup of orphaned child processes:
-    # Phase 1: PGID kill — catches everything sharing the worker's process group.
-    # Phase 2: Recursive tree kill — walks the parent-child tree to catch processes
-    #   that escaped the PGID via setsid() (Chromium does this for isolation).
-    # Together these ensure no orphaned Chromium browsers, MCP servers, or test
-    # servers survive — only THIS worker's descendants are affected.
-    kill -- -"$pid" 2>/dev/null || true
-    kill_tree "$pid"
-    sleep 1  # Let dying processes (Chromium, test servers) exit before worktree removal
-
     local prd_file="${WORKER_PRDS[$s]}"
     local worktree_dir="${WORKER_WORKTREES[$s]}"
+
+    # Three-phase kill for complete cleanup of orphaned child processes:
+    # Phase 1: PGID kill — catches everything sharing the worker's process group.
+    # Phase 2: Recursive tree kill — walks the parent-child tree for processes
+    #   that escaped the PGID via setsid() (e.g., Chromium).
+    # Phase 3: Worktree path kill — catches processes that were re-parented to
+    #   PID 1 after the subshell exited. At that point pgrep -P can no longer
+    #   find them via parent-child walk, but their command line arguments still
+    #   contain the worktree directory path (e.g., Playwright workers, bun test
+    #   servers). This is the final safety net for ghost processes.
+    kill -- -"$pid" 2>/dev/null || true
+    kill_tree "$pid"
+    kill_worktree_processes "$worktree_dir"
     local branch_name="${WORKER_BRANCHES[$s]}"
     local result_file="${WORKER_RESULT_FILES[$s]}"
     local tag="${WORKER_TAGS[$s]}"
