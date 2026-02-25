@@ -261,8 +261,8 @@ export const readFileSlice = async (path: string, start: number, end: number): P
   try {
     const length = end - start;
     const buf = Buffer.alloc(length);
-    await fh.read(buf, 0, length, start);
-    return buf.toString('utf-8');
+    const { bytesRead } = await fh.read(buf, 0, length, start);
+    return buf.subarray(0, bytesRead).toString('utf-8');
   } finally {
     await fh.close();
   }
