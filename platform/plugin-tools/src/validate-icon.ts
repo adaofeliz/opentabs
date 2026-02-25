@@ -309,8 +309,8 @@ const validateIconSvg = (content: string, _filename: string): ValidationResult =
 const validateInactiveIconColors = (content: string): ValidationResult => {
   const errors: string[] = [];
 
-  // Check attribute values: (fill|stroke|stop-color|flood-color)="value"
-  const attrPattern = new RegExp(`(${COLOR_ATTRS.join('|')})\\s*=\\s*"([^"]*)"`, 'gi');
+  // Check attribute values: (fill|stroke|stop-color|flood-color)="value" or ='value'
+  const attrPattern = new RegExp(`(${COLOR_ATTRS.join('|')})\\s*=\\s*["']([^"']*)["']`, 'gi');
   let attrMatch;
   while ((attrMatch = attrPattern.exec(content)) !== null) {
     const attr = attrMatch[1] ?? '';
@@ -320,13 +320,13 @@ const validateInactiveIconColors = (content: string): ValidationResult => {
     }
   }
 
-  // Check inline style property values: style="fill: value; stroke: value"
-  const stylePattern = /style\s*=\s*"([^"]*)"/gi;
+  // Check inline style property values: style="fill: value; stroke: value" or style='...'
+  const stylePattern = /style\s*=\s*["']([^"']*)["']/gi;
   let styleMatch;
   while ((styleMatch = stylePattern.exec(content)) !== null) {
     const styleValue = styleMatch[1] ?? '';
     for (const attr of COLOR_ATTRS) {
-      const propPattern = new RegExp(`${attr.replace('-', '\\-')}\\s*:\\s*([^;"]+)`, 'gi');
+      const propPattern = new RegExp(`${attr.replace('-', '\\-')}\\s*:\\s*([^;"']+)`, 'gi');
       let propMatch;
       while ((propMatch = propPattern.exec(styleValue)) !== null) {
         const value = (propMatch[1] ?? '').trim();
@@ -417,19 +417,19 @@ const convertColorToGray = (value: string): string => {
 const generateInactiveIcon = (svgContent: string): string => {
   let result = svgContent;
 
-  // Convert attribute values: (fill|stroke|stop-color|flood-color)="value"
-  const attrPattern = new RegExp(`((?:${COLOR_ATTRS.join('|')})\\s*=\\s*")([^"]*)(")`, 'gi');
-  result = result.replace(attrPattern, (_match, prefix: string, value: string, suffix: string) => {
+  // Convert attribute values: (fill|stroke|stop-color|flood-color)="value" or ='value'
+  const attrPattern = new RegExp(`((?:${COLOR_ATTRS.join('|')})\\s*=\\s*)(["'])([^"']*)(\\2)`, 'gi');
+  result = result.replace(attrPattern, (_match, prefix: string, quote: string, value: string) => {
     const converted = convertColorToGray(value);
-    return `${prefix}${converted}${suffix}`;
+    return `${prefix}${quote}${converted}${quote}`;
   });
 
-  // Convert inline style property values
-  const stylePattern = /style\s*=\s*"([^"]*)"/gi;
+  // Convert inline style property values: style="..." or style='...'
+  const stylePattern = /style\s*=\s*["']([^"']*)["']/gi;
   result = result.replace(stylePattern, (fullMatch, styleValue: string) => {
     let newStyle = styleValue;
     for (const attr of COLOR_ATTRS) {
-      const propPattern = new RegExp(`(${attr.replace('-', '\\-')}\\s*:\\s*)([^;"]+)`, 'gi');
+      const propPattern = new RegExp(`(${attr.replace('-', '\\-')}\\s*:\\s*)([^;"']+)`, 'gi');
       newStyle = newStyle.replace(propPattern, (_m, propPrefix: string, propValue: string) => {
         const converted = convertColorToGray(propValue);
         return `${propPrefix}${converted}`;

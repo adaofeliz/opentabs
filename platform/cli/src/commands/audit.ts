@@ -241,6 +241,8 @@ const handleAudit = async (options: AuditOptions): Promise<void> => {
       entries = entries.filter(e => new Date(e.timestamp).getTime() >= cutoff);
     }
 
+    entries = entries.slice(0, limit);
+
     if (options.json) {
       console.log(JSON.stringify(entries, null, 2));
       return;

@@ -8,6 +8,7 @@ import {
   getConfigPath,
   getLocalPluginsFromConfig,
   isConnectionRefused,
+  readAuthSecret,
   readConfig,
   resolvePluginPath,
 } from '../config.js';
@@ -454,10 +455,15 @@ const scanNpmPlugins = async (): Promise<ListPluginEntry[]> => {
 
 const handlePluginList = async (options: PluginListOptions): Promise<void> => {
   const port = resolvePort(options);
+  const secret = await readAuthSecret();
 
   // Try to fetch from running server first
   try {
+    const headers: Record<string, string> = {};
+    if (secret) headers['Authorization'] = `Bearer ${secret}`;
+
     const res = await fetch(`http://localhost:${port}/health`, {
+      headers,
       signal: AbortSignal.timeout(3_000),
     });
 

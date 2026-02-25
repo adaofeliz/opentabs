@@ -72,14 +72,21 @@ const NPM_SUBPROCESS_TIMEOUT_MS = 60_000;
 const runNpmGlobal = async (command: string, packageName: string): Promise<{ stdout: string; stderr: string }> => {
   const resultPromise = spawnProcess(platformExec('npm'), [command, '-g', packageName]);
 
+  let rejectTimeout: (reason: Error) => void;
   const timeoutPromise = new Promise<never>((_, reject) => {
-    setTimeout(
-      () => reject(new Error(`npm ${command} timed out after ${NPM_SUBPROCESS_TIMEOUT_MS}ms`)),
-      NPM_SUBPROCESS_TIMEOUT_MS,
-    );
+    rejectTimeout = reject;
   });
+  const timerId = setTimeout(
+    () => rejectTimeout(new Error(`npm ${command} timed out after ${NPM_SUBPROCESS_TIMEOUT_MS}ms`)),
+    NPM_SUBPROCESS_TIMEOUT_MS,
+  );
 
-  const result = await Promise.race([resultPromise, timeoutPromise]);
+  let result: Awaited<typeof resultPromise>;
+  try {
+    result = await Promise.race([resultPromise, timeoutPromise]);
+  } finally {
+    clearTimeout(timerId);
+  }
 
   if (result.exitCode !== 0) {
     log.error(`npm ${command} failed for ${packageName}: exit code ${result.exitCode}, stderr: ${result.stderr}`);
@@ -117,7 +124,7 @@ interface NpmSearchJsonEntry {
  */
 const searchNpmPlugins = (query?: string): PluginSearchResult[] => {
   const searchTerm = query ? `keywords:opentabs-plugin ${query}` : 'keywords:opentabs-plugin';
-  const result = spawnProcessSync('npm', ['search', searchTerm, '--json']);
+  const result = spawnProcessSync(platformExec('npm'), ['search', searchTerm, '--json']);
 
   if (result.exitCode !== 0) {
     const stderr = result.stderr.trim();

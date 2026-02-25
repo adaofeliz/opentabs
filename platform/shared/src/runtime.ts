@@ -60,7 +60,9 @@ export const fileExists = async (path: string): Promise<boolean> => {
 /** Delete a file. Does not throw if the file does not exist. */
 export const deleteFile = async (path: string): Promise<void> => {
   if (isBun) {
-    await Bun.file(path).delete();
+    await Bun.file(path)
+      .delete()
+      .catch(() => {});
     return;
   }
   await unlink(path).catch(() => {});
@@ -105,6 +107,9 @@ export const spawnProcessSync = (cmd: string, args: string[], opts?: SpawnOption
     env: opts?.env as NodeJS.ProcessEnv,
     stdio: [opts?.stdin ?? 'ignore', 'pipe', 'pipe'],
   });
+  if (result.error) {
+    return { exitCode: 1, stdout: '', stderr: result.error.message };
+  }
   return {
     exitCode: result.status ?? 1,
     stdout: result.stdout.toString(),
@@ -256,8 +261,8 @@ export const readFileSlice = async (path: string, start: number, end: number): P
   try {
     const length = end - start;
     const buf = Buffer.alloc(length);
-    await fh.read(buf, 0, length, start);
-    return buf.toString('utf-8');
+    const { bytesRead } = await fh.read(buf, 0, length, start);
+    return buf.subarray(0, bytesRead).toString('utf-8');
   } finally {
     await fh.close();
   }
