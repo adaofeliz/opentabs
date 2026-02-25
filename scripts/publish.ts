@@ -260,7 +260,7 @@ const main = async (): Promise<void> => {
   // 3. Rebuild
   console.log('');
   console.log('==> Rebuilding with new versions...');
-  run(['bun', 'run', 'build']);
+  run(['bun', 'run', 'build:force']);
 
   // 4. Publish packages in dependency order
   // bun publish automatically replaces workspace:* with the resolved version
