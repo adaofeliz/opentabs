@@ -627,11 +627,13 @@ dispatch_prd() {
     local plugin_tmp_config="/tmp/opentabs-plugin-config-$$"
     setup_script="$setup_script && cd $worktree_dir/plugins/e2e-test && bun install --frozen-lockfile 2>&1 | tail -1 && OPENTABS_CONFIG_DIR=$plugin_tmp_config bun run build 2>&1 | tail -1"
   fi
+  mkdir -p "$HOME/.opentabs"
   if ! docker run --rm \
     --user "$(id -u):$(id -g)" \
     -e "HOME=$HOME" \
     -v "$worktree_dir:$worktree_dir" \
     -v "$PROJECT_DIR/.git:$PROJECT_DIR/.git" \
+    -v "$HOME/.opentabs:$HOME/.opentabs" \
     --network host \
     -w "$worktree_dir" \
     "$DOCKER_IMAGE" \
@@ -735,6 +737,10 @@ dispatch_prd() {
   if [ -f "$HOME/.gitconfig" ]; then
     DOCKER_ARGS+=(-v "$HOME/.gitconfig:$HOME/.gitconfig:ro")
   fi
+  # OpenTabs config dir — bun run build copies the extension to
+  # ~/.opentabs/extension/, and the MCP server reads config from here.
+  mkdir -p "$HOME/.opentabs"
+  DOCKER_ARGS+=(-v "$HOME/.opentabs:$HOME/.opentabs")
   # Network: use host network so the container can reach the LLM proxy
   # (e.g., http://192.168.2.2:4000) and any other local services.
   DOCKER_ARGS+=(--network host)
