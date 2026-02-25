@@ -26,7 +26,7 @@ import { createMcpServer, notifyToolListChanged } from './mcp-setup.js';
 import { performConfigReload } from './reload.js';
 import { sanitizeErrorMessage } from './sanitize-error.js';
 import { sdkVersion } from './sdk-version.js';
-import { getNextRequestId, prefixedToolName, STATE_SCHEMA_VERSION } from './state.js';
+import { prefixedToolName, STATE_SCHEMA_VERSION } from './state.js';
 import { version } from './version.js';
 import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
@@ -372,8 +372,7 @@ const handleExtensionReload = (req: Request, state: ServerState): Response => {
   if (!state.extensionWs) {
     return Response.json({ ok: false, error: 'Extension not connected' }, { status: 503 });
   }
-  const id = getNextRequestId();
-  state.extensionWs.send(JSON.stringify({ jsonrpc: '2.0', method: 'extension.reload', id }));
+  sendExtensionReload(state);
   return Response.json({ ok: true, message: 'Reload signal sent to extension' });
 };
 
