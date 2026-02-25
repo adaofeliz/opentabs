@@ -125,6 +125,22 @@ const stringProp = (obj: Record<string, unknown>, key: string, fallback: string)
 const truncateBody = (body: string): string =>
   body.length > MAX_BODY_LENGTH ? body.slice(0, MAX_BODY_LENGTH) + '... (truncated)' : body;
 
+/**
+ * Remove the oldest request from the buffer when at capacity, and clean up
+ * any stale `requestIdToRequest` entry that referenced the evicted request.
+ */
+const evictOldestRequest = (state: CaptureState): void => {
+  const shifted = state.requests.shift();
+  if (shifted) {
+    for (const [key, value] of state.requestIdToRequest) {
+      if (value === shifted) {
+        state.requestIdToRequest.delete(key);
+        break;
+      }
+    }
+  }
+};
+
 /** MIME type prefixes for binary content whose response bodies should not be captured. */
 const BINARY_MIME_PREFIXES = ['image/', 'font/', 'video/', 'audio/'];
 const BINARY_MIME_EXACT = new Set(['application/octet-stream', 'application/wasm']);
@@ -187,7 +203,7 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
 
     // Add to buffer, dropping oldest if at capacity
     if (state.requests.length >= state.maxRequests) {
-      state.requests.shift();
+      evictOldestRequest(state);
     }
     state.requests.push(completed);
     state.requestIdToRequest.set(requestId, completed);
@@ -213,7 +229,7 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     };
 
     if (state.requests.length >= state.maxRequests) {
-      state.requests.shift();
+      evictOldestRequest(state);
     }
     state.requests.push(completed);
   } else if (method === 'Network.loadingFinished') {
@@ -262,7 +278,7 @@ chrome.debugger.onEvent.addListener((source: chrome.debugger.Debuggee, method: s
     };
 
     if (state.requests.length >= state.maxRequests) {
-      state.requests.shift();
+      evictOldestRequest(state);
     }
     state.requests.push(completed);
   } else if (method === 'Runtime.consoleAPICalled') {

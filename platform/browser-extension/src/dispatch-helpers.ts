@@ -148,13 +148,13 @@ const dispatchWithTabFallback = async (config: TabFallbackConfig): Promise<void>
 
       // Adapter-not-ready errors trigger fallback to the next matching tab
       if (isAdapterNotReady(result) && matchingTabs.length > 1) {
-        firstError ??= { code: result.code, message: result.message };
+        firstError ??= { code: result.code, message: sanitizeErrorMessage(result.message) };
         continue;
       }
 
       sendToServer({
         jsonrpc: '2.0',
-        error: { code: result.code, message: result.message, data: result.data },
+        error: { code: result.code, message: sanitizeErrorMessage(result.message), data: result.data },
         id,
       });
       return;

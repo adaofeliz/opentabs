@@ -102,7 +102,11 @@ export const extractScriptResult = (
     return null;
   }
   if (result.error) {
-    sendToServer({ jsonrpc: '2.0', error: { code: JSONRPC_INVALID_PARAMS, message: result.error }, id });
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: JSONRPC_INVALID_PARAMS, message: sanitizeErrorMessage(result.error) },
+      id,
+    });
     return null;
   }
   return result as Record<string, unknown>;
