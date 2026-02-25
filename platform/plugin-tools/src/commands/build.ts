@@ -41,6 +41,7 @@ import type {
 } from '@opentabs-dev/plugin-sdk';
 import type { ManifestPrompt, ManifestPromptArgument, ManifestResource, PluginPackageJson } from '@opentabs-dev/shared';
 import type { Command } from 'commander';
+import type { Plugin as EsbuildPlugin } from 'esbuild';
 import type { FSWatcher } from 'node:fs';
 
 const DEBOUNCE_MS = 100;
@@ -594,6 +595,24 @@ const generateManifest = (plugin: OpenTabsPlugin, sdkVersion: string, icons?: Ic
   prompts: generatePromptsManifest(plugin.prompts ?? []),
 });
 
+/**
+ * esbuild plugin that marks `node:*` imports as side-effect-free externals.
+ * This allows esbuild to tree-shake unused Node.js builtins from the adapter
+ * IIFE bundle. Without `sideEffects: false`, esbuild conservatively keeps
+ * `require("node:child_process")` etc. even when none of the imported bindings
+ * are used — and those `require()` calls crash in the browser.
+ */
+const stripNodeBuiltins: EsbuildPlugin = {
+  name: 'strip-node-builtins',
+  setup(pluginBuild) {
+    pluginBuild.onResolve({ filter: /^node:/ }, args => ({
+      path: args.path,
+      external: true,
+      sideEffects: false,
+    }));
+  },
+};
+
 const bundleIIFE = async (sourceEntry: string, outDir: string, pluginName: string): Promise<void> => {
   // Create a temporary wrapper entry that imports the plugin and registers it
   // on window.__openTabs.adapters. This is bundled as an IIFE so the adapter
@@ -783,7 +802,7 @@ if (typeof plugin.onNavigate === 'function') {
       bundle: true,
       minify: false,
       sourcemap: 'linked',
-      external: ['node:*'],
+      plugins: [stripNodeBuiltins],
     });
   } finally {
     await deleteFile(wrapperPath);
