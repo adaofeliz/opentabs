@@ -196,8 +196,10 @@ fixtureTest.describe('IIFE injection — sync.full removal cleanup', () => {
       // Verify the adapter file exists on disk before removal.
       // The MCP server writes adapter files to <configDir>/extension/adapters/.
       // In tests, this is symlinked to the extension copy's adapters/ directory.
-      const adapterFilePath = path.join(mcpServer.configDir, 'extension', 'adapters', 'e2e-test.js');
-      expect(fs.existsSync(adapterFilePath)).toBe(true);
+      // With content-hashed filenames, find the file matching e2e-test-*.js.
+      const adaptersDir = path.join(mcpServer.configDir, 'extension', 'adapters');
+      const adapterFiles = fs.readdirSync(adaptersDir).filter(f => f.startsWith('e2e-test') && f.endsWith('.js'));
+      expect(adapterFiles.length).toBeGreaterThan(0);
 
       // Remove the plugin from config (empty plugins array, no tools)
       const config = readTestConfig(mcpServer.configDir);
@@ -214,12 +216,15 @@ fixtureTest.describe('IIFE injection — sync.full removal cleanup', () => {
 
       await waitForLog(mcpServer, 'Hot reload complete', 20_000);
 
-      // Wait for the stale adapter file to be deleted from disk
+      // Wait for the stale adapter file(s) to be deleted from disk
       await waitFor(
-        () => !fs.existsSync(adapterFilePath),
+        () => {
+          const remaining = fs.readdirSync(adaptersDir).filter(f => f.startsWith('e2e-test') && f.endsWith('.js'));
+          return remaining.length === 0;
+        },
         10_000,
         500,
-        'e2e-test.js adapter file to be deleted from adapters directory',
+        'e2e-test adapter file(s) to be deleted from adapters directory',
       );
 
       await page.close();

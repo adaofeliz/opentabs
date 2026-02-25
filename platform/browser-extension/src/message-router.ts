@@ -107,6 +107,7 @@ interface ValidatedPluginPayload {
   trustTier: TrustTier;
   sourcePath?: string;
   adapterHash?: string;
+  adapterFile?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
   tools: WireToolDef[];
@@ -121,6 +122,7 @@ const toPluginMeta = (p: ValidatedPluginPayload): PluginMeta => ({
   trustTier: p.trustTier,
   sourcePath: p.sourcePath,
   adapterHash: p.adapterHash,
+  adapterFile: p.adapterFile,
   iconSvg: p.iconSvg,
   iconInactiveSvg: p.iconInactiveSvg,
   tools: p.tools,
@@ -189,6 +191,7 @@ const validatePluginPayload = (raw: unknown): ValidatedPluginPayload | null => {
         : 'local',
     sourcePath: typeof obj.sourcePath === 'string' ? obj.sourcePath : undefined,
     adapterHash: typeof obj.adapterHash === 'string' ? obj.adapterHash : undefined,
+    adapterFile: typeof obj.adapterFile === 'string' ? obj.adapterFile : undefined,
     iconSvg: typeof obj.iconSvg === 'string' ? obj.iconSvg : undefined,
     iconInactiveSvg: typeof obj.iconInactiveSvg === 'string' ? obj.iconInactiveSvg : undefined,
     tools,
@@ -276,7 +279,9 @@ const handleSyncFull = async (params: Record<string, unknown>): Promise<void> =>
   // avoids O(N × round-trip) latency on sync.full with many plugins.
   // Using allSettled so one failed injection does not block tab state sync.
   const injectionResults = await Promise.allSettled(
-    metas.map(meta => injectPluginIntoMatchingTabs(meta.name, meta.urlPatterns, false, meta.version, meta.adapterHash)),
+    metas.map(meta =>
+      injectPluginIntoMatchingTabs(meta.name, meta.urlPatterns, true, meta.version, meta.adapterHash, meta.adapterFile),
+    ),
   );
   for (const result of injectionResults) {
     if (result.status === 'rejected') {
@@ -305,7 +310,14 @@ const handlePluginUpdate = async (params: Record<string, unknown>): Promise<void
   // Force re-injection so the new IIFE overwrites the stale adapter code
   // already present in matching tabs. Without this, injectPluginIntoMatchingTabs
   // skips tabs where the adapter is already injected, leaving old code running.
-  await injectPluginIntoMatchingTabs(meta.name, meta.urlPatterns, true, meta.version, meta.adapterHash);
+  await injectPluginIntoMatchingTabs(
+    meta.name,
+    meta.urlPatterns,
+    true,
+    meta.version,
+    meta.adapterHash,
+    meta.adapterFile,
+  );
 
   // Report updated tab state to the server after re-injection so the MCP
   // server's tabMapping reflects the new adapter's readiness immediately.

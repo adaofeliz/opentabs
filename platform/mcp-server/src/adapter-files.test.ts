@@ -127,35 +127,64 @@ describe('writeAdapterFile', () => {
     await ensureAdaptersDir(state);
   });
 
-  test('writes IIFE content to adapters directory', async () => {
+  test('writes IIFE content to adapters directory with content-hashed filename', async () => {
     const iife = '(function(){console.log("adapter")})();';
-    await writeAdapterFile('test-plugin', iife);
+    const adapterFile = await writeAdapterFile('test-plugin', iife);
 
-    const content = await Bun.file(join(getAdaptersDir(), 'test-plugin.js')).text();
+    // Return value is a relative path with content hash
+    expect(adapterFile).toMatch(/^adapters\/test-plugin-[0-9a-f]{8}\.js$/);
+
+    // File is written to the adapters directory using the returned path
+    const fileName = adapterFile.replace('adapters/', '');
+    const content = await Bun.file(join(getAdaptersDir(), fileName)).text();
     expect(content).toBe(iife);
   });
 
   test('rewrites sourceMappingURL when sourceMap is provided', async () => {
     const iife = '(function(){})();\n//# sourceMappingURL=adapter.iife.js.map';
     const sourceMap = '{"version":3,"mappings":""}';
-    await writeAdapterFile('my-plugin', iife, sourceMap);
+    const adapterFile = await writeAdapterFile('my-plugin', iife, sourceMap);
 
-    const content = await Bun.file(join(getAdaptersDir(), 'my-plugin.js')).text();
-    expect(content).toContain('//# sourceMappingURL=my-plugin.js.map');
+    // Extract the hashed base name from the returned path
+    const baseName = adapterFile.replace('adapters/', '').replace('.js', '');
+    const fileName = adapterFile.replace('adapters/', '');
+
+    const content = await Bun.file(join(getAdaptersDir(), fileName)).text();
+    expect(content).toContain(`//# sourceMappingURL=${baseName}.js.map`);
     expect(content).not.toContain('adapter.iife.js.map');
 
-    // Source map file is also written
-    const mapContent = await Bun.file(join(getAdaptersDir(), 'my-plugin.js.map')).text();
+    // Source map file is also written with hashed name
+    const mapContent = await Bun.file(join(getAdaptersDir(), `${baseName}.js.map`)).text();
     expect(mapContent).toBe(sourceMap);
   });
 
   test('does not rewrite sourceMappingURL when no sourceMap is provided', async () => {
     const iife = '(function(){})();\n//# sourceMappingURL=adapter.iife.js.map';
-    await writeAdapterFile('no-map-plugin', iife);
+    const adapterFile = await writeAdapterFile('no-map-plugin', iife);
 
-    const content = await Bun.file(join(getAdaptersDir(), 'no-map-plugin.js')).text();
+    const fileName = adapterFile.replace('adapters/', '');
+    const content = await Bun.file(join(getAdaptersDir(), fileName)).text();
     // sourceMappingURL is left as-is since no source map was provided
     expect(content).toContain('sourceMappingURL=adapter.iife.js.map');
+  });
+
+  test('cleans up old hashed versions when content changes', async () => {
+    const iife1 = '(function(){console.log("v1")})();';
+    const iife2 = '(function(){console.log("v2")})();';
+
+    const path1 = await writeAdapterFile('cleanup-test', iife1);
+    const entries1 = await readdir(getAdaptersDir());
+    const file1 = entries1.find(f => f.startsWith('cleanup-test-') && f.endsWith('.js'));
+    expect(file1).toBeDefined();
+
+    const path2 = await writeAdapterFile('cleanup-test', iife2);
+    expect(path2).not.toBe(path1); // Different content → different hash
+
+    const entries2 = await readdir(getAdaptersDir());
+    const files = entries2.filter(f => f.startsWith('cleanup-test-') && f.endsWith('.js'));
+    // Only the new hashed file should remain
+    expect(files).toHaveLength(1);
+    expect(files[0]).toBe(path2.replace('adapters/', ''));
   });
 });
 
@@ -224,44 +253,44 @@ describe('cleanupStaleAdapterFiles', () => {
     await ensureAdaptersDir(state);
   });
 
-  test('removes .js files for plugins not in current set', async () => {
+  test('removes hashed .js files for plugins not in current set', async () => {
     const adaptersDir = getAdaptersDir();
-    await Bun.write(join(adaptersDir, 'plugin-a.js'), 'a');
-    await Bun.write(join(adaptersDir, 'plugin-b.js'), 'b');
+    await Bun.write(join(adaptersDir, 'plugin-a-12345678.js'), 'a');
+    await Bun.write(join(adaptersDir, 'plugin-b-abcdef01.js'), 'b');
 
     await cleanupStaleAdapterFiles(new Set(['plugin-a']));
 
     const entries = await readdir(adaptersDir);
-    expect(entries).toContain('plugin-a.js');
-    expect(entries).not.toContain('plugin-b.js');
+    expect(entries).toContain('plugin-a-12345678.js');
+    expect(entries).not.toContain('plugin-b-abcdef01.js');
   });
 
-  test('removes .js.map files for plugins not in current set', async () => {
+  test('removes hashed .js.map files for plugins not in current set', async () => {
     const adaptersDir = getAdaptersDir();
-    await Bun.write(join(adaptersDir, 'plugin-a.js'), 'a');
-    await Bun.write(join(adaptersDir, 'plugin-a.js.map'), 'map-a');
-    await Bun.write(join(adaptersDir, 'plugin-b.js'), 'b');
-    await Bun.write(join(adaptersDir, 'plugin-b.js.map'), 'map-b');
+    await Bun.write(join(adaptersDir, 'plugin-a-12345678.js'), 'a');
+    await Bun.write(join(adaptersDir, 'plugin-a-12345678.js.map'), 'map-a');
+    await Bun.write(join(adaptersDir, 'plugin-b-abcdef01.js'), 'b');
+    await Bun.write(join(adaptersDir, 'plugin-b-abcdef01.js.map'), 'map-b');
 
     await cleanupStaleAdapterFiles(new Set(['plugin-a']));
 
     const entries = await readdir(adaptersDir);
-    expect(entries).toContain('plugin-a.js');
-    expect(entries).toContain('plugin-a.js.map');
-    expect(entries).not.toContain('plugin-b.js');
-    expect(entries).not.toContain('plugin-b.js.map');
+    expect(entries).toContain('plugin-a-12345678.js');
+    expect(entries).toContain('plugin-a-12345678.js.map');
+    expect(entries).not.toContain('plugin-b-abcdef01.js');
+    expect(entries).not.toContain('plugin-b-abcdef01.js.map');
   });
 
   test('keeps current plugins untouched', async () => {
     const adaptersDir = getAdaptersDir();
-    await Bun.write(join(adaptersDir, 'kept-a.js'), 'a');
-    await Bun.write(join(adaptersDir, 'kept-b.js'), 'b');
+    await Bun.write(join(adaptersDir, 'kept-a-11111111.js'), 'a');
+    await Bun.write(join(adaptersDir, 'kept-b-22222222.js'), 'b');
 
     await cleanupStaleAdapterFiles(new Set(['kept-a', 'kept-b']));
 
     const entries = await readdir(adaptersDir);
-    expect(entries).toContain('kept-a.js');
-    expect(entries).toContain('kept-b.js');
+    expect(entries).toContain('kept-a-11111111.js');
+    expect(entries).toContain('kept-b-22222222.js');
   });
 
   test('does not remove __exec-* files (managed by cleanupStaleExecFiles)', async () => {

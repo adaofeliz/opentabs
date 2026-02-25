@@ -6,7 +6,8 @@
 import { getAdaptersDir } from './config.js';
 import { log } from './logger.js';
 import { atomicWrite, deleteFile } from '@opentabs-dev/shared';
-import { mkdir, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { mkdir, readdir, unlink } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { ServerState } from './state.js';
 
@@ -40,31 +41,45 @@ const timeoutRace = <T>(value: T, ms: number): { promise: Promise<T>; cancel: ()
 
 /**
  * Write a plugin's adapter IIFE to the extension's adapters/ directory.
- * The extension injects adapters via chrome.scripting.executeScript({ files: [...] })
- * using these files, bypassing page CSP restrictions.
+ * Uses content-hashed filenames ({pluginName}-{hash8}.js) so each version
+ * gets a unique path, preventing Chrome's aggressive caching of
+ * executeScript({ files }) content.
  *
- * If a source map is provided, writes it alongside the adapter as {pluginName}.js.map
- * and rewrites the sourceMappingURL in the IIFE to reference the per-plugin filename
- * (prevents collisions when multiple plugins are loaded).
+ * If a source map is provided, writes it alongside the adapter as
+ * {pluginName}-{hash8}.js.map and rewrites the sourceMappingURL in the IIFE.
+ *
+ * Returns the relative path (e.g., "adapters/my-plugin-a1b2c3d4.js") for
+ * the extension to fetch and inject.
  */
-const writeAdapterFile = async (pluginName: string, iife: string, sourceMap?: string): Promise<void> => {
+const writeAdapterFile = async (pluginName: string, iife: string, sourceMap?: string): Promise<string> => {
   const adaptersDir = getAdaptersDir();
-  const finalPath = join(adaptersDir, `${pluginName}.js`);
+  const contentHash = createHash('sha256').update(iife).digest('hex').slice(0, 8);
+  const baseName = `${pluginName}-${contentHash}`;
+
+  // Clean up old hashed versions of the same plugin before writing the new one
+  let entries: string[];
+  try {
+    entries = await readdir(adaptersDir);
+  } catch {
+    entries = [];
+  }
+  const oldFiles = entries.filter(
+    f => f.startsWith(`${pluginName}-`) && f !== `${baseName}.js` && f !== `${baseName}.js.map` && !f.endsWith('.tmp'),
+  );
+  await Promise.allSettled(oldFiles.map(f => unlink(join(adaptersDir, f)).catch(() => {})));
 
   let content = iife;
   if (sourceMap) {
-    // Rewrite sourceMappingURL to use the per-plugin filename
-    content = iife.replace(
-      /\/\/# sourceMappingURL=adapter\.iife\.js\.map/,
-      `//# sourceMappingURL=${pluginName}.js.map`,
-    );
+    // Rewrite sourceMappingURL to use the per-plugin hashed filename
+    content = iife.replace(/\/\/# sourceMappingURL=adapter\.iife\.js\.map/, `//# sourceMappingURL=${baseName}.js.map`);
 
     // Write source map atomically
-    const mapFinalPath = join(adaptersDir, `${pluginName}.js.map`);
+    const mapFinalPath = join(adaptersDir, `${baseName}.js.map`);
     await atomicWrite(mapFinalPath, sourceMap);
   }
 
-  await atomicWrite(finalPath, content);
+  await atomicWrite(join(adaptersDir, `${baseName}.js`), content);
+  return `adapters/${baseName}.js`;
 };
 
 /**
@@ -82,19 +97,25 @@ const cleanupStaleAdapterFiles = async (currentPluginNames: Set<string>): Promis
     return;
   }
 
+  // Strip the content hash suffix (-[0-9a-f]{8}) from hashed filenames
+  // to recover the plugin name for staleness checks.
+  const stripHash = (name: string): string => name.replace(/-[0-9a-f]{8}$/, '');
+
   const staleFiles = entries.filter(f => {
     if (f.endsWith('.js.tmp') || f.endsWith('.js.map.tmp')) return false;
     if (f.startsWith(EXEC_FILE_PREFIX)) return false; // Managed by cleanupStaleExecFiles
 
-    // Match adapter .js files
+    // Match adapter .js files (hashed: plugin-name-a1b2c3d4.js)
     if (f.endsWith('.js')) {
-      const pluginName = f.slice(0, -3); // strip '.js'
+      const baseName = f.slice(0, -3); // strip '.js'
+      const pluginName = stripHash(baseName);
       return !currentPluginNames.has(pluginName);
     }
 
     // Match adapter .js.map source map files
     if (f.endsWith('.js.map')) {
-      const pluginName = f.slice(0, -7); // strip '.js.map'
+      const baseName = f.slice(0, -7); // strip '.js.map'
+      const pluginName = stripHash(baseName);
       return !currentPluginNames.has(pluginName);
     }
 

@@ -645,32 +645,31 @@ describe('sendSyncFull', () => {
 
     const firstPlugin = sorted[0];
     expect(firstPlugin).toBeDefined();
-    expect(firstPlugin).toEqual({
+    expect(firstPlugin).toMatchObject({
       name: 'alpha',
       version: '1.0.0',
       urlPatterns: ['http://alpha.com/*'],
       trustTier: 'community',
       displayName: 'alpha',
-      sourcePath: undefined,
-      adapterHash: undefined,
       tools: [{ name: 'ping', displayName: 'Ping', description: 'Ping', icon: 'wrench', enabled: true }],
     });
+    // adapterFile is now included with content-hashed path
+    expect(typeof (firstPlugin as Record<string, unknown>).adapterFile).toBe('string');
 
     const secondPlugin = sorted[1];
     expect(secondPlugin).toBeDefined();
-    expect(secondPlugin).toEqual({
+    expect(secondPlugin).toMatchObject({
       name: 'beta',
       version: '2.0.0',
       urlPatterns: ['http://beta.com/*'],
       trustTier: 'local',
       displayName: 'beta',
-      sourcePath: undefined,
-      adapterHash: undefined,
       tools: [{ name: 'pong', displayName: 'Pong', description: 'Pong', icon: 'wrench', enabled: false }],
     });
+    expect(typeof (secondPlugin as Record<string, unknown>).adapterFile).toBe('string');
   });
 
-  test('writes adapter IIFE files to the adapters directory', async () => {
+  test('writes adapter IIFE files to the adapters directory with hashed filename', async () => {
     setupTmpConfigDir();
     const state = createState();
     state.extensionWs = createMockWs();
@@ -697,8 +696,12 @@ describe('sendSyncFull', () => {
 
     await sendSyncFull(state);
 
-    const adapterPath = join(tmpDir, 'extension', 'adapters', 'test-plugin.js');
-    const content = await Bun.file(adapterPath).text();
+    const adaptersDir = join(tmpDir, 'extension', 'adapters');
+    const entries = await readdir(adaptersDir);
+    const hashedFile = entries.find(f => f.startsWith('test-plugin-') && f.endsWith('.js'));
+    expect(hashedFile).toBeDefined();
+    if (!hashedFile) return; // Unreachable after expect, satisfies TypeScript
+    const content = await Bun.file(join(adaptersDir, hashedFile)).text();
     expect(content).toBe('(function(){/* adapter */})()');
   });
 
@@ -712,9 +715,13 @@ describe('sendSyncFull', () => {
     // Should not throw
     await sendSyncFull(state);
 
-    // Adapter file is still written
-    const adapterPath = join(tmpDir, 'extension', 'adapters', 'alpha.js');
-    const content = await Bun.file(adapterPath).text();
+    // Adapter file is still written with hashed filename
+    const adaptersDir = join(tmpDir, 'extension', 'adapters');
+    const entries = await readdir(adaptersDir);
+    const hashedFile = entries.find(f => f.startsWith('alpha-') && f.endsWith('.js'));
+    expect(hashedFile).toBeDefined();
+    if (!hashedFile) return; // Unreachable after expect, satisfies TypeScript
+    const content = await Bun.file(join(adaptersDir, hashedFile)).text();
     expect(content).toBe('// alpha');
   });
 
@@ -2223,32 +2230,45 @@ describe('writeAdapterFile', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test('creates the final file with correct content', async () => {
+  test('creates the final file with correct content and returns hashed path', async () => {
     const content = '(function(){ console.log("adapter"); })()';
-    await writeAdapterFile('my-plugin', content);
+    const adapterFile = await writeAdapterFile('my-plugin', content);
 
-    const finalPath = join(adaptersDir, 'my-plugin.js');
-    const written = await Bun.file(finalPath).text();
+    expect(adapterFile).toMatch(/^adapters\/my-plugin-[0-9a-f]{8}\.js$/);
+
+    const fileName = adapterFile.replace('adapters/', '');
+    const written = await Bun.file(join(adaptersDir, fileName)).text();
     expect(written).toBe(content);
   });
 
   test('.tmp file does not exist after successful write (rename completed)', async () => {
-    await writeAdapterFile('my-plugin', '// adapter code');
+    const adapterFile = await writeAdapterFile('my-plugin', '// adapter code');
+    const baseName = adapterFile.replace('adapters/', '').replace('.js', '');
 
-    const tmpPath = join(adaptersDir, 'my-plugin.js.tmp');
+    const tmpPath = join(adaptersDir, `${baseName}.js.tmp`);
     expect(existsSync(tmpPath)).toBe(false);
 
     // Final file exists
-    const finalPath = join(adaptersDir, 'my-plugin.js');
+    const finalPath = join(adaptersDir, `${baseName}.js`);
     expect(existsSync(finalPath)).toBe(true);
   });
 
-  test('overwrite replaces existing file content', async () => {
-    await writeAdapterFile('my-plugin', '// version 1');
-    await writeAdapterFile('my-plugin', '// version 2');
+  test('overwrite replaces existing file content with new hashed file', async () => {
+    const path1 = await writeAdapterFile('my-plugin', '// version 1');
+    const path2 = await writeAdapterFile('my-plugin', '// version 2');
 
-    const finalPath = join(adaptersDir, 'my-plugin.js');
-    const content = await Bun.file(finalPath).text();
+    // Different content → different hash → different path
+    expect(path2).not.toBe(path1);
+
+    const entries = await readdir(adaptersDir);
+    const myPluginFiles = entries.filter(f => f.startsWith('my-plugin-') && f.endsWith('.js'));
+    // Old file cleaned up, only the new one remains
+    expect(myPluginFiles).toHaveLength(1);
+
+    const latestFile = myPluginFiles[0];
+    expect(latestFile).toBeDefined();
+    if (!latestFile) return; // Unreachable after expect, satisfies TypeScript
+    const content = await Bun.file(join(adaptersDir, latestFile)).text();
     expect(content).toBe('// version 2');
   });
 
@@ -2258,11 +2278,21 @@ describe('writeAdapterFile', () => {
       writeAdapterFile('plugin-b', '// adapter B'),
       writeAdapterFile('plugin-c', '// adapter C'),
     ];
-    await Promise.all(writes);
+    const paths = await Promise.all(writes);
 
-    const contentA = await Bun.file(join(adaptersDir, 'plugin-a.js')).text();
-    const contentB = await Bun.file(join(adaptersDir, 'plugin-b.js')).text();
-    const contentC = await Bun.file(join(adaptersDir, 'plugin-c.js')).text();
+    for (const p of paths) {
+      const fileName = p.replace('adapters/', '');
+      expect(existsSync(join(adaptersDir, fileName))).toBe(true);
+    }
+
+    const [pathA, pathB, pathC] = paths;
+    expect(pathA).toBeDefined();
+    expect(pathB).toBeDefined();
+    expect(pathC).toBeDefined();
+    if (!pathA || !pathB || !pathC) return; // Unreachable after expect, satisfies TypeScript
+    const contentA = await Bun.file(join(adaptersDir, pathA.replace('adapters/', ''))).text();
+    const contentB = await Bun.file(join(adaptersDir, pathB.replace('adapters/', ''))).text();
+    const contentC = await Bun.file(join(adaptersDir, pathC.replace('adapters/', ''))).text();
 
     expect(contentA).toBe('// adapter A');
     expect(contentB).toBe('// adapter B');
@@ -2276,10 +2306,10 @@ describe('writeAdapterFile', () => {
 
   test('writes large IIFE content correctly', async () => {
     const largeContent = '// ' + 'x'.repeat(100_000);
-    await writeAdapterFile('large-plugin', largeContent);
+    const adapterFile = await writeAdapterFile('large-plugin', largeContent);
 
-    const finalPath = join(adaptersDir, 'large-plugin.js');
-    const written = await Bun.file(finalPath).text();
+    const fileName = adapterFile.replace('adapters/', '');
+    const written = await Bun.file(join(adaptersDir, fileName)).text();
     expect(written).toBe(largeContent);
   });
 });

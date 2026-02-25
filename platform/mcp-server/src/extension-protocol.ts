@@ -65,15 +65,19 @@ const sendSyncFull = async (state: ServerState): Promise<void> => {
   const writeResults = await Promise.race([writePromise, timeout.promise]);
   timeout.cancel();
 
+  // Collect adapterFile paths from successful writes
+  const adapterFileMap = new Map<string, string>();
   if (writeResults === null) {
     log.warn(
       `Adapter file writes did not complete within ${ADAPTER_WRITE_TIMEOUT_MS}ms — sending sync.full with available adapters. Pending plugins: ${pluginList.map(p => p.name).join(', ')}`,
     );
   } else {
     for (const [i, result] of writeResults.entries()) {
+      const plugin = pluginList[i];
       if (result.status === 'rejected') {
-        const plugin = pluginList[i];
         log.warn(`Failed to write adapter file for ${plugin?.name ?? 'unknown'}:`, result.reason);
+      } else if (plugin) {
+        adapterFileMap.set(plugin.name, result.value);
       }
     }
   }
@@ -82,6 +86,7 @@ const sendSyncFull = async (state: ServerState): Promise<void> => {
     ...serializePluginForExtension(p, state),
     sourcePath: p.sourcePath,
     adapterHash: p.adapterHash,
+    adapterFile: adapterFileMap.get(p.name),
   }));
 
   const sent = sendToExtension(state, {
@@ -268,7 +273,7 @@ const sendPluginUpdate = async (
   if (!plugin) return;
 
   await ensureAdaptersDir(state);
-  await writeAdapterFile(pluginName, iife, sourceMap);
+  const adapterFile = await writeAdapterFile(pluginName, iife, sourceMap);
 
   const sent = sendToExtension(state, {
     jsonrpc: '2.0',
@@ -277,6 +282,7 @@ const sendPluginUpdate = async (
       ...serializePluginForExtension(plugin, state),
       sourcePath: plugin.sourcePath,
       adapterHash: plugin.adapterHash,
+      adapterFile,
     },
   });
   if (!sent) log.warn('Failed to send plugin.update — extension not connected');

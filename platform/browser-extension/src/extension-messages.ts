@@ -180,6 +180,7 @@ export interface PluginMeta {
   trustTier: TrustTier;
   sourcePath?: string;
   adapterHash?: string;
+  adapterFile?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
   tools: WireToolDef[];

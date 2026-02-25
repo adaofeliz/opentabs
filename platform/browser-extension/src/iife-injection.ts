@@ -169,21 +169,23 @@ const injectLogRelay = async (tabId: number): Promise<void> => {
 /**
  * Inject an adapter file into a single tab via chrome.scripting.executeScript.
  *
- * Uses the `files` option to inject the pre-built adapter IIFE from the
- * extension's adapters/ directory. This bypasses all page CSP restrictions
- * because file-based injection is not subject to page CSP.
+ * Uses content-hashed filenames so each adapter version gets a unique path,
+ * bypassing Chrome's aggressive caching of executeScript({ files }) content.
+ * The `files` option bypasses all page CSP restrictions because file-based
+ * injection is not subject to page CSP.
  */
 const injectAdapterFile = async (
   tabId: number,
   pluginName: string,
   version?: string,
   adapterHash?: string,
+  adapterFilePath?: string,
 ): Promise<void> => {
   // Inject the log relay in ISOLATED world before the adapter IIFE (MAIN world)
   // so postMessage listeners are in place when the adapter starts logging.
   await injectLogRelay(tabId);
 
-  const adapterFile = `adapters/${pluginName}.js`;
+  const adapterFile = adapterFilePath ?? `adapters/${pluginName}.js`;
   try {
     await chrome.scripting.executeScript({
       target: { tabId },
@@ -280,6 +282,63 @@ const teardownAdapterInTab = async (tabId: number, pluginName: string): Promise<
 };
 
 /**
+ * Replace a tab's frozen `__openTabs` container with a mutable copy,
+ * preserving all adapter entries (including the one about to be re-injected).
+ *
+ * The `hashAndFreeze` snippet (appended by the plugin build) makes
+ * `__openTabs.adapters` non-writable and `adapters[pluginName]` non-configurable.
+ * When the adapter IIFE runs during re-injection, its entry code
+ * (`globalThis.__openTabs.adapters = globalThis.__openTabs.adapters || {}`)
+ * throws `TypeError: Cannot assign to read only property 'adapters'` in
+ * strict mode. This function rebuilds `__openTabs` and `adapters` as fresh
+ * mutable objects so the IIFE can initialize without errors.
+ *
+ * The target plugin's adapter entry is preserved (as a writable property) so
+ * the IIFE wrapper's own teardown logic can find the existing adapter, call
+ * `onDeactivate()` and `teardown()`, then replace it — maintaining the correct
+ * lifecycle hook ordering (constructor clears stale markers, then teardown sets
+ * fresh markers).
+ */
+const prepareForReinjection = async (tabId: number): Promise<void> => {
+  await chrome.scripting
+    .executeScript({
+      target: { tabId },
+      world: 'MAIN',
+      func: () => {
+        const ot = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
+        if (!ot) return;
+        const adapters = ot.adapters as Record<string, unknown> | undefined;
+        if (!adapters) return;
+
+        // Build a new adapters object preserving all entries. Each adapter's
+        // value is copied directly (the frozen adapter object stays frozen for
+        // integrity), but the PROPERTY on the new container is writable +
+        // configurable so the IIFE wrapper can delete/replace it.
+        const newAdapters: Record<string, unknown> = {};
+        for (const key of Object.keys(adapters)) {
+          newAdapters[key] = adapters[key];
+        }
+
+        // Build a new __openTabs object, copying all non-adapters properties.
+        const newOt: Record<string, unknown> = {};
+        for (const key of Object.keys(ot)) {
+          if (key === 'adapters') continue;
+          const desc = Object.getOwnPropertyDescriptor(ot, key);
+          if (desc) Object.defineProperty(newOt, key, desc);
+        }
+        newOt.adapters = newAdapters;
+
+        // Replace globalThis.__openTabs with the new mutable container
+        (globalThis as Record<string, unknown>).__openTabs = newOt;
+      },
+      args: [],
+    })
+    .catch((err: unknown) => {
+      console.warn(`[opentabs] prepareForReinjection failed:`, err);
+    });
+};
+
+/**
  * Injects a plugin's adapter IIFE into all tabs matching its URL patterns.
  *
  * @param pluginName - The plugin's unique name (validated against reserved names)
@@ -289,6 +348,7 @@ const teardownAdapterInTab = async (tabId: number, pluginName: string): Promise<
  *   (default), tabs that already have the adapter are skipped.
  * @param version - Expected adapter version string for post-injection verification
  * @param adapterHash - Expected content hash for post-injection integrity check
+ * @param adapterFile - Relative path to the content-hashed adapter file (e.g., "adapters/my-plugin-a1b2c3d4.js")
  * @returns Tab IDs where injection succeeded
  */
 const injectPluginIntoMatchingTabs = async (
@@ -297,6 +357,7 @@ const injectPluginIntoMatchingTabs = async (
   forceReinject = false,
   version?: string,
   adapterHash?: string,
+  adapterFile?: string,
 ): Promise<number[]> => {
   if (!isSafePluginName(pluginName)) {
     console.warn(`[opentabs] Skipping injection for unsafe plugin name: ${pluginName}`);
@@ -312,15 +373,15 @@ const injectPluginIntoMatchingTabs = async (
         return tabId;
       }
 
-      // Belt-and-suspenders with the IIFE wrapper's self-teardown:
-      // call teardown from the extension side first, so cleanup happens even
-      // if the adapter was injected by an older SDK version without wrapper
-      // teardown support.
+      // Replace frozen __openTabs/adapters with mutable copies so the new
+      // IIFE can initialize. The IIFE wrapper handles its own teardown
+      // lifecycle (onDeactivate → teardown → delete → install new adapter)
+      // in the correct order, so we do NOT call teardownAdapterInTab here.
       if (forceReinject) {
-        await teardownAdapterInTab(tabId, pluginName);
+        await prepareForReinjection(tabId);
       }
 
-      await injectAdapterFile(tabId, pluginName, version, adapterHash);
+      await injectAdapterFile(tabId, pluginName, version, adapterHash, adapterFile);
       return tabId;
     }),
   );
@@ -374,7 +435,7 @@ const injectPluginsIntoTab = async (tabId: number, tabUrl: string): Promise<void
   await Promise.allSettled(
     needsInjection.map(async plugin => {
       try {
-        await injectAdapterFile(tabId, plugin.name, plugin.version, plugin.adapterHash);
+        await injectAdapterFile(tabId, plugin.name, plugin.version, plugin.adapterHash, plugin.adapterFile);
       } catch (err) {
         console.warn(`[opentabs] Injection failed for tab ${String(tabId)}, plugin ${plugin.name}:`, err);
       }
@@ -457,7 +518,14 @@ const reinjectStoredPlugins = async (): Promise<void> => {
 
   const results = await Promise.allSettled(
     plugins.map(plugin =>
-      injectPluginIntoMatchingTabs(plugin.name, plugin.urlPatterns, false, plugin.version, plugin.adapterHash),
+      injectPluginIntoMatchingTabs(
+        plugin.name,
+        plugin.urlPatterns,
+        false,
+        plugin.version,
+        plugin.adapterHash,
+        plugin.adapterFile,
+      ),
     ),
   );
   for (let i = 0; i < results.length; i++) {
