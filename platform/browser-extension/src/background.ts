@@ -115,7 +115,7 @@ chrome.runtime.onInstalled.addListener(() => {
     await ensureOffscreenDocument();
     await setupKeepaliveAlarm();
     await reinjectStoredPlugins();
-  })();
+  })().catch((err: unknown) => console.warn('[opentabs] onInstalled failed:', err));
 });
 
 chrome.runtime.onStartup.addListener(() => {
@@ -123,7 +123,7 @@ chrome.runtime.onStartup.addListener(() => {
     await ensureOffscreenDocument();
     await setupKeepaliveAlarm();
     await reinjectStoredPlugins();
-  })();
+  })().catch((err: unknown) => console.warn('[opentabs] onStartup failed:', err));
 });
 
 ensureOffscreenDocument().catch((err: unknown) => console.warn('[opentabs] offscreen creation failed:', err));
