@@ -28,10 +28,12 @@ const CountdownBar = ({ timeoutMs, receivedAt }: { timeoutMs: number; receivedAt
   useEffect(() => {
     const update = () => {
       const elapsed = Date.now() - receivedAt;
-      setRemaining(Math.max(0, timeoutMs - elapsed));
+      const newRemaining = Math.max(0, timeoutMs - elapsed);
+      setRemaining(newRemaining);
+      if (newRemaining === 0) clearInterval(id);
     };
-    update();
     const id = setInterval(update, COUNTDOWN_POLL_INTERVAL_MS);
+    update();
     return () => clearInterval(id);
   }, [timeoutMs, receivedAt]);
 
