@@ -713,3 +713,81 @@ opentabs update
 # Then restart the MCP server if it was running
 opentabs start
 ```
+
+---
+
+## Plugin Developer CLI
+
+The `opentabs-plugin` CLI is for plugin developers. Install it with the plugin SDK:
+
+```bash
+npm install -g @opentabs-dev/plugin-tools
+```
+
+Or use it as a local dev dependency via `npm run build` inside your plugin project (the scaffolded project from `create-opentabs-plugin` includes it).
+
+### opentabs-plugin build
+
+Build the current plugin directory — generates `dist/tools.json` and bundles the adapter IIFE.
+
+```bash
+opentabs-plugin build [options]
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Option</Table.Head>
+      <Table.Head>Description</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell className="font-medium">`-w, --watch`</Table.Cell>
+      <Table.Cell>Watch `dist/` for changes and rebuild automatically.</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+Reads plugin metadata from `package.json`'s `opentabs` field and serializes tool/resource/prompt schemas from the plugin module. On success, notifies the running MCP server via `POST /reload` so the updated plugin is picked up immediately without a server restart.
+
+```bash
+# Build once
+opentabs-plugin build
+
+# Watch and rebuild on changes
+opentabs-plugin build --watch
+```
+
+### opentabs-plugin inspect
+
+Pretty-print the built plugin manifest (`dist/tools.json`). Requires `opentabs-plugin build` to have been run first.
+
+```bash
+opentabs-plugin inspect [options]
+```
+
+<Table>
+  <Table.Header>
+    <Table.Row>
+      <Table.Head>Option</Table.Head>
+      <Table.Head>Description</Table.Head>
+    </Table.Row>
+  </Table.Header>
+  <Table.Body>
+    <Table.Row>
+      <Table.Cell className="font-medium">`--json`</Table.Cell>
+      <Table.Cell>Output raw JSON instead of formatted summary.</Table.Cell>
+    </Table.Row>
+  </Table.Body>
+</Table>
+
+Displays the plugin name, version, SDK version, tool count, resource count, and prompt count. For each tool, shows the display name, description, and input/output field names and types. For each resource, shows the URI, name, and MIME type. For each prompt, shows the name, description, and argument list.
+
+```bash
+# Pretty-print the manifest
+opentabs-plugin inspect
+
+# Output raw JSON
+opentabs-plugin inspect --json
+```
