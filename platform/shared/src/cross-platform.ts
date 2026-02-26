@@ -6,8 +6,7 @@
  */
 
 import { toErrorMessage } from './error.js';
-import { writeFile } from './runtime.js';
-import { chmod, rename, unlink } from 'node:fs/promises';
+import { chmod, rename, unlink, writeFile } from 'node:fs/promises';
 
 // ---------------------------------------------------------------------------
 // Platform detection
@@ -66,7 +65,7 @@ export const platformExec = (cmd: string): string => {
 export const atomicWrite = async (filePath: string, content: string, mode?: number): Promise<void> => {
   const tmpPath = filePath + '.tmp';
   try {
-    await writeFile(tmpPath, content);
+    await writeFile(tmpPath, content, 'utf-8');
 
     if (mode !== undefined) {
       await safeChmod(tmpPath, mode);
