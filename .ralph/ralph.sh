@@ -643,17 +643,22 @@ dispatch_prd() {
     DOCKER_COMMON+=(-v "$HOME/.npmrc:/tmp/worker/.npmrc:ro")
   fi
   # Claude Code settings — contains model, alwaysThinkingEnabled,
-  # skipDangerousModePermissionPrompt, etc. Env vars are forwarded
-  # separately (see DOCKER_ENV_ARGS), but claude also reads this file
-  # directly at startup for non-env settings.
+  # skipDangerousModePermissionPrompt, etc. Mounted to a staging path and
+  # copied into ~/.claude/ at container startup (see CONTAINER_INIT_CMD).
+  # Mounting directly into ~/.claude/ creates a root-owned directory that
+  # the non-root container user can't write to — Claude CLI needs ~/.claude/
+  # writable for session data, debug logs, and todos.
   if [ -f "$HOME/.claude/settings.json" ]; then
-    DOCKER_COMMON+=(-v "$HOME/.claude/settings.json:/tmp/worker/.claude/settings.json:ro")
+    DOCKER_COMMON+=(-v "$HOME/.claude/settings.json:/tmp/.claude-settings.json:ro")
   fi
+
+  # Container init: create writable HOME and copy staged config files.
+  local CONTAINER_INIT="mkdir -p /tmp/worker/.claude && cp /tmp/.claude-settings.json /tmp/worker/.claude/settings.json 2>/dev/null; true"
 
   if ! docker run --rm "${DOCKER_COMMON[@]}" \
     -w "$worktree_dir" \
     "$DOCKER_IMAGE" \
-    "bash -c 'mkdir -p /tmp/worker && $setup_script'"; then
+    "bash -c '$CONTAINER_INIT && $setup_script'"; then
     echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}Setup (install+build) failed in Docker. Aborting worker.${RESET}"
     remove_worktree "$worktree_dir"
     if [ "$resume_branch" = false ]; then
@@ -737,7 +742,7 @@ dispatch_prd() {
     "${DOCKER_ENV_ARGS[@]}" \
     -w "$worktree_dir" \
     "$DOCKER_IMAGE" \
-    "mkdir -p /tmp/worker && bash $worktree_dir/.ralph/worker.sh" \
+    "$CONTAINER_INIT && bash $worktree_dir/.ralph/worker.sh" \
     >/dev/null 2>&1; then
     echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${RED}Failed to start Docker container. Aborting worker.${RESET}"
     remove_worktree "$worktree_dir"
