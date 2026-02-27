@@ -84,6 +84,12 @@ const channelList = defineResource({
       <Table.Cell>Content type of the response (e.g., `application/json`, `text/plain`)</Table.Cell>
     </Table.Row>
     <Table.Row>
+      <Table.Cell>`schema`</Table.Cell>
+      <Table.Cell>`z.ZodType`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Optional Zod schema describing the shape of the resource content. Type-level contract only — the runtime dispatch path does not validate against it.</Table.Cell>
+    </Table.Row>
+    <Table.Row>
       <Table.Cell>`read`</Table.Cell>
       <Table.Cell>`(uri: string) => Promise<ResourceContent>`</Table.Cell>
       <Table.Cell>Yes</Table.Cell>
@@ -106,6 +112,33 @@ interface ResourceContent {
 ```
 
 Return either `text` or `blob`, not both. Most resources return `text` with JSON data — this gives the AI agent structured data it can reason about.
+
+### Typed Resources with Schema
+
+Resources can include an optional Zod `schema` to document the shape of their content. The schema is a type-level contract — the runtime dispatch path does not validate against it:
+
+```typescript
+import { defineResource, fetchJSON } from '@opentabs-dev/plugin-sdk';
+import type { ResourceContent } from '@opentabs-dev/plugin-sdk';
+import { z } from 'zod';
+
+const channelList = defineResource({
+  uri: 'myapp://channels',
+  name: 'Channel List',
+  description: 'All active channels',
+  mimeType: 'application/json',
+  schema: z.object({
+    channels: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
+
+  async read(): Promise<ResourceContent> {
+    const data = await fetchJSON<{ channels: { id: string; name: string }[] }>('/api/channels');
+    return { uri: 'myapp://channels', text: JSON.stringify(data), mimeType: 'application/json' };
+  },
+});
+```
+
+When a `schema` is provided, use `ResourceContentType<typeof channelList>` to derive the TypeScript content type for use elsewhere in your plugin. See [SDK Reference: Resources](/docs/sdk/resources) for the full API.
 
 ### Registering Resources on Your Plugin
 
