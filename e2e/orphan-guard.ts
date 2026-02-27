@@ -16,8 +16,8 @@
  *
  *   import './orphan-guard.js';
  *
- * Or for the MCP server wrapper (generated .js files), inject as an
- * inline snippet via createServerWrapper().
+ * Import at the top of any long-lived subprocess entry point to enable
+ * automatic self-termination when the parent process exits.
  */
 
 const POLL_INTERVAL_MS = 5_000;

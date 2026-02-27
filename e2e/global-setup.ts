@@ -62,7 +62,7 @@ export default function globalSetup(): void {
   if (missing.length > 0) {
     throw new Error(
       `E2E test plugin not built (missing: ${missing.join(', ')}).\n` +
-        'Run: cd plugins/e2e-test && bun install && bun run build',
+        'Run: cd plugins/e2e-test && npm install && npm run build',
     );
   }
 

@@ -235,11 +235,17 @@ const createNodeServer = (options: NodeServerOptions): Promise<NodeServer> =>
 
     // The ws library emits 'headers' with the raw header lines just before
     // sending the 101 response. We use this to inject custom headers
-    // (e.g., Sec-WebSocket-Protocol) from the route handler's upgrade call.
+    // from the route handler's upgrade call.
+    //
+    // Sec-WebSocket-Protocol is intentionally excluded here: ws selects the
+    // protocol automatically (first value from the client's requested list),
+    // so injecting it again would produce a duplicate header.
     let pendingUpgradeHeaders: Record<string, string> = {};
     wss.on('headers', (headers: string[]) => {
       for (const [key, value] of Object.entries(pendingUpgradeHeaders)) {
-        headers.push(`${key}: ${value}`);
+        if (key.toLowerCase() !== 'sec-websocket-protocol') {
+          headers.push(`${key}: ${value}`);
+        }
       }
       pendingUpgradeHeaders = {};
     });

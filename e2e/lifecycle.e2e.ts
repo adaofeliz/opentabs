@@ -6,17 +6,17 @@
  * hot-reload lifecycle:
  *
  *   1. Extension connects to MCP server on startup
- *   2. Hot reload (bun --hot) triggers clean teardown + extension reconnect
+ *   2. Hot reload (SIGUSR1 to dev proxy) triggers worker restart + extension reconnect
  *   3. Rapid successive hot reloads all recover
  *   4. Kill → restart: extension detects TCP close and reconnects
  *   5. Old WebSocket replaced when a new connection arrives
  *   6. Ping/pong keepalive works end-to-end
- *   7. Server starts cleanly without --hot (no crash)
+ *   7. Server starts cleanly in non-hot mode (no crash)
  *   8. extension_reload triggers full reconnect with re-injection into pre-existing tabs
  *
- * IMPORTANT: Hot-reload tests use `test.describe.serial` because
- * `triggerHotReload()` modifies a per-test wrapper file. Serial execution
- * within the block ensures deterministic sequencing of reload → reconnect.
+ * IMPORTANT: Hot-reload tests use `test.describe.serial` because they
+ * trigger worker restarts that affect the extension's WebSocket state. Serial
+ * execution ensures deterministic sequencing of reload → reconnect.
  *
  * All tests use dynamic ports and isolated config directories.
  */

@@ -29,6 +29,7 @@ let workerPort: number | null = null;
 let worker: ChildProcess | null = null;
 let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const pending: Array<() => void> = [];
+let workerStartCount = 0;
 
 /** Drain all buffered requests now that the worker is ready. */
 const drainPending = (): void => {
@@ -47,6 +48,9 @@ const startWorker = (): void => {
     workerPort = null;
   }
 
+  workerStartCount++;
+  const isRestart = workerStartCount > 1;
+
   const child = fork(WORKER_JS, ['--dev'], {
     env: { ...process.env, PORT: '0', OPENTABS_PROXY: '1' },
   });
@@ -61,6 +65,7 @@ const startWorker = (): void => {
     ) {
       workerPort = (msg as { type: string; port: number }).port;
       console.log(`[proxy] Worker ready on port ${workerPort}`);
+      if (isRestart) console.log('Hot reload complete');
       drainPending();
     }
   });
@@ -125,8 +130,9 @@ const proxyHttp = (req: IncomingMessage, res: ServerResponse, port: number): voi
 };
 
 // WebSocketServer in noServer mode — used only to complete client-side upgrades.
-// The 'headers' event injects the Sec-WebSocket-Protocol echo from the worker.
-const wss = new WebSocketServer({ noServer: true });
+// handleProtocols returns false to suppress ws's automatic protocol selection;
+// the 'headers' event injects the Sec-WebSocket-Protocol echo from the worker.
+const wss = new WebSocketServer({ noServer: true, handleProtocols: () => false });
 let pendingWsProtocol: string | null = null;
 wss.on('headers', (headers: string[]) => {
   if (pendingWsProtocol !== null) {
@@ -160,9 +166,32 @@ httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) =>
   }
 
   const port = workerPort;
-  const upstream = new WebSocket(`ws://127.0.0.1:${port}${req.url ?? '/'}`, {
-    headers: req.headers as Record<string, string>,
-  });
+
+  // Extract Sec-WebSocket-Protocol from the client's request and pass it as
+  // the protocols argument to the upstream WebSocket constructor. The ws
+  // library validates that the server only echoes back protocols that were
+  // requested — but only when they are provided via the protocols argument,
+  // not when embedded in the headers option.
+  const rawProtocol = req.headers['sec-websocket-protocol'] as string | string[] | undefined;
+  const requestedProtocols: string[] = rawProtocol
+    ? Array.isArray(rawProtocol)
+      ? rawProtocol.flatMap(p => p.split(/, */))
+      : rawProtocol.split(/, */)
+    : [];
+
+  // Build forward headers without sec-websocket-protocol (handled via protocols arg).
+  const forwardHeaders: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (key !== 'sec-websocket-protocol') {
+      forwardHeaders[key] = value;
+    }
+  }
+
+  const upstream = new WebSocket(
+    `ws://127.0.0.1:${port}${req.url ?? '/'}`,
+    requestedProtocols.length > 0 ? requestedProtocols : undefined,
+    { headers: forwardHeaders },
+  );
 
   upstream.on('open', () => {
     // Forward the Sec-WebSocket-Protocol echo from the worker to the client.
@@ -190,7 +219,8 @@ httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) =>
 });
 
 httpServer.listen(PROXY_PORT, '127.0.0.1', () => {
-  console.log(`[proxy] Dev proxy listening on http://localhost:${PROXY_PORT}`);
+  const actualPort = (httpServer.address() as { port: number }).port;
+  console.log(`[proxy] Dev proxy listening on http://localhost:${actualPort}`);
   startWorker();
 });
 
@@ -215,4 +245,11 @@ process.on('SIGTERM', () => {
 process.on('SIGINT', () => {
   worker?.kill('SIGTERM');
   process.exit(0);
+});
+
+// SIGUSR1: triggered by test fixtures via triggerHotReload() to simulate
+// a code change without modifying files on disk. Restarts the worker.
+process.on('SIGUSR1', () => {
+  console.log('[proxy] Hot reload triggered, restarting worker...');
+  startWorker();
 });

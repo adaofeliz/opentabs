@@ -61,7 +61,7 @@ const runBuild = (pluginDir: string): { exitCode: number; stdout: string; stderr
 
   // Run the plugin build
   try {
-    const stdout = execSync(`bun ${CLI_PATH} build`, opts);
+    const stdout = execSync(`node ${CLI_PATH} build`, opts);
     return { exitCode: 0, stdout: stdout.toString(), stderr: '' };
   } catch (err: unknown) {
     const e = err as { status: number; stdout: Buffer; stderr: Buffer };
