@@ -498,7 +498,7 @@ interface CheckUpdatesResult {
  */
 const checkPluginUpdates = async (state: ServerState): Promise<CheckUpdatesResult> => {
   const { checkForUpdates } = await import('./version-check.js');
-  checkForUpdates(state);
+  await checkForUpdates(state);
   return { outdatedPlugins: state.outdatedPlugins };
 };
 
