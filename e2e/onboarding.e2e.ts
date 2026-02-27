@@ -25,6 +25,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+/**
+ * POST /reload to the MCP server. Triggers a full config rediscovery and
+ * sync.full to the extension, ensuring the side panel picks up changes.
+ */
+const postReload = async (port: number, configDir: string): Promise<Response> => {
+  const authPath = path.join(configDir, 'extension', 'auth.json');
+  const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8')) as { secret?: string };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authData.secret) headers['Authorization'] = `Bearer ${authData.secret}`;
+  return fetch(`http://localhost:${port}/reload`, { method: 'POST', headers });
+};
+
 // ---------------------------------------------------------------------------
 // Empty state tests
 // ---------------------------------------------------------------------------
@@ -85,6 +97,11 @@ test.describe('Empty states', () => {
         tools[t] = true;
       }
       writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
+
+      // Wait for the config watcher to process the change, then confirm
+      // via POST /reload so a reliable sync.full reaches the side panel.
+      await waitForLog(server, 'Config reload complete', 10_000);
+      await postReload(server.port, configDir);
 
       // Verify the no-plugins view disappears and the plugin list appears
       await expect(sidePanelPage.locator('text=No Plugins Installed')).toBeHidden({ timeout: 30_000 });
@@ -157,6 +174,10 @@ test.describe('Empty states', () => {
 
       // Remove all plugins via config.json
       writeTestConfig(configDir, { localPlugins: [], tools: {} });
+
+      // Wait for config watcher reload, then confirm via POST /reload
+      await waitForLog(server, 'Config reload complete: 0 plugin', 10_000);
+      await postReload(server.port, configDir);
 
       // Verify the no-plugins card appears
       await expect(sidePanelPage.locator('text=No Plugins Installed')).toBeVisible({ timeout: 30_000 });

@@ -94,7 +94,11 @@ const sendSyncFull = async (state: ServerState): Promise<void> => {
     method: 'sync.full',
     params: { plugins },
   });
-  if (!sent) log.warn('Failed to send sync.full — extension not connected');
+  if (sent) {
+    log.info(`Sent sync.full to extension with ${plugins.length} plugin(s)`);
+  } else {
+    log.warn('Failed to send sync.full — extension not connected');
+  }
 };
 
 /** Options for dispatchToExtension beyond the basic method + params */

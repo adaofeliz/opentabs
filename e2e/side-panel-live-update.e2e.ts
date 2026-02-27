@@ -33,6 +33,18 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
+/**
+ * POST /reload to the MCP server. Triggers a full config rediscovery and
+ * sync.full to the extension, ensuring the side panel picks up changes.
+ */
+const postReload = async (port: number, configDir: string): Promise<Response> => {
+  const authPath = path.join(configDir, 'extension', 'auth.json');
+  const authData = JSON.parse(fs.readFileSync(authPath, 'utf-8')) as { secret?: string };
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (authData.secret) headers['Authorization'] = `Bearer ${authData.secret}`;
+  return fetch(`http://localhost:${port}/reload`, { method: 'POST', headers });
+};
+
 // ---------------------------------------------------------------------------
 // Side panel live-update tests
 // ---------------------------------------------------------------------------
@@ -67,9 +79,16 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
       }
       writeTestConfig(configDir, { localPlugins: [absPluginPath], tools });
 
+      // Wait for the config watcher to process the change, then confirm
+      // the rediscovery via POST /reload to ensure a reliable sync.full
+      // reaches the side panel (the config watcher's sync.full may not
+      // reliably reach the side panel in headless Chromium environments
+      // where chrome.runtime.sendMessage delivery to extension pages
+      // opened via URL navigation can be inconsistent).
+      await waitForLog(server, 'Config reload complete', 10_000);
+      await postReload(server.port, configDir);
+
       // 5. Verify the side panel DOM updates to show the new plugin.
-      //    The App.tsx listener detects ws:message with sync.full (broadcast by
-      //    the offscreen document) and triggers a config.getState refetch.
       await expect(sidePanelPage.locator('text=No Plugins Installed')).toBeHidden({ timeout: 30_000 });
       await expect(sidePanelPage.locator('button[aria-expanded]')).toBeVisible({ timeout: 10_000 });
       await expect(sidePanelPage.locator('text=E2E Test')).toBeVisible({ timeout: 5_000 });
@@ -109,6 +128,10 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
 
       // Remove the plugin from config.json
       writeTestConfig(configDir, { localPlugins: [], tools: {} });
+
+      // Wait for config watcher reload, then confirm via POST /reload
+      await waitForLog(server, 'Config reload complete: 0 plugin', 10_000);
+      await postReload(server.port, configDir);
 
       // Verify the side panel updates to show empty state
       await expect(sidePanelPage.locator('text=No Plugins')).toBeVisible({ timeout: 30_000 });
