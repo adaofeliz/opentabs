@@ -18,16 +18,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
-      - run: bun run build
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: build-artifacts
@@ -49,20 +42,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+          cache: 'npm'
+      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-      - run: bun run type-check
-      - run: bun scripts/check-tsconfig-coverage.ts
+      - run: npm run type-check
+      - run: npx tsx scripts/check-tsconfig-coverage.ts
 
   lint:
     name: Lint
@@ -73,19 +59,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+          cache: 'npm'
+      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-      - run: bun run lint
+      - run: npm run lint
 
   format:
     name: Format
@@ -95,16 +74,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
-      - run: bun run format:check
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run format:check
 
   knip:
     name: Unused Code
@@ -115,19 +87,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+          cache: 'npm'
+      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-      - run: bun run knip
+      - run: npm run knip
 
   unit-tests:
     name: Unit Tests
@@ -138,19 +103,12 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+          cache: 'npm'
+      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-      - run: bun run test
+      - run: npm run test
 
   e2e-tests:
     name: E2E Tests
@@ -161,20 +119,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: '1.3.9'
-      - uses: actions/cache@v4
-        with:
-          path: ~/.bun/install/cache
-          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
-          restore-keys: ${{ runner.os }}-bun-
-      - run: bun install --frozen-lockfile
+          cache: 'npm'
+      - run: npm ci
       - uses: actions/download-artifact@v4
         with:
           name: build-artifacts
-      - run: bunx playwright install chromium --with-deps
-      - run: bun run test:e2e
+      - run: npx playwright install chromium --with-deps
+      - run: npm run test:e2e
       - uses: actions/upload-artifact@v4
         if: ${{ !cancelled() }}
         with:
