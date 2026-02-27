@@ -31,18 +31,14 @@
  *      GET  /control/health          — simple health check
  *      GET  /control/invocations     — list of all API calls received
  *
- * Start: `bun e2e/strict-csp-test-server.ts`
+ * Start: `npx tsx e2e/strict-csp-test-server.ts`
  * Default port: 9517 (override with PORT env var, use PORT=0 for dynamic)
  */
 
 import './orphan-guard.js';
-import {
-  jsonResponse,
-  readBody,
-  recordInvocation as sharedRecordInvocation,
-  requireAuth as sharedRequireAuth,
-} from './test-server-utils.js';
+import http from 'node:http';
 import type { Invocation } from './test-server-utils.js';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 // ---------------------------------------------------------------------------
 // State — mutated by /control endpoints, read by /api endpoints
@@ -65,14 +61,55 @@ const createDefaultState = (): ServerState => ({
 let state = createDefaultState();
 
 // ---------------------------------------------------------------------------
-// Helpers — thin wrappers around shared utilities with server-specific state
+// Helpers — node:http request/response utilities
 // ---------------------------------------------------------------------------
 
-const recordInvocation = (req: Request, path: string, body: unknown) => {
-  sharedRecordInvocation(state.invocations, req, path, body);
+const readBody = (req: IncomingMessage): Promise<Record<string, unknown>> =>
+  new Promise(resolve => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: unknown) => {
+      if (Buffer.isBuffer(chunk)) chunks.push(chunk);
+      else if (typeof chunk === 'string') chunks.push(Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString();
+        resolve(text ? (JSON.parse(text) as Record<string, unknown>) : {});
+      } catch {
+        resolve({});
+      }
+    });
+  });
+
+const sendJson = (res: ServerResponse, data: unknown, status = 200) => {
+  res.writeHead(status, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data));
 };
 
-const requireAuth = (): Response | null => sharedRequireAuth(state.authenticated, jsonResponse);
+const recordInvocation = (req: IncomingMessage, path: string, body: unknown) => {
+  state.invocations.push({
+    ts: Date.now(),
+    method: req.method ?? 'GET',
+    path,
+    body,
+  });
+};
+
+/**
+ * If not authenticated, send an auth error and return true.
+ * Returns false if authenticated and the request should continue.
+ */
+const requireAuth = (res: ServerResponse): boolean => {
+  if (!state.authenticated) {
+    sendJson(res, {
+      ok: false,
+      error: 'not_authed',
+      error_message: 'Not authenticated',
+    });
+    return true;
+  }
+  return false;
+};
 
 // ---------------------------------------------------------------------------
 // Strict security headers applied to the page response
@@ -132,108 +169,127 @@ const PAGE_HTML = `<!DOCTYPE html>
 
 const PORT = process.env.PORT !== undefined ? Number(process.env.PORT) : 9517;
 
-const server = Bun.serve({
-  port: PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
-    const path = url.pathname;
+const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  const url = new URL(req.url ?? '/', 'http://localhost');
+  const path = url.pathname;
 
-    // --- Page ---
-    if (path === '/' || path === '/index.html') {
-      return new Response(PAGE_HTML, {
-        headers: {
-          'Content-Type': 'text/html',
-          ...buildSecurityHeaders(),
-        },
-      });
+  // --- Page ---
+  if (path === '/' || path === '/index.html') {
+    res.writeHead(200, {
+      'Content-Type': 'text/html',
+      ...buildSecurityHeaders(),
+    });
+    res.end(PAGE_HTML);
+    return;
+  }
+
+  // =======================================================================
+  // Control endpoints (called by the test harness, not by the plugin)
+  // =======================================================================
+
+  if (path === '/control/set-auth' && req.method === 'POST') {
+    const body = await readBody(req);
+    state.authenticated = body.authenticated === true;
+    sendJson(res, { ok: true, authenticated: state.authenticated });
+    return;
+  }
+
+  if (path === '/control/set-connect-src' && req.method === 'POST') {
+    const body = await readBody(req);
+    state.connectSrcNone = body.connectSrcNone === true;
+    sendJson(res, { ok: true, connectSrcNone: state.connectSrcNone });
+    return;
+  }
+
+  if (path === '/control/reset' && req.method === 'POST') {
+    state = createDefaultState();
+    sendJson(res, { ok: true });
+    return;
+  }
+
+  if (path === '/control/health' && req.method === 'GET') {
+    sendJson(res, {
+      ok: true,
+      port: PORT,
+      uptime: (Date.now() - state.startedAt) / 1000,
+    });
+    return;
+  }
+
+  if (path === '/control/invocations' && req.method === 'GET') {
+    sendJson(res, { ok: true, invocations: state.invocations });
+    return;
+  }
+
+  // =======================================================================
+  // Internal API endpoints (called by the plugin via same-origin fetch)
+  // =======================================================================
+
+  // --- Auth check (used by isReady) ---
+  if (path === '/api/auth.check' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    sendJson(res, { ok: state.authenticated });
+    return;
+  }
+
+  // --- Echo ---
+  if (path === '/api/echo' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (requireAuth(res)) return;
+    sendJson(res, { ok: true, message: body.message ?? '' });
+    return;
+  }
+
+  // --- Greet ---
+  if (path === '/api/greet' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (requireAuth(res)) return;
+    const name = typeof body.name === 'string' ? body.name : 'World';
+    sendJson(res, { ok: true, greeting: `Hello, ${name}!` });
+    return;
+  }
+
+  // --- Status ---
+  if (path === '/api/status' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    sendJson(res, {
+      ok: true,
+      authenticated: state.authenticated,
+      uptime: Math.floor((Date.now() - state.startedAt) / 1000),
+      version: '1.0.0-test',
+    });
+    return;
+  }
+
+  // --- 404 ---
+  res.writeHead(404);
+  res.end('Not found');
+};
+
+const server = http.createServer((req, res) => {
+  handler(req, res).catch((err: unknown) => {
+    console.error('[strict-csp-test-server] Handler error:', err);
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end('Internal Server Error');
     }
-
-    // =======================================================================
-    // Control endpoints (called by the test harness, not by the plugin)
-    // =======================================================================
-
-    if (path === '/control/set-auth' && req.method === 'POST') {
-      const body = await readBody(req);
-      state.authenticated = body.authenticated === true;
-      return jsonResponse({ ok: true, authenticated: state.authenticated });
-    }
-
-    if (path === '/control/set-connect-src' && req.method === 'POST') {
-      const body = await readBody(req);
-      state.connectSrcNone = body.connectSrcNone === true;
-      return jsonResponse({ ok: true, connectSrcNone: state.connectSrcNone });
-    }
-
-    if (path === '/control/reset' && req.method === 'POST') {
-      state = createDefaultState();
-      return jsonResponse({ ok: true });
-    }
-
-    if (path === '/control/health' && req.method === 'GET') {
-      return jsonResponse({
-        ok: true,
-        port: PORT,
-        uptime: (Date.now() - state.startedAt) / 1000,
-      });
-    }
-
-    if (path === '/control/invocations' && req.method === 'GET') {
-      return jsonResponse({ ok: true, invocations: state.invocations });
-    }
-
-    // =======================================================================
-    // Internal API endpoints (called by the plugin via same-origin fetch)
-    // =======================================================================
-
-    // --- Auth check (used by isReady) ---
-    if (path === '/api/auth.check' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      return jsonResponse({ ok: state.authenticated });
-    }
-
-    // --- Echo ---
-    if (path === '/api/echo' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      return jsonResponse({ ok: true, message: body.message ?? '' });
-    }
-
-    // --- Greet ---
-    if (path === '/api/greet' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      const name = typeof body.name === 'string' ? body.name : 'World';
-      return jsonResponse({ ok: true, greeting: `Hello, ${name}!` });
-    }
-
-    // --- Status ---
-    if (path === '/api/status' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      return jsonResponse({
-        ok: true,
-        authenticated: state.authenticated,
-        uptime: Math.floor((Date.now() - state.startedAt) / 1000),
-        version: '1.0.0-test',
-      });
-    }
-
-    // --- 404 ---
-    return new Response('Not found', { status: 404 });
-  },
+  });
 });
 
-console.log(`[strict-csp-test-server] Listening on http://localhost:${String(server.port)}`);
+server.listen(PORT, () => {
+  const addr = server.address();
+  const actualPort = typeof addr === 'object' && addr !== null ? addr.port : PORT;
+  console.log(`[strict-csp-test-server] Listening on http://localhost:${String(actualPort)}`);
+});
 
 // Ensure the process exits on SIGTERM/SIGINT so parent kill() calls
-// reliably terminate the subprocess (Bun.serve keeps the event loop alive).
+// reliably terminate the subprocess.
 const shutdown = () => {
-  server.stop();
+  server.close();
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);
