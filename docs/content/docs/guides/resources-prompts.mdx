@@ -84,6 +84,12 @@ const channelList = defineResource({
       <Table.Cell>Content type of the response (e.g., `application/json`, `text/plain`)</Table.Cell>
     </Table.Row>
     <Table.Row>
+      <Table.Cell>`schema`</Table.Cell>
+      <Table.Cell>`z.ZodType`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Optional Zod schema describing the shape of the resource content. Type-level contract only — the runtime dispatch path does not validate against it.</Table.Cell>
+    </Table.Row>
+    <Table.Row>
       <Table.Cell>`read`</Table.Cell>
       <Table.Cell>`(uri: string) => Promise<ResourceContent>`</Table.Cell>
       <Table.Cell>Yes</Table.Cell>
@@ -106,6 +112,33 @@ interface ResourceContent {
 ```
 
 Return either `text` or `blob`, not both. Most resources return `text` with JSON data — this gives the AI agent structured data it can reason about.
+
+### Typed Resources with Schema
+
+Resources can include an optional Zod `schema` to document the shape of their content. The schema is a type-level contract — the runtime dispatch path does not validate against it:
+
+```typescript
+import { defineResource, fetchJSON } from '@opentabs-dev/plugin-sdk';
+import type { ResourceContent } from '@opentabs-dev/plugin-sdk';
+import { z } from 'zod';
+
+const channelList = defineResource({
+  uri: 'myapp://channels',
+  name: 'Channel List',
+  description: 'All active channels',
+  mimeType: 'application/json',
+  schema: z.object({
+    channels: z.array(z.object({ id: z.string(), name: z.string() })),
+  }),
+
+  async read(): Promise<ResourceContent> {
+    const data = await fetchJSON<{ channels: { id: string; name: string }[] }>('/api/channels');
+    return { uri: 'myapp://channels', text: JSON.stringify(data), mimeType: 'application/json' };
+  },
+});
+```
+
+When a `schema` is provided, use `ResourceContentType<typeof channelList>` to derive the TypeScript content type for use elsewhere in your plugin. See [SDK Reference: Resources](/docs/sdk/resources) for the full API.
 
 ### Registering Resources on Your Plugin
 
@@ -209,7 +242,13 @@ const summarizeThread = definePrompt({
       <Table.Cell>`arguments`</Table.Cell>
       <Table.Cell>`PromptArgument[]`</Table.Cell>
       <Table.Cell>No</Table.Cell>
-      <Table.Cell>Arguments the prompt accepts</Table.Cell>
+      <Table.Cell>Arguments the prompt accepts (manual definition). Use `args` instead to auto-generate from a Zod schema.</Table.Cell>
+    </Table.Row>
+    <Table.Row>
+      <Table.Cell>`args`</Table.Cell>
+      <Table.Cell>`z.ZodObject`</Table.Cell>
+      <Table.Cell>No</Table.Cell>
+      <Table.Cell>Zod schema for typed prompt arguments. Auto-generates argument metadata during build. When provided, `render()` receives a typed object instead of `Record<string, string>`.</Table.Cell>
     </Table.Row>
     <Table.Row>
       <Table.Cell>`render`</Table.Cell>
@@ -284,6 +323,41 @@ async render(args) {
   ];
 }
 ```
+
+### Typed Prompts with Zod Schema
+
+Instead of manually defining the `arguments` array, you can pass a Zod `args` schema. The MCP metadata (argument names, descriptions, required flags) is auto-generated from the schema at build time, and `render()` receives a typed object instead of `Record<string, string>`:
+
+```typescript
+import { definePrompt, fetchJSON } from '@opentabs-dev/plugin-sdk';
+import { z } from 'zod';
+
+const statusReport = definePrompt({
+  name: 'status_report',
+  description: 'Generate a project status report',
+  args: z.object({
+    project: z.string().describe('Project name'),
+    format: z.enum(['brief', 'detailed']).describe('Report format'),
+  }),
+  async render(args) {
+    // args is typed as { project: string; format: 'brief' | 'detailed' }
+    const data = await fetchJSON<{ items: { title: string; status: string }[] }>('/api/items');
+    const summary = data.items.map(item => `- [${item.status}] ${item.title}`).join('\n');
+
+    return [
+      {
+        role: 'user',
+        content: {
+          type: 'text',
+          text: `Status for ${args.project} (${args.format}):\n\n${summary}`,
+        },
+      },
+    ];
+  },
+});
+```
+
+Use `.describe()` on each schema field to provide descriptions — these become the argument descriptions in the MCP metadata. Fields without `.describe()` are registered with no description. All fields are marked as required unless wrapped with `.optional()`.
 
 ### Registering Prompts on Your Plugin
 
