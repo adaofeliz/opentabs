@@ -2,7 +2,7 @@
 #
 # Based on the official Playwright Docker image which includes Chromium and all
 # required system dependencies (X11 libs, fonts, dbus, etc.) pre-configured and
-# tested by the Playwright team. We add Bun, Claude CLI, Git config, and jq.
+# tested by the Playwright team. We add Claude CLI, Git config, and jq.
 #
 # The host's git worktree is bind-mounted into the container. The container runs
 # the agent session, which may spawn Playwright, Chromium, test servers, etc.
@@ -25,13 +25,6 @@ RUN rm -rf /ms-playwright/firefox-* /ms-playwright/webkit-* \
     procps \
     unzip \
     && rm -rf /var/lib/apt/lists/*
-
-# --- Install Bun ---
-# Pin to the version matching the project's engines requirement (>= 1.3.9)
-ENV BUN_INSTALL=/usr/local/bun
-RUN curl -fsSL https://bun.sh/install | bash -s "bun-v1.3.9" \
-    && ln -sf /usr/local/bun/bin/bun /usr/local/bin/bun \
-    && ln -sf /usr/local/bun/bin/bunx /usr/local/bin/bunx
 
 # --- Install Claude CLI ---
 # Claude Code is distributed as a standalone binary via npm.

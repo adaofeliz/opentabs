@@ -617,15 +617,15 @@ dispatch_prd() {
   cp "$SCRIPT_DIR/worker.sh" "$worktree_dir/.ralph/worker.sh"
 
   # Install dependencies and build inside a Docker container.
-  # Native binaries (esbuild, playwright) are platform-specific — bun install
+  # Native binaries (esbuild, playwright) are platform-specific — npm ci
   # on macOS produces darwin binaries that fail inside the Linux container.
   # Running install+build inside the container ensures Linux-native binaries.
   echo -e "$(ts) ${CYAN}[${tag}]${RESET} ${DIM}Installing dependencies + building (in Docker)...${RESET}"
-  local setup_script="cd $worktree_dir && bun install --frozen-lockfile 2>&1 | tail -1 && bun run build 2>&1 | tail -3"
+  local setup_script="cd $worktree_dir && npm ci 2>&1 | tail -1 && npm run build 2>&1 | tail -3"
   # Build e2e-test plugin if it exists
   if [ -f "$worktree_dir/plugins/e2e-test/package.json" ]; then
     local plugin_tmp_config="/tmp/opentabs-plugin-config-$$"
-    setup_script="$setup_script && cd $worktree_dir/plugins/e2e-test && bun install --frozen-lockfile 2>&1 | tail -1 && OPENTABS_CONFIG_DIR=$plugin_tmp_config bun run build 2>&1 | tail -1"
+    setup_script="$setup_script && cd $worktree_dir/plugins/e2e-test && npm ci 2>&1 | tail -1 && OPENTABS_CONFIG_DIR=$plugin_tmp_config npm run build 2>&1 | tail -1"
   fi
   # Build common Docker args for setup and worker containers.
   #

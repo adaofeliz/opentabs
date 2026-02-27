@@ -31,7 +31,7 @@ You are running in a git worktree, not the main working directory. Key implicati
 
 - **Your branch is isolated.** Commits you make are on your worktree branch. Ralph merges them into the main branch after you finish.
 - **Other agents cannot see your changes** and you cannot see theirs. There are no type-check, lint, or build cross-contamination issues.
-- **Dependencies are installed and packages are pre-built.** Ralph runs `bun install`, `bun run build`, and builds the `plugins/e2e-test` plugin in your worktree before launching you. You do not need to run `bun install` or `bun run build` at the start — all `dist/` artifacts are fresh. Only re-run these if you modify `package.json` or source files that affect the build. **If `bun run build` fails on your first Phase 1 run, the failure is from your code changes — do not investigate workspace resolution, symlinks, or package versions.** The infrastructure is verified working before you start.
+- **Dependencies are installed and packages are pre-built.** Ralph runs `npm ci`, `npm run build`, and builds the `plugins/e2e-test` plugin in your worktree before launching you. You do not need to run `npm ci` or `npm run build` at the start — all `dist/` artifacts are fresh. Only re-run these if you modify `package.json` or source files that affect the build. **If `npm run build` fails on your first Phase 1 run, the failure is from your code changes — do not investigate workspace resolution, symlinks, or package versions.** The infrastructure is verified working before you start.
 - **The `.ralph/` directory** contains your PRD and progress files. These are copies managed by ralph — update them normally.
 - **Merge conflicts are possible.** After you finish, ralph merges your branch into main. If another agent's branch was merged first and touched the same files, a merge conflict occurs. Ralph preserves your branch for manual resolution and moves on. To minimize conflicts:
   - **Keep changes focused.** Only modify files relevant to your story. Do not refactor unrelated code.
@@ -44,7 +44,7 @@ This repository contains multiple projects with different build systems and veri
 
 ### PRD Fields
 
-- **`qualityChecks`** (string, optional): The shell command to run for verification. If present, use this **exactly** instead of any default. Example: `"cd docs && bun run build && bun run type-check && bun run lint && bun run knip"`
+- **`qualityChecks`** (string, optional): The shell command to run for verification. If present, use this **exactly** instead of any default. Example: `"cd docs && npm run build && npm run type-check && npm run lint && npm run knip"`
 - **`workingDirectory`** (string, optional): The subdirectory containing the target project, relative to the repo root. Example: `"docs"` or `"plugins/slack"`
 
 ### How to Use These Fields
@@ -58,11 +58,11 @@ This repository contains multiple projects with different build systems and veri
 
 | Target                    | `workingDirectory` | Default `qualityChecks`                                                                                   |
 | ------------------------- | ------------------ | --------------------------------------------------------------------------------------------------------- |
-| Root monorepo (platform/) | _(not set)_        | `bun run build && bun run type-check && bun run lint && bun run knip && bun run test && bun run test:e2e` |
-| Docs site                 | `docs`             | `cd docs && bun run build && bun run type-check && bun run lint && bun run knip && bun run format:check`  |
-| Plugins                   | `plugins/<name>`   | `cd plugins/<name> && bun run build && bun run type-check && bun run lint && bun run format:check`        |
+| Root monorepo (platform/) | _(not set)_        | `npm run build && npm run type-check && npm run lint && npm run knip && npm run test && npm run test:e2e` |
+| Docs site                 | `docs`             | `cd docs && npm run build && npm run type-check && npm run lint && npm run knip && npm run format:check`  |
+| Plugins                   | `plugins/<name>`   | `cd plugins/<name> && npm run build && npm run type-check && npm run lint && npm run format:check`        |
 
-Each standalone subproject (docs, plugins) also has `bun run check` as a convenience alias that runs all its checks in sequence. Ralph agents should use the explicit command list for debuggability, but `bun run check` is available for interactive use.
+Each standalone subproject (docs, plugins) also has `npm run check` as a convenience alias that runs all its checks in sequence. Ralph agents should use the explicit command list for debuggability, but `npm run check` is available for interactive use.
 
 These are examples showing the full verification scope. For root monorepo work, `test:e2e` only runs when the current story has `e2eCheckpoint: true` (see Phase 2 below). Always trust the PRD's `qualityChecks` field over this table. If the PRD specifies a command, use it verbatim.
 
@@ -94,12 +94,12 @@ Run that exact command. There is no phase split — the PRD command IS the full 
 Run these after implementing the story and after every fix attempt. They are fast (seconds) and catch most issues:
 
 ```bash
-bun run build && bun run type-check && bun run lint && bun run knip && bun run test
+npm run build && npm run type-check && npm run lint && npm run knip && npm run test
 ```
 
 Loop on Phase 1 until all five commands exit 0. Fix lint errors, type errors, test failures — whatever it takes. Do NOT proceed to Phase 2 (or commit) until Phase 1 is green.
 
-**If builds are in a broken state** (stale artifacts, corrupted incremental caches), run `bun run clean` to remove all build artifacts, then `bun run build` to rebuild from scratch.
+**If builds are in a broken state** (stale artifacts, corrupted incremental caches), run `npm run clean` to remove all build artifacts, then `npm run build` to rebuild from scratch.
 
 #### Phase 2 — Full suite including E2E (conditional on `e2eCheckpoint`)
 
@@ -108,12 +108,12 @@ Loop on Phase 1 until all five commands exit 0. Fix lint errors, type errors, te
 - **`e2eCheckpoint: true`** → Once Phase 1 is green, run the full suite including E2E tests:
 
   ```bash
-  bun run build && bun run type-check && bun run lint && bun run knip && bun run test && bun run test:e2e
+  npm run build && npm run type-check && npm run lint && npm run knip && npm run test && npm run test:e2e
   ```
 
-  If `bun run test:e2e` fails, fix the issue and re-run the full suite. Do NOT commit with failing E2E tests.
+  If `npm run test:e2e` fails, fix the issue and re-run the full suite. Do NOT commit with failing E2E tests.
 
-- **`e2eCheckpoint: false` (or field missing in older PRDs)** → Phase 1 passing is sufficient. Skip `bun run test:e2e` and proceed to commit. Ralph runs a safety-net verification (full suite including E2E) after all stories complete, so skipping here is safe.
+- **`e2eCheckpoint: false` (or field missing in older PRDs)** → Phase 1 passing is sufficient. Skip `npm run test:e2e` and proceed to commit. Ralph runs a safety-net verification (full suite including E2E) after all stories complete, so skipping here is safe.
 
 ### Why conditional E2E?
 
@@ -125,7 +125,7 @@ Ralph runs a final verification gate (the full suite: build, type-check, lint, k
 
 ### RALPH.md overrides CLAUDE.md for verification
 
-The root `CLAUDE.md` says "run every check including `bun run test:e2e`" for every task. **This file (RALPH.md) overrides that instruction for ralph agents.** Follow the `e2eCheckpoint`-based rules above instead. The root CLAUDE.md's verification section applies to interactive development, not ralph-driven automation where the safety net provides the E2E guarantee.
+The root `CLAUDE.md` says "run every check including `npm run test:e2e`" for every task. **This file (RALPH.md) overrides that instruction for ralph agents.** Follow the `e2eCheckpoint`-based rules above instead. The root CLAUDE.md's verification section applies to interactive development, not ralph-driven automation where the safety net provides the E2E guarantee.
 
 ### Interpreting E2E results
 
@@ -135,7 +135,7 @@ Playwright reports tests as "flaky" when they fail on the first attempt but pass
 
 Ralph manages process isolation — your worktree has its own process group, and ralph kills all your child processes (Chromium, test servers) when you finish. Port conflicts are impossible (`PORT=0` everywhere).
 
-**Critical:** Do NOT run the root monorepo's `bun run build` / `bun run type-check` / etc. when working on a standalone subproject. These commands do not cover standalone subprojects and will give you a false green. Conversely, do NOT run a subproject's commands when working on the root monorepo. Always match the verification to the target project as specified in the PRD.
+**Critical:** Do NOT run the root monorepo's `npm run build` / `npm run type-check` / etc. when working on a standalone subproject. These commands do not cover standalone subprojects and will give you a false green. Conversely, do NOT run a subproject's commands when working on the root monorepo. Always match the verification to the target project as specified in the PRD.
 
 ## Progress Report Format
 

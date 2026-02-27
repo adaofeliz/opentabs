@@ -81,7 +81,7 @@ After completing the audit, use the skill tool to load the "ralph" skill, then f
 Key parameters for docs PRDs:
 - Target project: "OpenTabs Docs"
 - workingDirectory: "docs"
-- qualityChecks: "cd docs && bun run build && bun run type-check && bun run lint && bun run knip && bun run format:check"
+- qualityChecks: "cd docs && npm run build && npm run type-check && npm run lint && npm run knip && npm run format:check"
 - All stories: e2eCheckpoint: false (docs has no E2E tests)
 - Always use small stories (1-3 files per story)
 - Include repo-root-relative file paths in the notes field

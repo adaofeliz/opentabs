@@ -48,7 +48,7 @@ No `workingDirectory` or `qualityChecks` — ralph uses the default suite.
 {
   "project": "OpenTabs Docs",
   "workingDirectory": "docs",
-  "qualityChecks": "cd docs && bun run build && bun run type-check && bun run lint && bun run knip && bun run format:check",
+  "qualityChecks": "cd docs && npm run build && npm run type-check && npm run lint && npm run knip && npm run format:check",
   "userStories": [...]
 }
 ```
@@ -59,7 +59,7 @@ No `workingDirectory` or `qualityChecks` — ralph uses the default suite.
 {
   "project": "OpenTabs Plugin — <name>",
   "workingDirectory": "plugins/<name>",
-  "qualityChecks": "cd plugins/<name> && bun run build && bun run type-check && bun run lint && bun run format:check",
+  "qualityChecks": "cd plugins/<name> && npm run build && npm run type-check && npm run lint && npm run format:check",
   "userStories": [...]
 }
 ```
@@ -70,12 +70,12 @@ No `workingDirectory` or `qualityChecks` — ralph uses the default suite.
 
 Story acceptance criteria must reference the verification commands appropriate for the target project:
 
-- **Root monorepo stories (`e2eCheckpoint: false`)**: `bun run build passes`, `bun run type-check passes`, `bun run lint passes`, `bun run knip passes`, `bun run test passes`
-- **Root monorepo stories (`e2eCheckpoint: true`)**: `bun run build passes`, `bun run type-check passes`, `bun run lint passes`, `bun run knip passes`, `bun run test passes`, `bun run test:e2e passes`
-- **Docs stories**: `cd docs && bun run build passes`, `cd docs && bun run type-check passes`, `cd docs && bun run lint passes`, `cd docs && bun run knip passes`, `cd docs && bun run format:check passes`
-- **Plugin stories**: `cd plugins/<name> && bun run build passes`, `cd plugins/<name> && bun run type-check passes`, `cd plugins/<name> && bun run lint passes`, `cd plugins/<name> && bun run format:check passes`
+- **Root monorepo stories (`e2eCheckpoint: false`)**: `npm run build passes`, `npm run type-check passes`, `npm run lint passes`, `npm run knip passes`, `npm run test passes`
+- **Root monorepo stories (`e2eCheckpoint: true`)**: `npm run build passes`, `npm run type-check passes`, `npm run lint passes`, `npm run knip passes`, `npm run test passes`, `npm run test:e2e passes`
+- **Docs stories**: `cd docs && npm run build passes`, `cd docs && npm run type-check passes`, `cd docs && npm run lint passes`, `cd docs && npm run knip passes`, `cd docs && npm run format:check passes`
+- **Plugin stories**: `cd plugins/<name> && npm run build passes`, `cd plugins/<name> && npm run type-check passes`, `cd plugins/<name> && npm run lint passes`, `cd plugins/<name> && npm run format:check passes`
 
-Each standalone subproject also has `bun run check` as a single command that runs all its checks in sequence. Use the explicit list for `qualityChecks` (debuggability), but `bun run check` is a convenient alternative for acceptance criteria shorthand.
+Each standalone subproject also has `npm run check` as a single command that runs all its checks in sequence. Use the explicit list for `qualityChecks` (debuggability), but `npm run check` is a convenient alternative for acceptance criteria shorthand.
 
 Do NOT list checks that the target project doesn't have scripts for.
 
@@ -336,7 +336,7 @@ Each criterion must be something the agent can CHECK, not something vague.
 **Good:** "saveConfig call includes secret field", "z.number() params have .min(1)", "Dropdown shows 3 options"
 **Bad:** "Works correctly", "Handles edge cases", "Good UX"
 
-**Always include the verification suite** as the final acceptance criteria for every story, using commands that match the target project (see "Acceptance Criteria Must Match the Target Project" above). For root monorepo stories with `e2eCheckpoint: false`, list only the fast checks (build, type-check, lint, knip, test) — do not list `bun run test:e2e`. For `e2eCheckpoint: true` stories, include `bun run test:e2e` as well.
+**Always include the verification suite** as the final acceptance criteria for every story, using commands that match the target project (see "Acceptance Criteria Must Match the Target Project" above). For root monorepo stories with `e2eCheckpoint: false`, list only the fast checks (build, type-check, lint, knip, test) — do not list `npm run test:e2e`. For `e2eCheckpoint: true` stories, include `npm run test:e2e` as well.
 
 ### Notes Field
 
@@ -387,9 +387,9 @@ E2E tests are expensive (3-5 minutes per run, spawning Chromium). Running them a
 
 ### How It Works
 
-- `e2eCheckpoint: true` — the agent runs Phase 1 (fast checks) AND Phase 2 (full suite including `bun run test:e2e`) before committing this story.
+- `e2eCheckpoint: true` — the agent runs Phase 1 (fast checks) AND Phase 2 (full suite including `npm run test:e2e`) before committing this story.
 - `e2eCheckpoint: false` — the agent runs Phase 1 only (fast checks: build, type-check, lint, knip, unit tests). No E2E.
-- **Safety net:** Ralph automatically runs the full verification suite (including `bun run test:e2e`) after all stories complete if the final story (last to execute) did not have `e2eCheckpoint: true`. This ensures E2E tests always run at least once per PRD, even if no story is marked as a checkpoint.
+- **Safety net:** Ralph automatically runs the full verification suite (including `npm run test:e2e`) after all stories complete if the final story (last to execute) did not have `e2eCheckpoint: true`. This ensures E2E tests always run at least once per PRD, even if no story is marked as a checkpoint.
 
 ### When to Set `e2eCheckpoint: true`
 
@@ -404,7 +404,7 @@ Mark a story as an E2E checkpoint when:
 Keep a story as a non-checkpoint when:
 
 1. **The story is purely internal** — type changes, refactoring, lint fixes, documentation, SDK-internal changes that don't affect runtime behavior.
-2. **The story only changes server-side logic verified by unit tests** — if `bun run test` covers the change, E2E adds no value.
+2. **The story only changes server-side logic verified by unit tests** — if `npm run test` covers the change, E2E adds no value.
 3. **The story is early in a group of related changes** — batch the E2E run to the last story in the group instead.
 
 ### Grouping Guidelines

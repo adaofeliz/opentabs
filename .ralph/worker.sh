@@ -171,7 +171,7 @@ execute_prd() {
     wlog "── E2E Safety Net ──"
     wlog "Last completed story was not an e2eCheckpoint. Running full suite including E2E before merge..."
 
-    if (cd "$WORKTREE_DIR" && bun run build && bun run type-check && bun run lint && bun run knip && bun run test && bun run test:e2e); then
+    if (cd "$WORKTREE_DIR" && npm run build && npm run type-check && npm run lint && npm run knip && npm run test && npm run test:e2e); then
       wlog "Safety net: full suite passed."
       return 0
     else
@@ -195,7 +195,7 @@ You are an autonomous coding agent running in a git worktree. The safety net ver
 
 1. Run the full verification suite to reproduce the failures:
    \`\`\`bash
-   bun run build && bun run type-check && bun run lint && bun run knip && bun run test && bun run test:e2e
+   npm run build && npm run type-check && npm run lint && npm run knip && npm run test && npm run test:e2e
    \`\`\`
 2. Read the output carefully to identify which check failed and why
 3. Fix the root cause in the source code (not in the tests, unless the tests themselves are wrong)
