@@ -295,7 +295,28 @@ formData.append("file", blob, "upload.png");
 const uploaded = await postFormData<{ id: string }>("/api/upload", formData);
 ```
 
-All JSON fetch helpers support an optional Zod schema as the last argument for response validation. See the [Utilities reference](/docs/sdk/utilities) for the full API.
+### Runtime response validation
+
+All fetch utilities (`fetchJSON`, `postJSON`, `putJSON`, `patchJSON`, `deleteJSON`) accept an optional Zod schema as the last parameter. When provided, the response is validated at runtime and the return type is inferred from the schema — no separate type annotation needed:
+
+```typescript
+import { fetchJSON, postJSON } from "@opentabs-dev/plugin-sdk";
+import { z } from "zod";
+
+const itemSchema = z.object({ id: z.string(), title: z.string() });
+
+// Return type is inferred as { id: string; title: string }[]
+const items = await fetchJSON("/api/items", undefined, z.array(itemSchema));
+
+// Works the same for POST, PUT, PATCH, DELETE
+const created = await postJSON(
+  "/api/items",
+  { title: "New item" },
+  itemSchema,
+);
+```
+
+If validation fails, the fetch helper throws a `ToolError` with a structured validation error. See the [Utilities reference](/docs/sdk/utilities) for the full API.
 
 ### Wait for DOM elements
 
