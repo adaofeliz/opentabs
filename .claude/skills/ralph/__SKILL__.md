@@ -205,7 +205,7 @@ Keep the objective slug to 3-5 words max.
 ### Writing Sequence
 
 1. **Write** the PRD to `<queue-repo>/prd-objective-slug~draft.json` (no timestamp)
-2. **Verify** the JSON is valid: `python3 -c "import json; json.load(open('<queue-repo>/prd-objective-slug~draft.json')); print('Valid')"`
+2. **Verify** the JSON is valid: `python3 -c "import json,sys; json.load(open(sys.argv[1])); print('Valid')" <queue-repo>/prd-objective-slug~draft.json`
 3. **Publish** via `producer.sh` (see Step 5)
 
 ### PRD Format
