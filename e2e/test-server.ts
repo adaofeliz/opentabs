@@ -25,18 +25,14 @@
  *      POST /control/reset           — reset all state to defaults
  *      GET  /control/health          — simple health check
  *
- * Start: `bun e2e/test-server.ts`
+ * Start: `npx tsx e2e/test-server.ts`
  * Default port: 9516 (override with PORT env var)
  */
 
 import './orphan-guard.js';
-import {
-  jsonResponse as sharedJsonResponse,
-  readBody,
-  recordInvocation as sharedRecordInvocation,
-  requireAuth as sharedRequireAuth,
-} from './test-server-utils.js';
+import http from 'node:http';
 import type { Invocation } from './test-server-utils.js';
+import type { IncomingMessage, ServerResponse } from 'node:http';
 
 // ---------------------------------------------------------------------------
 // State — mutated by /control endpoints, read by /api endpoints
@@ -103,27 +99,59 @@ const createDefaultState = (): ServerState => ({
 let state = createDefaultState();
 
 // ---------------------------------------------------------------------------
-// Helpers — thin wrappers around shared utilities with server-specific state
+// Helpers — node:http request/response utilities
 // ---------------------------------------------------------------------------
 
-const jsonResponse = (data: unknown, status = 200) => sharedJsonResponse(data, status, true);
+const readBody = (req: IncomingMessage): Promise<Record<string, unknown>> =>
+  new Promise(resolve => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: unknown) => {
+      if (Buffer.isBuffer(chunk)) chunks.push(chunk);
+      else if (typeof chunk === 'string') chunks.push(Buffer.from(chunk));
+    });
+    req.on('end', () => {
+      try {
+        const text = Buffer.concat(chunks).toString();
+        resolve(text ? (JSON.parse(text) as Record<string, unknown>) : {});
+      } catch {
+        resolve({});
+      }
+    });
+  });
 
-const recordInvocation = (req: Request, path: string, body: unknown) => {
-  sharedRecordInvocation(state.invocations, req, path, body);
+/**
+ * Write a JSON response. When `cors` is true, includes Access-Control-Allow-Origin: *.
+ */
+const sendJson = (res: ServerResponse, data: unknown, status = 200, cors = true) => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (cors) headers['Access-Control-Allow-Origin'] = '*';
+  res.writeHead(status, headers);
+  res.end(JSON.stringify(data));
+};
+
+const recordInvocation = (req: IncomingMessage, path: string, body: unknown) => {
+  state.invocations.push({
+    ts: Date.now(),
+    method: req.method ?? 'GET',
+    path,
+    body,
+  });
 };
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
 /**
- * If error mode is on, return a 500 JSON error. If delay mode is on, wait.
- * Returns a Response if the request should be short-circuited, or null to continue.
+ * If error mode is on, send a 500 JSON error and return true.
+ * If delay mode is on, wait first.
+ * Returns true if the request was short-circuited, false to continue.
  */
-const maybeShortCircuit = async (): Promise<Response | null> => {
+const maybeShortCircuit = async (res: ServerResponse): Promise<boolean> => {
   if (state.delayMs > 0) {
     await sleep(state.delayMs);
   }
   if (state.errorMode) {
-    return jsonResponse(
+    sendJson(
+      res,
       {
         ok: false,
         error: 'server_error',
@@ -131,11 +159,26 @@ const maybeShortCircuit = async (): Promise<Response | null> => {
       },
       500,
     );
+    return true;
   }
-  return null;
+  return false;
 };
 
-const requireAuth = (): Response | null => sharedRequireAuth(state.authenticated, jsonResponse);
+/**
+ * If not authenticated, send an auth error and return true.
+ * Returns false if authenticated and the request should continue.
+ */
+const requireAuth = (res: ServerResponse): boolean => {
+  if (!state.authenticated) {
+    sendJson(res, {
+      ok: false,
+      error: 'not_authed',
+      error_message: 'Not authenticated',
+    });
+    return true;
+  }
+  return false;
+};
 
 // ---------------------------------------------------------------------------
 // Page HTML — the "web app" that the browser tab opens
@@ -320,48 +363,46 @@ const SDK_TEST_HTML = `<!DOCTYPE html>
 
 const PORT = process.env.PORT !== undefined ? Number(process.env.PORT) : 9516;
 
-const server = Bun.serve({
-  port: PORT,
-  async fetch(req) {
-    const url = new URL(req.url);
-    const path = url.pathname;
+const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+  const url = new URL(req.url ?? '/', `http://localhost`);
+  const path = url.pathname;
 
-    // --- CORS preflight ---
-    if (req.method === 'OPTIONS') {
-      return new Response(null, {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
-          'Access-Control-Allow-Headers': 'Content-Type',
-        },
-      });
-    }
+  // --- CORS preflight ---
+  if (req.method === 'OPTIONS') {
+    res.writeHead(204, {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    });
+    res.end();
+    return;
+  }
 
-    // --- Page ---
-    if (path === '/' || path === '/index.html') {
-      return new Response(PAGE_HTML, {
-        headers: { 'Content-Type': 'text/html' },
-      });
-    }
+  // --- Page ---
+  if (path === '/' || path === '/index.html') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(PAGE_HTML);
+    return;
+  }
 
-    // --- External JS file (loaded by the main page for CDP resource tests) ---
-    if (path === '/test-script.js') {
-      return new Response('window.__testScriptLoaded = true;\n', {
-        headers: { 'Content-Type': 'application/javascript' },
-      });
-    }
+  // --- External JS file (loaded by the main page for CDP resource tests) ---
+  if (path === '/test-script.js') {
+    res.writeHead(200, { 'Content-Type': 'application/javascript' });
+    res.end('window.__testScriptLoaded = true;\n');
+    return;
+  }
 
-    // --- Interactive test page (for DOM interaction E2E tests) ---
-    if (path === '/interactive') {
-      return new Response(INTERACTIVE_HTML, {
-        headers: { 'Content-Type': 'text/html' },
-      });
-    }
+  // --- Interactive test page (for DOM interaction E2E tests) ---
+  if (path === '/interactive') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(INTERACTIVE_HTML);
+    return;
+  }
 
-    // --- POST test page (for network body capture E2E tests) ---
-    // Loads, then immediately sends a POST to /api/echo with a JSON body
-    if (path === '/post-test') {
-      const postTestHtml = `<!DOCTYPE html>
+  // --- POST test page (for network body capture E2E tests) ---
+  // Loads, then immediately sends a POST to /api/echo with a JSON body
+  if (path === '/post-test') {
+    const postTestHtml = `<!DOCTYPE html>
 <html lang="en">
 <head><meta charset="UTF-8" /><title>POST Test Page</title></head>
 <body>
@@ -378,262 +419,284 @@ const server = Bun.serve({
   </script>
 </body>
 </html>`;
-      return new Response(postTestHtml, {
-        headers: { 'Content-Type': 'text/html' },
-      });
-    }
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(postTestHtml);
+    return;
+  }
 
-    // --- SDK utilities test page ---
-    if (path === '/sdk-test') {
-      return new Response(SDK_TEST_HTML, {
-        headers: { 'Content-Type': 'text/html' },
-      });
-    }
+  // --- SDK utilities test page ---
+  if (path === '/sdk-test') {
+    res.writeHead(200, { 'Content-Type': 'text/html' });
+    res.end(SDK_TEST_HTML);
+    return;
+  }
 
-    // =======================================================================
-    // Control endpoints (called by the test harness, not by the plugin)
-    // =======================================================================
+  // =======================================================================
+  // Control endpoints (called by the test harness, not by the plugin)
+  // =======================================================================
 
-    if (path === '/control/set-auth' && req.method === 'POST') {
-      const body = await readBody(req);
-      state.authenticated = body.authenticated === true;
-      return jsonResponse({ ok: true, authenticated: state.authenticated });
-    }
+  if (path === '/control/set-auth' && req.method === 'POST') {
+    const body = await readBody(req);
+    state.authenticated = body.authenticated === true;
+    sendJson(res, { ok: true, authenticated: state.authenticated });
+    return;
+  }
 
-    if (path === '/control/set-error' && req.method === 'POST') {
-      const body = await readBody(req);
-      state.errorMode = body.error === true;
-      return jsonResponse({ ok: true, errorMode: state.errorMode });
-    }
+  if (path === '/control/set-error' && req.method === 'POST') {
+    const body = await readBody(req);
+    state.errorMode = body.error === true;
+    sendJson(res, { ok: true, errorMode: state.errorMode });
+    return;
+  }
 
-    if (path === '/control/set-slow' && req.method === 'POST') {
-      const body = await readBody(req);
-      state.delayMs = typeof body.delayMs === 'number' ? body.delayMs : 0;
-      return jsonResponse({ ok: true, delayMs: state.delayMs });
-    }
+  if (path === '/control/set-slow' && req.method === 'POST') {
+    const body = await readBody(req);
+    state.delayMs = typeof body.delayMs === 'number' ? body.delayMs : 0;
+    sendJson(res, { ok: true, delayMs: state.delayMs });
+    return;
+  }
 
-    if (path === '/control/invocations' && req.method === 'GET') {
-      return jsonResponse({ ok: true, invocations: state.invocations });
-    }
+  if (path === '/control/invocations' && req.method === 'GET') {
+    sendJson(res, { ok: true, invocations: state.invocations });
+    return;
+  }
 
-    if (path === '/control/reset' && req.method === 'POST') {
-      state = createDefaultState();
-      return jsonResponse({ ok: true });
-    }
+  if (path === '/control/reset' && req.method === 'POST') {
+    state = createDefaultState();
+    sendJson(res, { ok: true });
+    return;
+  }
 
-    if (path === '/control/health' && req.method === 'GET') {
-      return jsonResponse({
-        ok: true,
+  if (path === '/control/health' && req.method === 'GET') {
+    sendJson(res, {
+      ok: true,
+      port: PORT,
+      uptime: (Date.now() - state.startedAt) / 1000,
+    });
+    return;
+  }
+
+  if (path === '/control/diagnostics' && req.method === 'GET') {
+    const authCheckCalls = state.invocations.filter(i => i.path === '/api/auth.check');
+    const toolCalls = state.invocations.filter(i => i.path !== '/api/auth.check');
+    sendJson(res, {
+      ok: true,
+      server: {
         port: PORT,
-        uptime: (Date.now() - state.startedAt) / 1000,
-      });
-    }
-
-    if (path === '/control/diagnostics' && req.method === 'GET') {
-      const authCheckCalls = state.invocations.filter(i => i.path === '/api/auth.check');
-      const toolCalls = state.invocations.filter(i => i.path !== '/api/auth.check');
-      return jsonResponse({
-        ok: true,
-        server: {
-          port: PORT,
-          uptime: Math.floor((Date.now() - state.startedAt) / 1000),
-          authenticated: state.authenticated,
-          errorMode: state.errorMode,
-          delayMs: state.delayMs,
-        },
-        counts: {
-          totalInvocations: state.invocations.length,
-          authCheckCalls: authCheckCalls.length,
-          toolCalls: toolCalls.length,
-          items: state.items.length,
-        },
-        recentInvocations: state.invocations.slice(-10).map(i => ({
-          ts: i.ts,
-          path: i.path,
-          method: i.method,
-          age: `${Date.now() - i.ts}ms ago`,
-        })),
-        // Has any page ever hit /api/auth.check? If yes, the adapter is alive
-        // and calling isReady(). If zero, the adapter was never injected or
-        // never ran isReady().
-        adapterLikelyInjected: authCheckCalls.length > 0,
-      });
-    }
-
-    // =======================================================================
-    // Internal API endpoints (called by the plugin via same-origin fetch)
-    // =======================================================================
-
-    // --- Auth check (used by isReady) ---
-    // Readiness probes are excluded from the artificial delay so that slow-mode
-    // testing targets tool execution latency, not the health check itself.
-    if (path === '/api/auth.check' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      if (state.errorMode) {
-        return jsonResponse({ ok: false, error: 'server_error', error_message: 'Error mode is enabled' }, 500);
-      }
-      return jsonResponse({ ok: state.authenticated });
-    }
-
-    // --- Echo ---
-    if (path === '/api/echo' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      return jsonResponse({ ok: true, message: body.message ?? '' });
-    }
-
-    // --- Greet ---
-    if (path === '/api/greet' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      const name = typeof body.name === 'string' ? body.name : 'World';
-      return jsonResponse({ ok: true, greeting: `Hello, ${name}!` });
-    }
-
-    // --- List items ---
-    if (path === '/api/list-items' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      const limit = Math.min(Math.max(Number(body.limit) || 10, 1), 100);
-      const offset = Math.max(Number(body.offset) || 0, 0);
-      const sliced = state.items.slice(offset, offset + limit);
-      return jsonResponse({
-        ok: true,
-        items: sliced.map(i => ({ id: i.id, name: i.name })),
-        total: state.items.length,
-      });
-    }
-
-    // --- Status ---
-    if (path === '/api/status' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      return jsonResponse({
-        ok: true,
-        authenticated: state.authenticated,
         uptime: Math.floor((Date.now() - state.startedAt) / 1000),
-        version: '1.0.0-test',
-      });
-    }
+        authenticated: state.authenticated,
+        errorMode: state.errorMode,
+        delayMs: state.delayMs,
+      },
+      counts: {
+        totalInvocations: state.invocations.length,
+        authCheckCalls: authCheckCalls.length,
+        toolCalls: toolCalls.length,
+        items: state.items.length,
+      },
+      recentInvocations: state.invocations.slice(-10).map(i => ({
+        ts: i.ts,
+        path: i.path,
+        method: i.method,
+        age: `${Date.now() - i.ts}ms ago`,
+      })),
+      // Has any page ever hit /api/auth.check? If yes, the adapter is alive
+      // and calling isReady(). If zero, the adapter was never injected or
+      // never ran isReady().
+      adapterLikelyInjected: authCheckCalls.length > 0,
+    });
+    return;
+  }
 
-    // --- Create item ---
-    if (path === '/api/create-item' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      const authErr = requireAuth();
-      if (authErr) return authErr;
-      const name = typeof body.name === 'string' ? body.name : 'Unnamed';
-      const description = typeof body.description === 'string' ? body.description : '';
-      const item = {
-        id: `item-${state.nextItemId++}`,
-        name,
-        description,
-        created_at: new Date().toISOString(),
-      };
-      state.items.push(item);
-      return jsonResponse({ ok: true, item });
-    }
+  // =======================================================================
+  // Internal API endpoints (called by the plugin via same-origin fetch)
+  // =======================================================================
 
-    // --- Fail (always returns error) ---
-    if (path === '/api/fail' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      // Always fail, even if auth is fine — this endpoint is for testing error propagation
-      const errorCode = typeof body.error_code === 'string' ? body.error_code : 'deliberate_failure';
-      const errorMessage = typeof body.error_message === 'string' ? body.error_message : 'This tool always fails';
-      return jsonResponse({
-        ok: false,
-        error: errorCode,
-        error_code: errorCode,
-        error_message: errorMessage,
-      });
+  // --- Auth check (used by isReady) ---
+  // Readiness probes are excluded from the artificial delay so that slow-mode
+  // testing targets tool execution latency, not the health check itself.
+  if (path === '/api/auth.check' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (state.errorMode) {
+      sendJson(res, { ok: false, error: 'server_error', error_message: 'Error mode is enabled' }, 500);
+      return;
     }
+    sendJson(res, { ok: state.authenticated });
+    return;
+  }
 
-    // --- Flaky endpoint (fails first N calls, then succeeds) ---
-    // Used to test sdk.retry. The first 3 calls return 500, subsequent calls succeed.
-    // Reset via POST /control/reset.
-    if (path === '/api/flaky' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      state.flakyCallCount++;
-      if (state.flakyCallCount <= 3) {
-        return jsonResponse(
-          { ok: false, error: 'flaky_error', error_message: `Flaky failure (attempt ${state.flakyCallCount})` },
-          500,
-        );
-      }
-      return jsonResponse({ ok: true, data: 'flaky-success', attempts: state.flakyCallCount });
-    }
+  // --- Echo ---
+  if (path === '/api/echo' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    if (requireAuth(res)) return;
+    sendJson(res, { ok: true, message: body.message ?? '' });
+    return;
+  }
 
-    // --- SDK fetch test endpoint ---
-    if (path === '/api/sdk-fetch-test' && req.method === 'POST') {
-      const body = await readBody(req);
-      recordInvocation(req, path, body);
-      const sc = await maybeShortCircuit();
-      if (sc) return sc;
-      return jsonResponse({ ok: true, data: 'sdk-fetch-works' });
-    }
+  // --- Greet ---
+  if (path === '/api/greet' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    if (requireAuth(res)) return;
+    const name = typeof body.name === 'string' ? body.name : 'World';
+    sendJson(res, { ok: true, greeting: `Hello, ${name}!` });
+    return;
+  }
 
-    // --- Configurable HTTP status code endpoint ---
-    // Returns the requested status code with an appropriate body.
-    // Used by E2E tests for fetchFromPage error categorization.
-    const statusCodeMatch = path.match(/^\/api\/status-code\/(\d+)$/);
-    if (statusCodeMatch && req.method === 'GET') {
-      const code = Number(statusCodeMatch[1]);
-      recordInvocation(req, path, {});
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      };
-      if (code === 429) {
-        headers['Retry-After'] = '3';
-      }
-      return new Response(
-        JSON.stringify({ ok: false, error: `status_${code}`, error_message: `Returned status ${code}` }),
-        { status: code, headers },
+  // --- List items ---
+  if (path === '/api/list-items' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    if (requireAuth(res)) return;
+    const limit = Math.min(Math.max(Number(body.limit) || 10, 1), 100);
+    const offset = Math.max(Number(body.offset) || 0, 0);
+    const sliced = state.items.slice(offset, offset + limit);
+    sendJson(res, {
+      ok: true,
+      items: sliced.map(i => ({ id: i.id, name: i.name })),
+      total: state.items.length,
+    });
+    return;
+  }
+
+  // --- Status ---
+  if (path === '/api/status' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    sendJson(res, {
+      ok: true,
+      authenticated: state.authenticated,
+      uptime: Math.floor((Date.now() - state.startedAt) / 1000),
+      version: '1.0.0-test',
+    });
+    return;
+  }
+
+  // --- Create item ---
+  if (path === '/api/create-item' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    if (requireAuth(res)) return;
+    const name = typeof body.name === 'string' ? body.name : 'Unnamed';
+    const description = typeof body.description === 'string' ? body.description : '';
+    const item = {
+      id: `item-${state.nextItemId++}`,
+      name,
+      description,
+      created_at: new Date().toISOString(),
+    };
+    state.items.push(item);
+    sendJson(res, { ok: true, item });
+    return;
+  }
+
+  // --- Fail (always returns error) ---
+  if (path === '/api/fail' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    // Always fail, even if auth is fine — this endpoint is for testing error propagation
+    const errorCode = typeof body.error_code === 'string' ? body.error_code : 'deliberate_failure';
+    const errorMessage = typeof body.error_message === 'string' ? body.error_message : 'This tool always fails';
+    sendJson(res, {
+      ok: false,
+      error: errorCode,
+      error_code: errorCode,
+      error_message: errorMessage,
+    });
+    return;
+  }
+
+  // --- Flaky endpoint (fails first N calls, then succeeds) ---
+  // Used to test sdk.retry. The first 3 calls return 500, subsequent calls succeed.
+  // Reset via POST /control/reset.
+  if (path === '/api/flaky' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    state.flakyCallCount++;
+    if (state.flakyCallCount <= 3) {
+      sendJson(
+        res,
+        { ok: false, error: 'flaky_error', error_message: `Flaky failure (attempt ${state.flakyCallCount})` },
+        500,
       );
+      return;
     }
+    sendJson(res, { ok: true, data: 'flaky-success', attempts: state.flakyCallCount });
+    return;
+  }
 
-    // --- Slow-forever endpoint (never responds) ---
-    // Used by E2E tests to verify fetchFromPage timeout handling.
-    if (path === '/api/slow-forever' && req.method === 'GET') {
-      recordInvocation(req, path, {});
-      await new Promise(() => {
-        // Intentionally never resolves — the client's AbortSignal will abort
-      });
-      return new Response('unreachable', { status: 500 });
+  // --- SDK fetch test endpoint ---
+  if (path === '/api/sdk-fetch-test' && req.method === 'POST') {
+    const body = await readBody(req);
+    recordInvocation(req, path, body);
+    if (await maybeShortCircuit(res)) return;
+    sendJson(res, { ok: true, data: 'sdk-fetch-works' });
+    return;
+  }
+
+  // --- Configurable HTTP status code endpoint ---
+  // Returns the requested status code with an appropriate body.
+  // Used by E2E tests for fetchFromPage error categorization.
+  const statusCodeMatch = path.match(/^\/api\/status-code\/(\d+)$/);
+  if (statusCodeMatch && req.method === 'GET') {
+    const code = Number(statusCodeMatch[1]);
+    recordInvocation(req, path, {});
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+    };
+    if (code === 429) {
+      headers['Retry-After'] = '3';
     }
+    res.writeHead(code, headers);
+    res.end(JSON.stringify({ ok: false, error: `status_${code}`, error_message: `Returned status ${code}` }));
+    return;
+  }
 
-    // --- 404 ---
-    return new Response('Not found', { status: 404 });
-  },
+  // --- Slow-forever endpoint (never responds) ---
+  // Used by E2E tests to verify fetchFromPage timeout handling.
+  if (path === '/api/slow-forever' && req.method === 'GET') {
+    recordInvocation(req, path, {});
+    await new Promise<void>(() => {
+      // Intentionally never resolves — the client's AbortSignal will abort
+    });
+    // unreachable
+    return;
+  }
+
+  // --- 404 ---
+  res.writeHead(404);
+  res.end('Not found');
+};
+
+const server = http.createServer((req, res) => {
+  handler(req, res).catch((err: unknown) => {
+    console.error('[e2e-test-server] Handler error:', err);
+    if (!res.headersSent) {
+      res.writeHead(500);
+      res.end('Internal Server Error');
+    }
+  });
 });
 
-console.log(`[e2e-test-server] Listening on http://localhost:${String(server.port)}`);
+server.listen(PORT, () => {
+  const addr = server.address();
+  const actualPort = typeof addr === 'object' && addr !== null ? addr.port : PORT;
+  console.log(`[e2e-test-server] Listening on http://localhost:${String(actualPort)}`);
+});
 
 // Ensure the process exits on SIGTERM/SIGINT so parent kill() calls
-// reliably terminate the subprocess (Bun.serve keeps the event loop alive).
+// reliably terminate the subprocess.
 const shutdown = () => {
-  server.stop();
+  server.close();
   process.exit(0);
 };
 process.on('SIGTERM', shutdown);
