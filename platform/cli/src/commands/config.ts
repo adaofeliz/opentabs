@@ -546,7 +546,7 @@ const handleConfigReset = async (options: ConfigResetOptions): Promise<void> => 
  */
 const writeAuthFile = async (secret: string): Promise<void> => {
   const extensionDir = getExtensionDir();
-  await mkdir(extensionDir, { recursive: true });
+  await mkdir(extensionDir, { recursive: true, mode: 0o700 });
   const authPath = join(extensionDir, 'auth.json');
   await atomicWrite(authPath, JSON.stringify({ secret }) + '\n', 0o600);
 };

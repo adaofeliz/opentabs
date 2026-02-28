@@ -364,7 +364,7 @@ const saveToolConfig = async (
  */
 const writeAuthFile = async (secret: string): Promise<void> => {
   const extensionDir = getExtensionDir();
-  await mkdir(extensionDir, { recursive: true });
+  await mkdir(extensionDir, { recursive: true, mode: 0o700 });
   const authPath = join(extensionDir, 'auth.json');
   await atomicWrite(authPath, JSON.stringify({ secret }) + '\n', 0o600);
 };
@@ -399,7 +399,7 @@ const loadSecret = async (): Promise<string> => {
 
   // auth.json doesn't exist or has no valid secret — generate and write one
   const secret = generateSecret();
-  await mkdir(extensionDir, { recursive: true });
+  await mkdir(extensionDir, { recursive: true, mode: 0o700 });
   await atomicWrite(authPath, JSON.stringify({ secret }) + '\n', 0o600);
   log.info(`Generated WebSocket authentication secret in ${authPath}`);
   return secret;

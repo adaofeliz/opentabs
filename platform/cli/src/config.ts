@@ -118,7 +118,7 @@ export const ensureAuthSecret = async (): Promise<string> => {
   }
 
   const secret = generateSecret();
-  await mkdir(extensionDir, { recursive: true });
+  await mkdir(extensionDir, { recursive: true, mode: 0o700 });
   await atomicWrite(authPath, JSON.stringify({ secret }) + '\n', 0o600);
   return secret;
 };

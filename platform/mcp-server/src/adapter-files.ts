@@ -18,7 +18,7 @@ import type { ServerState } from './state.js';
  */
 const ensureAdaptersDir = async (state: ServerState): Promise<void> => {
   if (state.adaptersDirReady) return;
-  await mkdir(getAdaptersDir(), { recursive: true });
+  await mkdir(getAdaptersDir(), { recursive: true, mode: 0o700 });
   state.adaptersDirReady = true;
 };
 

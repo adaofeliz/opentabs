@@ -115,7 +115,7 @@ const teeStream = async (
  * Returns true if this is the first-time setup (extension was newly installed).
  */
 const autoInitialize = async (configDir: string): Promise<boolean> => {
-  mkdirSync(configDir, { recursive: true });
+  mkdirSync(configDir, { recursive: true, mode: 0o700 });
 
   try {
     const result = await installExtension(configDir);

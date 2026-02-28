@@ -89,7 +89,7 @@ const installExtension = async (configDir: string): Promise<InstallExtensionResu
   });
 
   // Create adapters directory for plugins
-  mkdirSync(join(extensionDest, 'adapters'), { recursive: true });
+  mkdirSync(join(extensionDest, 'adapters'), { recursive: true, mode: 0o700 });
 
   // Write version marker
   await writeFile(versionMarkerPath, version, 'utf-8');
