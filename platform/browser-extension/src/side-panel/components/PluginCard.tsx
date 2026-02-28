@@ -27,6 +27,7 @@ const PluginCard = ({
 }) => {
   const [toggleError, setToggleError] = useState<string | null>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const toggleCounter = useRef(0);
 
   useEffect(() => () => clearTimeout(errorTimerRef.current), []);
 
@@ -43,19 +44,25 @@ const PluginCard = ({
 
   const handleToggleAll = (checked: boolean) => {
     const originalTools = plugin.tools;
+    const myVersion = ++toggleCounter.current;
     updatePluginTools(tools => tools.map(t => ({ ...t, enabled: checked })));
     void setAllToolsEnabled(plugin.name, checked).catch(() => {
-      updatePluginTools(() => originalTools);
+      if (toggleCounter.current === myVersion) {
+        updatePluginTools(() => originalTools);
+      }
       showToggleError('Failed to toggle all tools');
     });
   };
 
   const handleToggleTool = (toolName: string, currentEnabled: boolean) => {
     const originalTools = plugin.tools;
+    const myVersion = ++toggleCounter.current;
     const newEnabled = !currentEnabled;
     updatePluginTools(tools => tools.map(t => (t.name === toolName ? { ...t, enabled: newEnabled } : t)));
     void setToolEnabled(plugin.name, toolName, newEnabled).catch(() => {
-      updatePluginTools(() => originalTools);
+      if (toggleCounter.current === myVersion) {
+        updatePluginTools(() => originalTools);
+      }
       showToggleError(`Failed to toggle ${toolName}`);
     });
   };
