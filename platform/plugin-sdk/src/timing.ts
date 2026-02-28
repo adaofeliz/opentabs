@@ -20,6 +20,8 @@ export interface WaitUntilOptions {
   interval?: number;
   /** Timeout in milliseconds (default: 10000) */
   timeout?: number;
+  /** AbortSignal to cancel polling early */
+  signal?: AbortSignal;
 }
 
 /**
@@ -94,6 +96,11 @@ export const retry = async <T>(fn: () => Promise<T>, opts?: RetryOptions): Promi
 export const waitUntil = (predicate: () => boolean | Promise<boolean>, opts?: WaitUntilOptions): Promise<void> => {
   const interval = opts?.interval ?? 200;
   const timeout = opts?.timeout ?? 10_000;
+  const signal = opts?.signal;
+
+  const abortReason = () => (signal?.reason instanceof Error ? signal.reason : new Error('waitUntil: aborted'));
+
+  if (signal?.aborted) return Promise.reject(abortReason());
 
   return new Promise<void>((resolve, reject) => {
     let settled = false;
@@ -105,7 +112,16 @@ export const waitUntil = (predicate: () => boolean | Promise<boolean>, opts?: Wa
       settled = true;
       clearTimeout(timer);
       clearTimeout(poller);
+      signal?.removeEventListener('abort', onAbort);
     };
+
+    const onAbort = () => {
+      if (isSettled()) return;
+      cleanup();
+      reject(abortReason());
+    };
+
+    signal?.addEventListener('abort', onAbort, { once: true });
 
     const timer = setTimeout(() => {
       if (isSettled()) return;

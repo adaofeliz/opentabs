@@ -306,4 +306,69 @@ describe('waitUntil', () => {
     expect(elapsed).toBeGreaterThanOrEqual(100);
     expect(elapsed).toBeLessThan(2_000);
   });
+
+  test('respects AbortSignal that is already aborted', async () => {
+    const controller = new AbortController();
+    controller.abort(new Error('cancelled'));
+    try {
+      await waitUntil(() => false, { signal: controller.signal });
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('cancelled');
+    }
+  });
+
+  test('rejects with signal reason when aborted during polling', async () => {
+    const controller = new AbortController();
+    const waitPromise = waitUntil(() => false, {
+      interval: 5_000,
+      timeout: 60_000,
+      signal: controller.signal,
+    });
+    const start = performance.now();
+    setTimeout(() => controller.abort(new Error('user cancelled')), 50);
+    try {
+      await waitPromise;
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('user cancelled');
+    }
+    const elapsed = performance.now() - start;
+    expect(elapsed).toBeLessThan(2_000);
+  });
+
+  test('stops further predicate calls after abort', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const waitPromise = waitUntil(
+      () => {
+        calls++;
+        return false;
+      },
+      { interval: 20, timeout: 10_000, signal: controller.signal },
+    );
+    setTimeout(() => controller.abort(new Error('stop')), 60);
+    try {
+      await waitPromise;
+    } catch {
+      // Expected
+    }
+    const callsSnapshot = calls;
+    await sleep(100);
+    expect(calls).toBe(callsSnapshot);
+  });
+
+  test('throws DOMException when signal is aborted without a custom reason', async () => {
+    const controller = new AbortController();
+    controller.abort();
+    try {
+      await waitUntil(() => false, { signal: controller.signal });
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(DOMException);
+      expect((error as DOMException).name).toBe('AbortError');
+    }
+  });
 });
