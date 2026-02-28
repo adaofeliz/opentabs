@@ -233,7 +233,7 @@ The `wsSecret` field is included only when authentication is configured. The ext
 
 ## /audit — Tool invocation history
 
-Returns tool invocations as a JSON array, newest first. Requires Bearer token authentication. The server maintains a circular buffer of the last 500 entries.
+Returns tool invocations as a JSON array, newest first. Requires Bearer token authentication. The server maintains a circular buffer of the last 500 entries. Entries are also persisted to `~/.opentabs/audit.log` as NDJSON with automatic rotation at 10 MB (keeping `audit.log` and `audit.log.1`). Use `opentabs audit --file` to query the full disk-based log, which survives server restarts.
 
 ```bash
 curl -s http://localhost:9515/audit \
