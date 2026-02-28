@@ -9,7 +9,7 @@
  * 3. Runs the extension build pipeline (bundle + side panel + install).
  * 4. Starts the MCP server via the dev proxy (platform/mcp-server/dist/dev-proxy.js).
  *    The proxy holds client connections and restarts the MCP server worker on
- *    dist/ file changes, replacing bun --hot.
+ *    dist/ file changes via process restart.
  * 5. On each subsequent tsc recompilation (detected via the "Watching for
  *    file changes" sentinel in tsc output), re-runs the extension pipeline
  *    (debounced) and sends a reload signal to the Chrome extension.

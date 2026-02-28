@@ -257,7 +257,7 @@ describe('writeAuthFile', () => {
 
   beforeEach(() => {
     // Re-assert the env var before each test since other test files running
-    // concurrently in the same bun process may have modified it.
+    // concurrently in the same vitest process may have modified it.
     process.env.OPENTABS_CONFIG_DIR = TEST_BASE_DIR;
   });
 

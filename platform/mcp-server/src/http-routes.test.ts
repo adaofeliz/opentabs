@@ -829,7 +829,7 @@ describe('Host header validation (DNS rebinding protection)', () => {
 });
 
 describe('WebSocket upgrade origin check', () => {
-  /** Mock bunServer that reports successful upgrades */
+  /** Mock server that reports successful upgrades */
   const upgradingServer = {
     upgrade: () => true,
     timeout: () => {},
