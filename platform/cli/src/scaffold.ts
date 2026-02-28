@@ -424,7 +424,7 @@ const promptForMissingArgs = async (partial: PartialScaffoldArgs): Promise<Scaff
   if (!process.stdin.isTTY) {
     const missing = [!name && 'name', !domain && '--domain'].filter(Boolean);
     throw new ScaffoldError(
-      `Missing required arguments: ${missing.join(', ')}. Provide them as flags or run interactively.`,
+      `Missing required arguments: ${missing.join(', ')}.\n\nUsage: opentabs plugin create <name> --domain <domain>\nExample: opentabs plugin create my-app --domain .example.com --display "My App"`,
     );
   }
 
