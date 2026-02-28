@@ -262,7 +262,6 @@ interface HealthResponse {
 /** Shape returned by the /ws-info endpoint */
 interface WsInfoResponse {
   wsUrl: string;
-  wsSecret?: string;
 }
 
 /** Fetch a route and parse the JSON response with a typed shape */
@@ -468,16 +467,15 @@ describe('/health endpoint', () => {
 });
 
 describe('/ws-info endpoint', () => {
-  test('returns wsUrl without wsSecret when no auth configured', async () => {
+  test('returns wsUrl when no auth configured', async () => {
     const { handlers } = createTestHandlers();
 
     const body = await fetchJson<WsInfoResponse>(handlers, 'http://localhost:9876/ws-info');
 
     expect(body.wsUrl).toBe('ws://localhost:9876/ws');
-    expect(body.wsSecret).toBeUndefined();
   });
 
-  test('returns wsUrl and wsSecret when auth is configured and Bearer token matches', async () => {
+  test('returns wsUrl only (no wsSecret) when auth is configured and Bearer token matches', async () => {
     const { handlers, state } = createTestHandlers();
     state.wsSecret = 'my-test-secret';
 
@@ -486,10 +484,10 @@ describe('/ws-info endpoint', () => {
     });
     const res = await handlers.fetch(req, mockServer);
     expect(res).toBeInstanceOf(Response);
-    const body = (await (res as Response).json()) as WsInfoResponse;
+    const body = (await (res as Response).json()) as Record<string, unknown>;
 
     expect(body.wsUrl).toBe('ws://localhost:9876/ws');
-    expect(body.wsSecret).toBe('my-test-secret');
+    expect(body).not.toHaveProperty('wsSecret');
   });
 
   test('returns 401 for unauthenticated requests when auth is configured', async () => {
