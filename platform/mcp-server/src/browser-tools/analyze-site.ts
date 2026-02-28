@@ -34,9 +34,9 @@ const analyzeSiteTool = defineBrowserTool({
       .number()
       .int()
       .positive()
-      .max(30)
+      .max(25)
       .optional()
-      .describe('Seconds to wait for API calls after page load (default 5, max 30)'),
+      .describe('Seconds to wait for API calls after page load (default 5, max 25)'),
   }),
   handler: async (args, state) => analyzeSite(state, args.url, args.waitSeconds),
 });
