@@ -53,11 +53,18 @@ const findPidsWindows = (pattern: string): number[] => {
 };
 
 /**
- * Find PIDs of processes whose command line contains the E2E naming
- * convention pattern, then force-kill them via Node.js process.kill().
+ * Find PIDs of orphaned server processes from this test run and force-kill
+ * them via Node.js process.kill().
+ *
+ * On Unix, scope the pattern to Node.js processes (`node.*opentabs-e2e-`)
+ * rather than the bare `opentabs-e2e-` string. The bare pattern is overly
+ * broad: Chromium instances launched by Playwright have `--user-data-dir`
+ * and `--load-extension` paths containing `opentabs-e2e-`, so they match
+ * too. Scoping to `node.*` excludes browsers and avoids pgrep matching its
+ * own command line (pgrep is not named "node").
  */
 const killOrphanedProcesses = (): void => {
-  const pids = process.platform === 'win32' ? findPidsWindows('opentabs-e2e-') : findPidsUnix('opentabs-e2e-');
+  const pids = process.platform === 'win32' ? findPidsWindows('opentabs-e2e-') : findPidsUnix('node.*opentabs-e2e-');
 
   for (const pid of pids) {
     try {
