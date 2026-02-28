@@ -9,6 +9,7 @@ import {
   registerPluginCommand,
   registerStartCommand,
   registerStatusCommand,
+  registerStopCommand,
   registerUpdateCommand,
 } from './commands/index.js';
 import { parsePort } from './parse-port.js';
@@ -43,6 +44,7 @@ const program = new Command('opentabs')
   });
 
 registerStartCommand(program);
+registerStopCommand(program);
 registerStatusCommand(program);
 registerAuditCommand(program);
 registerDoctorCommand(program);
