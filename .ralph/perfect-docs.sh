@@ -45,6 +45,8 @@ Systematically compare what the docs say against what the code actually does. Fo
 - **Stale code examples** — example code that would not work against the current API
 - **Missing pages** — entire features or concepts that have no documentation page at all
 - **Broken cross-references** — links to pages, sections, or code that no longer exist
+- **Outdated SVG illustrations** — text labels, version numbers, API signatures, directory structures, or descriptions embedded in SVG illustration components that no longer match the codebase (see Step 3a)
+- **Stale `lastUpdated` frontmatter** — pages whose `lastUpdated` date does not reflect when the content was last actually modified (see Step 3b)
 
 ### Audit priority order (highest-churn pages first):
 
@@ -56,6 +58,30 @@ Systematically compare what the docs say against what the code actually does. Fo
 6. **Browser tools** (reference/browser-tools.mdx) — compare against platform/mcp-server/src/browser-tools/ and platform/browser-extension/src/.
 7. **Root pages and install** (index.mdx, quick-start.mdx, first-plugin.mdx, install/index.mdx) — check that installation steps, quick start flow, and first plugin tutorial still work.
 8. **Contributing** (contributing/*.mdx) — compare dev-setup instructions against root package.json scripts and CLAUDE.md commands.
+
+### Step 3a: Audit SVG illustrations
+
+All SVG illustrations are React/TSX components in `docs/components/illustrations.tsx`, registered in `docs/components/MDX.tsx`. These are NOT standalone .svg files — they are inline JSX that render `<svg>` elements with embedded `<text>` content.
+
+Read `docs/components/illustrations.tsx` in full and audit every text string, label, description, version number, directory name, API signature, command, and port number against the actual source code. Common things that go stale in illustrations:
+
+- **Version numbers** — e.g., "Node.js 20+" should match the actual `engines.node` in package.json
+- **Port numbers** — e.g., "localhost:9515" should match `DEFAULT_PORT` in platform/shared/src/constants.ts
+- **API signatures** — e.g., `defineTool({ name, input, output, handle })` should include all required properties from the actual TypeScript interface
+- **CLI commands** — e.g., "opentabs plugin create" should match actual command definitions
+- **Directory structures** — e.g., ConfigDirectory, MonorepoStructure, PluginStructure trees should reflect the actual file layout
+- **File descriptions** — e.g., "Auth secret + port" should match actual file contents
+- **Hook signatures** — e.g., lifecycle hook names and parameters should match the SDK source
+- **Error categories** — e.g., ToolError factory methods should match actual exports
+- **Missing entries** — new hooks, files, directories, or features that should appear in an illustration but don't
+
+Cross-reference against the docs/CLAUDE.md "Current Illustrations" table to ensure every illustration listed there still exists and is used on the page it claims.
+
+### Step 3b: Audit `lastUpdated` frontmatter dates
+
+Every .mdx file under docs/content/docs/ has a `lastUpdated` field in its frontmatter. For every page that you create a story to update (in Step 4), the story MUST include updating that page's `lastUpdated` to today's date (YYYY-MM-DD format). This ensures the "Last Updated" footer shown on each docs page stays accurate.
+
+Do NOT create standalone stories just to bump dates — only update `lastUpdated` on pages that have substantive content changes in the same story.
 
 ### Source code to read:
 
@@ -73,6 +99,12 @@ For each docs page, read the actual source files it documents. Key entry points:
 - platform/create-plugin/src/index.ts — scaffolding CLI
 
 Read the actual function signatures, exported types, and Zod schemas to compare against what the docs claim.
+
+For illustration auditing, also read:
+- docs/components/illustrations.tsx — all SVG illustration components (the full file, every text element)
+- docs/components/MDX.tsx — illustration registration (which components are available in MDX)
+- platform/shared/src/constants.ts — DEFAULT_PORT and other constants referenced in illustrations
+- Root package.json — engines.node version constraint
 
 ## Step 4: Create PRD(s) using the ralph skill
 
@@ -92,6 +124,7 @@ Do NOT create stories for:
 - Cosmetic preferences or stylistic rewording that does not fix an inaccuracy
 - Content that is already correct and up-to-date
 - Adding documentation for internal implementation details that users/plugin developers do not need
+- Bumping `lastUpdated` dates without accompanying content changes
 
 DO create stories for:
 - Incorrect or outdated API documentation
@@ -99,6 +132,12 @@ DO create stories for:
 - Code examples that would fail against the current API
 - Stale configuration options or CLI flags
 - Architectural descriptions that no longer match reality
+- SVG illustrations with outdated text (wrong version numbers, stale API signatures, incorrect directory structures, wrong file descriptions, missing hooks/entries)
+
+### Important: illustration and date rules
+- When a story updates an .mdx page, it MUST also update that page's `lastUpdated` frontmatter to the current date (YYYY-MM-DD format)
+- When a story updates docs/components/illustrations.tsx, include the specific illustration component name(s) and the exact text changes needed in the acceptance criteria
+- Group illustration fixes by topic — e.g., if multiple illustrations reference "Node.js 20+" (should be 22+), fix them all in one story
 PROMPT_EOF
 
 echo "=== perfect-docs.sh ==="
