@@ -1,7 +1,7 @@
 ---
 title: Streaming & Progress
 description: Report incremental progress during long-running tool operations so AI agents see live updates and your tool never times out.
-lastUpdated: 2026-02-21
+lastUpdated: 2026-02-28
 ---
 
 Long-running tools — bulk exports, multi-page scrapes, slow API calls — risk timing out before they finish. Progress reporting solves this: your tool tells the platform "I'm still working" at each step, the dispatch timeout resets, and the AI agent sees live progress updates.
@@ -17,7 +17,7 @@ Progress reporting extends this: each time your tool reports progress, the 30-se
 The `handle` function receives an optional second argument — a `ToolHandlerContext` with a `reportProgress` method:
 
 ```typescript
-import { defineTool, fetchJSON } from '@opentabs-dev/plugin-sdk';
+import { defineTool, fetchJSON, ToolError } from '@opentabs-dev/plugin-sdk';
 import type { ToolHandlerContext } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 
@@ -48,6 +48,7 @@ export const exportMessages = defineTool({
         nextCursor?: string;
         totalPages: number;
       }>(`/api/channels/${params.channelId}/messages?cursor=${cursor ?? ''}`);
+      if (!result) throw ToolError.internal('Unexpected empty response');
 
       messages.push(...result.messages);
       cursor = result.nextCursor;
