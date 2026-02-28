@@ -259,6 +259,37 @@ describe('retry', () => {
     }
   });
 
+  test('returns fn result when signal is aborted while fn is executing and fn succeeds', async () => {
+    const controller = new AbortController();
+    const fn = () => new Promise<string>(resolve => setTimeout(() => resolve('success'), 100));
+    const retryPromise = retry(fn, { maxAttempts: 3, delay: 1_000, signal: controller.signal });
+    setTimeout(() => controller.abort(new Error('mid-attempt abort')), 30);
+    const result = await retryPromise;
+    expect(result).toBe('success');
+  });
+
+  test('throws abort reason when signal is aborted while fn is executing and fn fails', async () => {
+    const controller = new AbortController();
+    let calls = 0;
+    const fn = () =>
+      new Promise<string>((_, reject) =>
+        setTimeout(() => {
+          calls++;
+          reject(new Error('fn error'));
+        }, 100),
+      );
+    const retryPromise = retry(fn, { maxAttempts: 3, delay: 1_000, signal: controller.signal });
+    setTimeout(() => controller.abort(new Error('mid-attempt abort')), 30);
+    try {
+      await retryPromise;
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      expect((error as Error).message).toBe('mid-attempt abort');
+    }
+    expect(calls).toBe(1);
+  });
+
   test('rejects promptly when AbortSignal is aborted during inter-retry sleep', async () => {
     const controller = new AbortController();
     const start = performance.now();

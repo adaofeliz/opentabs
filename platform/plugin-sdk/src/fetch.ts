@@ -36,6 +36,9 @@ export const httpStatusToToolError = (response: Response, message: string): Tool
     const retryAfterMs = retryAfter !== null ? parseRetryAfterMs(retryAfter) : undefined;
     return new ToolError(message, 'http_error', { category: 'internal', retryable: true, retryAfterMs });
   }
+  if (status >= 400 && status < 500) {
+    return new ToolError(message, 'http_error', { retryable: false });
+  }
   return new ToolError(message, 'http_error', { category: 'internal' });
 };
 

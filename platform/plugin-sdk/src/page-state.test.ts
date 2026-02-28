@@ -13,6 +13,7 @@ beforeEach(() => {
 afterEach(() => {
   // Clean up any test globals
   delete (globalThis as Record<string, unknown>).__testGlobal;
+  delete (globalThis as Record<string, unknown>).__testProxy;
   delete (globalThis as Record<string, unknown>).TS;
   win.close();
 });
@@ -69,6 +70,19 @@ describe('getPageGlobal', () => {
       configurable: true,
     });
     expect(getPageGlobal('__testGlobal.foo')).toBeUndefined();
+  });
+
+  test('returns undefined when a Proxy get-trap throws', () => {
+    const throwingProxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('proxy get trap error');
+        },
+      },
+    );
+    (globalThis as Record<string, unknown>).__testProxy = throwingProxy;
+    expect(getPageGlobal('__testProxy.anything')).toBeUndefined();
   });
 
   test('generic type parameter narrows return type', () => {

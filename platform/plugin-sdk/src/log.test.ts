@@ -319,4 +319,65 @@ describe('safe serialization', () => {
     const data = entries[0]?.data[0] as Record<string, unknown>;
     expect(data['key']).toBe('[Symbol: mySymbol]');
   });
+
+  test('serializes WeakRef as [WeakRef]', () => {
+    const entries = collect();
+    log.info('test', new WeakRef({}));
+
+    expect(entries[0]?.data[0]).toBe('[WeakRef]');
+  });
+
+  test('serializes WeakMap as [WeakMap]', () => {
+    const entries = collect();
+    log.info('test', new WeakMap());
+
+    expect(entries[0]?.data[0]).toBe('[WeakMap]');
+  });
+
+  test('serializes WeakSet as [WeakSet]', () => {
+    const entries = collect();
+    log.info('test', new WeakSet());
+
+    expect(entries[0]?.data[0]).toBe('[WeakSet]');
+  });
+
+  test('serializes ArrayBuffer as [ArrayBuffer]', () => {
+    const entries = collect();
+    log.info('test', new ArrayBuffer(8));
+
+    expect(entries[0]?.data[0]).toBe('[ArrayBuffer]');
+  });
+
+  test('serializes SharedArrayBuffer as [SharedArrayBuffer]', () => {
+    const entries = collect();
+    if (typeof SharedArrayBuffer === 'undefined') return;
+    log.info('test', new SharedArrayBuffer(8));
+
+    expect(entries[0]?.data[0]).toBe('[SharedArrayBuffer]');
+  });
+
+  test('serializes exotic types nested inside objects via JSON replacer', () => {
+    const entries = collect();
+    log.info('test', {
+      wr: new WeakRef({}),
+      wm: new WeakMap(),
+      ws: new WeakSet(),
+      ab: new ArrayBuffer(4),
+    });
+
+    const data = entries[0]?.data[0] as Record<string, unknown>;
+    expect(data['wr']).toBe('[WeakRef]');
+    expect(data['wm']).toBe('[WeakMap]');
+    expect(data['ws']).toBe('[WeakSet]');
+    expect(data['ab']).toBe('[ArrayBuffer]');
+  });
+
+  test('serializes SharedArrayBuffer nested inside object via JSON replacer', () => {
+    const entries = collect();
+    if (typeof SharedArrayBuffer === 'undefined') return;
+    log.info('test', { sab: new SharedArrayBuffer(4) });
+
+    const data = entries[0]?.data[0] as Record<string, unknown>;
+    expect(data['sab']).toBe('[SharedArrayBuffer]');
+  });
 });

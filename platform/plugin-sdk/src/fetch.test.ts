@@ -103,6 +103,18 @@ beforeAll(
           return;
         }
 
+        if (url.pathname === '/error-409') {
+          res.writeHead(409);
+          res.end('Conflict');
+          return;
+        }
+
+        if (url.pathname === '/error-413') {
+          res.writeHead(413);
+          res.end('Payload Too Large');
+          return;
+        }
+
         if (url.pathname === '/invalid-json') {
           res.writeHead(200, { 'Content-Type': 'application/json' });
           res.end('this is not json');
@@ -366,6 +378,34 @@ describe('fetchFromPage', () => {
       expect(toolError.category).toBe('validation');
       expect(toolError.retryable).toBe(false);
       expect(toolError.message).toContain('HTTP 422');
+    }
+  });
+
+  test('throws non-retryable ToolError with no category on 409 status', async () => {
+    try {
+      await fetchFromPage(`${baseUrl}/error-409`);
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolError);
+      const toolError = error as ToolError;
+      expect(toolError.code).toBe('http_error');
+      expect(toolError.category).toBeUndefined();
+      expect(toolError.retryable).toBe(false);
+      expect(toolError.message).toContain('HTTP 409');
+    }
+  });
+
+  test('throws non-retryable ToolError with no category on 413 status', async () => {
+    try {
+      await fetchFromPage(`${baseUrl}/error-413`);
+      expect.unreachable('should have thrown');
+    } catch (error) {
+      expect(error).toBeInstanceOf(ToolError);
+      const toolError = error as ToolError;
+      expect(toolError.code).toBe('http_error');
+      expect(toolError.category).toBeUndefined();
+      expect(toolError.retryable).toBe(false);
+      expect(toolError.message).toContain('HTTP 413');
     }
   });
 

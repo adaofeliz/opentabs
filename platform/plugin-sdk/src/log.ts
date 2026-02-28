@@ -72,6 +72,13 @@ const safeSerializeArg = (value: unknown): unknown => {
       return { name: value.name, message: value.message, stack: value.stack };
     }
 
+    // Exotic JS types — serialize as descriptive placeholder strings
+    if (value instanceof WeakRef) return '[WeakRef]';
+    if (value instanceof WeakMap) return '[WeakMap]';
+    if (value instanceof WeakSet) return '[WeakSet]';
+    if (value instanceof ArrayBuffer) return '[ArrayBuffer]';
+    if (typeof SharedArrayBuffer !== 'undefined' && value instanceof SharedArrayBuffer) return '[SharedArrayBuffer]';
+
     // Fallback: attempt JSON round-trip to strip non-serializable properties
     try {
       const seen = new WeakSet();
@@ -83,6 +90,11 @@ const safeSerializeArg = (value: unknown): unknown => {
         if (typeof v === 'function') return `[Function: ${(v as { name?: string }).name || 'anonymous'}]`;
         if (typeof v === 'bigint') return `[BigInt: ${v.toString()}]`;
         if (typeof v === 'symbol') return `[Symbol: ${v.description ?? ''}]`;
+        if (v instanceof WeakRef) return '[WeakRef]';
+        if (v instanceof WeakMap) return '[WeakMap]';
+        if (v instanceof WeakSet) return '[WeakSet]';
+        if (v instanceof ArrayBuffer) return '[ArrayBuffer]';
+        if (typeof SharedArrayBuffer !== 'undefined' && v instanceof SharedArrayBuffer) return '[SharedArrayBuffer]';
         return v;
       });
       return JSON.parse(json) as unknown;
