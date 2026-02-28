@@ -31,6 +31,7 @@ export {
   getConfigPath,
   getExtensionDir,
   getLogFilePath,
+  getPidFilePath,
   generateSecret,
   OFFICIAL_SCOPE,
   PLUGIN_PREFIX,

@@ -9,13 +9,14 @@ import {
   getConfigPath,
   getExtensionDir,
   getLogFilePath,
+  getPidFilePath,
   toErrorMessage,
 } from '@opentabs-dev/shared';
 import { access, mkdir, readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 
-export { getConfigDir, getConfigPath, getExtensionDir, getLogFilePath };
+export { getConfigDir, getConfigPath, getExtensionDir, getLogFilePath, getPidFilePath };
 
 export type ConfigResult =
   | { config: Record<string, unknown>; error?: undefined }

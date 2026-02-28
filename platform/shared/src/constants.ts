@@ -45,6 +45,9 @@ export const getExtensionDir = (): string => join(getConfigDir(), 'extension');
 /** Returns the path to the server log file (~/.opentabs/server.log). */
 export const getLogFilePath = (): string => join(getConfigDir(), 'server.log');
 
+/** Returns the path to the server PID file (~/.opentabs/server.pid). */
+export const getPidFilePath = (): string => join(getConfigDir(), 'server.pid');
+
 // ---------------------------------------------------------------------------
 // Plugin naming conventions
 // ---------------------------------------------------------------------------
