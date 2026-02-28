@@ -169,7 +169,9 @@ const getGlobalNodeModulesPaths = (): string[] => {
     log.debug(`npm root -g failed: ${toErrorMessage(e)}`);
   }
 
-  setCachedGlobalPaths(paths);
+  // Only cache non-empty results. An empty array means npm was transiently
+  // unavailable — leave the cache as null so the next call retries.
+  if (paths.length > 0) setCachedGlobalPaths(paths);
   return paths;
 };
 

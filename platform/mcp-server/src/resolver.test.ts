@@ -522,6 +522,33 @@ describe('discoverGlobalNpmPlugins', () => {
     expect(dirs).toHaveLength(1);
   });
 
+  test('retries npm root -g on next call when previous call returned empty paths', async () => {
+    const globalDir = join(tempDir, 'node_modules');
+    writePluginPkgJson(join(globalDir, 'opentabs-plugin-slack'), 'opentabs-plugin-slack');
+
+    // First call: npm fails (empty result, no path recorded)
+    // Second call: npm succeeds
+    let callCount = 0;
+    mockedSpawnSync.mockImplementation((command: string, args: string[]) => {
+      if (command === 'npm' && args[0] === 'root') {
+        callCount++;
+        return callCount === 1 ? spawnResult(1, '') : spawnResult(0, globalDir);
+      }
+      return spawnResult(1, '');
+    });
+
+    const first = await discoverGlobalNpmPlugins();
+    expect(first.dirs).toHaveLength(0);
+
+    const spawnCallsAfterFirst = mockedSpawnSync.mock.calls.length;
+
+    const second = await discoverGlobalNpmPlugins();
+    // Second call must invoke spawnSync again — empty result was not cached
+    expect(mockedSpawnSync.mock.calls.length).toBeGreaterThan(spawnCallsAfterFirst);
+    expect(second.dirs).toHaveLength(1);
+    expect(second.dirs[0]).toBe(join(globalDir, 'opentabs-plugin-slack'));
+  });
+
   test('caches global paths across calls', async () => {
     const globalDir = join(tempDir, 'node_modules');
     mkdirSync(globalDir, { recursive: true });
