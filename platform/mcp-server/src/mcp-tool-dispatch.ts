@@ -24,6 +24,9 @@ import type { ZodError } from 'zod';
 /** Maximum concurrent tool dispatches per plugin to prevent tab performance degradation */
 const MAX_CONCURRENT_DISPATCHES_PER_PLUGIN = 5;
 
+/** Short timeout for domain resolution — fail fast if the tab is unresponsive */
+const DOMAIN_RESOLVE_TIMEOUT_MS = 5_000;
+
 /** Keys that could trigger prototype pollution in JSON deserialization */
 const DANGEROUS_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
 
@@ -70,7 +73,12 @@ const resolveToolDomain = async (
   const tabIdArg = args.tabId;
   if (typeof tabIdArg === 'number') {
     try {
-      const tabInfo = (await dispatchToExtension(state, 'browser.getTabInfo', { tabId: tabIdArg })) as {
+      const tabInfo = (await dispatchToExtension(
+        state,
+        'browser.getTabInfo',
+        { tabId: tabIdArg },
+        { timeoutMs: DOMAIN_RESOLVE_TIMEOUT_MS },
+      )) as {
         url?: string;
       };
       if (typeof tabInfo.url === 'string' && tabInfo.url !== '') {

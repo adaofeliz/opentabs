@@ -209,13 +209,19 @@ const reloadCore = async ({ state, sessionServers, transports }: ReloadCoreArgs)
 
     rebuildCachedBrowserTools(state);
     pruneStaleState(state);
+  } catch (err) {
+    log.error('Reload failed, keeping previous state:', err);
+  }
 
-    // Re-read the auth secret so secret rotation takes effect without a restart.
-    const previousSecret = state.wsSecret;
+  // Re-read the auth secret so secret rotation takes effect without a restart.
+  // Independent of config/plugin discovery — a secret load failure keeps the
+  // previous secret without rolling back the config/registry updates above.
+  const previousSecret = state.wsSecret;
+  try {
     state.wsSecret = await loadSecret();
     secretChanged = previousSecret !== null && state.wsSecret !== previousSecret;
   } catch (err) {
-    log.error('Reload failed, keeping previous state:', err);
+    log.error('Failed to load auth secret, keeping previous secret:', err);
   }
 
   // File watchers, config watching, and mtime polling are dev-only features.

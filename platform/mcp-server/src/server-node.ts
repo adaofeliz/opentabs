@@ -19,6 +19,17 @@ import type { Duplex } from 'node:stream';
 import type { ReadableStream as NodeReadableStream } from 'node:stream/web';
 import type { RawData } from 'ws';
 
+/** Maximum HTTP request body size (10 MB, matching the WebSocket maxPayload) */
+const MAX_BODY_SIZE = 10 * 1024 * 1024;
+
+/** Thrown by collectBody when the incoming body exceeds MAX_BODY_SIZE */
+class BodyTooLargeError extends Error {
+  constructor() {
+    super(`Request body exceeds ${MAX_BODY_SIZE.toString()} byte limit`);
+    this.name = 'BodyTooLargeError';
+  }
+}
+
 /** Configuration for the Node.js HTTP + WebSocket server */
 interface NodeServerOptions {
   hostname: string;
@@ -95,11 +106,20 @@ const toWebRequest = (req: IncomingMessage, body: Buffer | null): Request => {
   return new Request(url, init);
 };
 
-/** Collect the full request body from an IncomingMessage */
+/** Collect the full request body from an IncomingMessage, up to MAX_BODY_SIZE bytes */
 const collectBody = (req: IncomingMessage): Promise<Buffer> =>
   new Promise((resolve, reject) => {
     const chunks: Buffer[] = [];
-    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    let totalSize = 0;
+    req.on('data', (chunk: Buffer) => {
+      totalSize += chunk.length;
+      if (totalSize > MAX_BODY_SIZE) {
+        req.destroy();
+        reject(new BodyTooLargeError());
+        return;
+      }
+      chunks.push(chunk);
+    });
     req.on('end', () => resolve(Buffer.concat(chunks)));
     req.on('error', reject);
   });
@@ -126,6 +146,13 @@ const handleHttpRequest = (
         res.end();
       }
     } catch (err) {
+      if (err instanceof BodyTooLargeError) {
+        if (!res.headersSent) {
+          res.writeHead(413);
+          res.end('Payload Too Large');
+        }
+        return;
+      }
       log.error('Unhandled error in HTTP handler:', err);
       if (!res.headersSent) {
         res.writeHead(500);
@@ -223,8 +250,8 @@ const createNodeServer = (options: NodeServerOptions): Promise<NodeServer> =>
   new Promise((resolveServer, rejectServer) => {
     const wss = new WebSocketServer({
       noServer: true,
-      /** Matches MAX_MESSAGE_SIZE in extension-protocol.ts (10MB) */
-      maxPayload: 10 * 1024 * 1024,
+      /** Matches MAX_MESSAGE_SIZE in extension-protocol.ts and MAX_BODY_SIZE above */
+      maxPayload: MAX_BODY_SIZE,
     });
 
     // The ws library emits 'headers' with the raw header lines just before
