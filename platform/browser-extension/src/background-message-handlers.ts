@@ -224,6 +224,9 @@ const EXTENSION_ONLY_TYPES: ReadonlySet<InternalMessage['type']> = new Set([
   'bg:send',
   'bg:getConnectionState',
   'offscreen:getLogs',
+  'sp:confirmationResponse',
+  'sp:confirmationTimeout',
+  'port-changed',
 ]);
 
 /**
