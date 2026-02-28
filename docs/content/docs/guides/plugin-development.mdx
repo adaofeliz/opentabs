@@ -297,7 +297,10 @@ const uploaded = await postFormData<{ id: string }>("/api/upload", formData);
 
 ### Runtime response validation
 
-All fetch utilities (`fetchJSON`, `postJSON`, `putJSON`, `patchJSON`, `deleteJSON`) accept an optional Zod schema as the last parameter. When provided, the response is validated at runtime and the return type is inferred from the schema — no separate type annotation needed:
+All fetch utilities accept an optional Zod schema as the last parameter. When provided, the response is validated at runtime and the return type is inferred from the schema — no separate type annotation needed. The full signatures are:
+
+- `fetchJSON(url, init?, schema?)` — GET/DELETE without a body
+- `postJSON(url, body, init?, schema?)` — POST/PUT/PATCH with a body (same for `putJSON`, `patchJSON`, `deleteJSON`)
 
 ```typescript
 import { fetchJSON, postJSON } from "@opentabs-dev/plugin-sdk";
@@ -308,10 +311,11 @@ const itemSchema = z.object({ id: z.string(), title: z.string() });
 // Return type is inferred as { id: string; title: string }[]
 const items = await fetchJSON("/api/items", undefined, z.array(itemSchema));
 
-// Works the same for POST, PUT, PATCH, DELETE
+// For methods that take a body, schema is the 4th argument (after the optional init)
 const created = await postJSON(
   "/api/items",
   { title: "New item" },
+  undefined,
   itemSchema,
 );
 ```
