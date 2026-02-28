@@ -39,6 +39,7 @@ import {
   parseToolResult,
   waitForToolResult,
   callToolExpectSuccess,
+  replaceIifeClosing,
 } from './helpers.js';
 import { test } from '@playwright/test';
 import fs from 'node:fs';
@@ -527,7 +528,7 @@ test.describe('Strict CSP — file watcher IIFE re-injection', () => {
         '// Injected by E2E test to verify re-injection on strict-CSP page',
         'globalThis.__e2eReinjectMarker = true;',
       ].join('\n');
-      const modifiedIife = originalIife.replace(/}\)\(\);[\s]*$/, `${markerCode}\n})();\n`);
+      const modifiedIife = replaceIifeClosing(originalIife, markerCode);
       fs.writeFileSync(iifePath, modifiedIife, 'utf-8');
 
       // Wait for the file watcher to detect the IIFE change and send plugin.update
