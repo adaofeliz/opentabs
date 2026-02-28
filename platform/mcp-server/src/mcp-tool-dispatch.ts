@@ -477,4 +477,11 @@ const handlePluginToolCall = async (
 };
 
 export type { ToolCallResult, RequestHandlerExtra };
-export { sanitizeOutput, formatZodError, handleBrowserToolCall, handlePluginToolCall };
+export {
+  sanitizeOutput,
+  formatStructuredError,
+  formatZodError,
+  truncateParamsPreview,
+  handleBrowserToolCall,
+  handlePluginToolCall,
+};

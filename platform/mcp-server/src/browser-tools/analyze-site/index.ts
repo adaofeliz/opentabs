@@ -1019,5 +1019,17 @@ const analyzeSite = async (
   }
 };
 
-export { analyzeSite };
+export {
+  analyzeSite,
+  generateSuggestions,
+  restEndpointSuggestion,
+  graphqlQuerySuggestions,
+  extractTrpcProcedure,
+  deriveFormName,
+  extractPathSegments,
+  extractResourceName,
+  httpMethodToVerb,
+  toSnakeCase,
+  capitalizeFirst,
+};
 export type { SiteAnalysis, ToolSuggestion };
