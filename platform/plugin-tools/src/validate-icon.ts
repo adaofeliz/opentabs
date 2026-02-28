@@ -325,7 +325,8 @@ const validateIconSvg = (content: string, _filename: string): ValidationResult =
 
 /**
  * Validate that an SVG contains only achromatic colors.
- * Checks fill, stroke, stop-color, and flood-color attributes and inline styles.
+ * Checks fill, stroke, stop-color, and flood-color in attributes, inline styles,
+ * and <style> blocks.
  */
 const validateInactiveIconColors = (content: string): ValidationResult => {
   const errors: string[] = [];
@@ -353,6 +354,23 @@ const validateInactiveIconColors = (content: string): ValidationResult => {
         const value = (propMatch[1] ?? '').trim();
         if (value && !isAchromaticColor(value)) {
           errors.push(`Style property ${attr}: ${value} uses a saturated color`);
+        }
+      }
+    }
+  }
+
+  // Check <style> blocks for color declarations
+  const styleBlockPattern = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let styleBlockMatch;
+  while ((styleBlockMatch = styleBlockPattern.exec(content)) !== null) {
+    const cssContent = styleBlockMatch[1] ?? '';
+    for (const attr of COLOR_ATTRS) {
+      const cssPropPattern = new RegExp(`${attr.replace('-', '\\-')}\\s*:\\s*([^;}"']+)`, 'gi');
+      let cssPropMatch;
+      while ((cssPropMatch = cssPropPattern.exec(cssContent)) !== null) {
+        const value = (cssPropMatch[1] ?? '').trim();
+        if (value && !isAchromaticColor(value)) {
+          errors.push(`<style> property ${attr}: ${value} uses a saturated color`);
         }
       }
     }
@@ -432,7 +450,8 @@ const convertColorToGray = (value: string): string => {
 
 /**
  * Convert all color values in an SVG to luminance-equivalent grays.
- * Processes fill, stroke, stop-color, and flood-color in both attributes and inline styles.
+ * Processes fill, stroke, stop-color, and flood-color in attributes, inline styles,
+ * and <style> blocks.
  * Uses ITU-R BT.709: gray = 0.2126*R + 0.7152*G + 0.0722*B
  */
 const generateInactiveIcon = (svgContent: string): string => {
@@ -457,6 +476,20 @@ const generateInactiveIcon = (svgContent: string): string => {
       });
     }
     return fullMatch.replace(styleValue, newStyle);
+  });
+
+  // Convert colors in <style> blocks
+  const styleBlockPattern = /(<style[^>]*>)([\s\S]*?)(<\/style>)/gi;
+  result = result.replace(styleBlockPattern, (_fullMatch, openTag: string, cssContent: string, closeTag: string) => {
+    let newCss = cssContent;
+    for (const attr of COLOR_ATTRS) {
+      const cssPropPattern = new RegExp(`(${attr.replace('-', '\\-')}\\s*:\\s*)([^;}"']+)`, 'gi');
+      newCss = newCss.replace(cssPropPattern, (_m, propPrefix: string, propValue: string) => {
+        const converted = convertColorToGray(propValue);
+        return `${propPrefix}${converted}`;
+      });
+    }
+    return `${openTag}${newCss}${closeTag}`;
   });
 
   return result;
