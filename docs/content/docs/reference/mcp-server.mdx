@@ -546,7 +546,7 @@ Add to `~/.claude/settings/mcp.json` (merge into the existing `"mcpServers"` obj
   "mcpServers": {
     "opentabs": {
       "type": "streamable-http",
-      "url": "http://localhost:9515/mcp",
+      "url": "http://127.0.0.1:9515/mcp",
       "headers": {
         "Authorization": "Bearer <secret>"
       }
@@ -564,7 +564,7 @@ Add to `opencode.json` in your project root:
   "mcp": {
     "opentabs": {
       "type": "remote",
-      "url": "http://localhost:9515/mcp",
+      "url": "http://127.0.0.1:9515/mcp",
       "headers": {
         "Authorization": "Bearer <secret>"
       }
@@ -581,7 +581,7 @@ Add to `.cursor/mcp.json`:
 {
   "mcpServers": {
     "opentabs": {
-      "url": "http://localhost:9515/mcp",
+      "url": "http://127.0.0.1:9515/mcp",
       "headers": {
         "Authorization": "Bearer <secret>"
       }
