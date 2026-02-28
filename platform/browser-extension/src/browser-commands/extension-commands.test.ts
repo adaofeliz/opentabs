@@ -1,4 +1,4 @@
-import { vi, describe, expect, test, beforeEach } from 'vitest';
+import { vi, describe, expect, test, beforeEach, afterEach } from 'vitest';
 
 // ---------------------------------------------------------------------------
 // Module mocks — set up before importing handler modules
@@ -271,6 +271,84 @@ describe('handleBrowserExecuteScript', () => {
     await handleBrowserExecuteScript({ tabId: 1, execFile: '../__exec-abc123.js' }, 'req-16');
     expect(firstSentMessage()).toMatchObject({
       error: { code: -32602, message: 'Invalid execFile format' },
+    });
+  });
+
+  describe('execution and cancellation', () => {
+    beforeEach(() => {
+      mockSendToServer.mockReset();
+      mockExecuteScript.mockReset();
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    test('returns sync result on first poll', async () => {
+      let callCount = 0;
+      mockExecuteScript.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return Promise.resolve([]); // file injection
+        return Promise.resolve([{ result: { pending: false, result: { value: 42 } } }]);
+      });
+
+      const handlerPromise = handleBrowserExecuteScript({ tabId: 1, execFile: '__exec-abc123.js' }, 'req-sync');
+      await vi.runAllTimersAsync();
+      await handlerPromise;
+
+      expect(firstSentMessage()).toMatchObject({ result: { value: { value: 42 } } });
+      // Exactly 2 calls: file injection + 1 poll
+      expect(mockExecuteScript).toHaveBeenCalledTimes(2);
+    });
+
+    test('sends timeout error and skips cleanup when outer SCRIPT_TIMEOUT_MS fires during initial injection', async () => {
+      // File injection hangs indefinitely (simulates a tab that stops responding)
+      mockExecuteScript.mockImplementation(() => new Promise(() => {}));
+
+      const handlerPromise = handleBrowserExecuteScript(
+        { tabId: 1, execFile: '__exec-abc123.js' },
+        'req-outer-timeout',
+      );
+
+      await vi.advanceTimersByTimeAsync(30001);
+      await handlerPromise;
+
+      expect(firstSentMessage()).toMatchObject({
+        error: { message: 'Script execution timed out after 30000ms' },
+      });
+      // Only the initial injection was attempted — no poll calls, no cleanup call
+      expect(mockExecuteScript).toHaveBeenCalledTimes(1);
+    });
+
+    test('runs cleanup script when inner EXEC_MAX_ASYNC_WAIT_MS fires before outer timeout', async () => {
+      let callCount = 0;
+      mockExecuteScript.mockImplementation(() => {
+        callCount++;
+        if (callCount === 1) return Promise.resolve([]); // file injection
+        return Promise.resolve([{ result: { pending: true } }]); // always pending
+      });
+
+      const handlerPromise = handleBrowserExecuteScript(
+        { tabId: 1, execFile: '__exec-abc123.js' },
+        'req-inner-timeout',
+      );
+
+      // Advance past EXEC_MAX_ASYNC_WAIT_MS (10000ms) but not SCRIPT_TIMEOUT_MS (30000ms)
+      await vi.advanceTimersByTimeAsync(12000);
+      await handlerPromise;
+
+      expect(firstSentMessage()).toMatchObject({
+        result: { value: { error: expect.stringContaining('10000') as string } },
+      });
+
+      // The last executeScript call must be the cleanup script (no args parameter)
+      const calls = mockExecuteScript.mock.calls;
+      expect(calls.length).toBeGreaterThan(2);
+      const lastCall = (calls[calls.length - 1] as unknown[])[0] as Record<string, unknown>;
+      expect(lastCall.world).toBe('MAIN');
+      expect(typeof lastCall.func).toBe('function');
+      expect(lastCall).not.toHaveProperty('args');
     });
   });
 });

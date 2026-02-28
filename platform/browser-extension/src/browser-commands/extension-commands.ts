@@ -364,6 +364,7 @@ export const handleBrowserExecuteScript = async (
     }
 
     let timeoutId: ReturnType<typeof setTimeout> | undefined;
+    const cancelled = { value: false };
 
     // Step 1: Inject the exec file into the tab's MAIN world (bypasses page CSP)
     const injectPromise = (async () => {
@@ -380,6 +381,7 @@ export const handleBrowserExecuteScript = async (
       let elapsed = 0;
 
       while (elapsed <= EXEC_MAX_ASYNC_WAIT_MS) {
+        if (cancelled.value) return;
         const results = await chrome.scripting.executeScript({
           target: { tabId },
           world: 'MAIN',
@@ -437,20 +439,24 @@ export const handleBrowserExecuteScript = async (
         elapsed += EXEC_POLL_INTERVAL_MS;
       }
 
-      // Async timed out — clean up and report error
-      await chrome.scripting
-        .executeScript({
-          target: { tabId },
-          world: 'MAIN',
-          func: () => {
-            const ot = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
-            if (ot) {
-              delete ot.__lastExecResult;
-              delete ot.__lastExecAsync;
-            }
-          },
-        })
-        .catch(() => {});
+      // Async timed out — clean up globals only if the outer SCRIPT_TIMEOUT_MS did not fire.
+      // If cancelled, the outer timeout already sent the error response and there may be a
+      // subsequent execution in flight whose globals we must not touch.
+      if (!cancelled.value) {
+        await chrome.scripting
+          .executeScript({
+            target: { tabId },
+            world: 'MAIN',
+            func: () => {
+              const ot = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
+              if (ot) {
+                delete ot.__lastExecResult;
+                delete ot.__lastExecAsync;
+              }
+            },
+          })
+          .catch(() => {});
+      }
 
       return { value: { error: `Async code did not resolve within ${EXEC_MAX_ASYNC_WAIT_MS}ms` } };
     })();
@@ -466,6 +472,7 @@ export const handleBrowserExecuteScript = async (
       result = await Promise.race([injectPromise, timeoutPromise]);
     } finally {
       clearTimeout(timeoutId);
+      cancelled.value = true;
     }
 
     sendSuccessResult(id, result);
