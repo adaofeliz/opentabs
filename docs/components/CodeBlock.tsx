@@ -10,10 +10,12 @@ export const CodeBlock = ({
   className,
   children,
   'data-language': language,
+  'data-nocopy': nocopy,
   ...props
-}: HTMLAttributes<HTMLPreElement> & { 'data-language'?: string }) => {
+}: HTMLAttributes<HTMLPreElement> & { 'data-language'?: string; 'data-nocopy'?: string }) => {
   const [hasCopied, setHasCopied] = useState(false);
   const preRef = useRef<HTMLPreElement>(null);
+  const showCopy = nocopy === undefined;
 
   const handleClickCopy = () => {
     const code = preRef.current?.textContent;
@@ -29,21 +31,29 @@ export const CodeBlock = ({
 
   return (
     <div className="relative my-6">
-      <div className="bg-code-bg hidden items-center justify-between rounded-t-(--radius) border-b border-white/10 px-4 py-2 md:flex">
-        {language ? <span className="text-code-fg font-mono text-xs">{language}</span> : <span />}
-        <Button disabled={hasCopied} size="sm" onClick={handleClickCopy}>
-          {hasCopied ? 'Copied' : 'Copy'}
-        </Button>
-      </div>
+      {showCopy && (
+        <div className="bg-code-bg hidden items-center justify-between rounded-t-(--radius) border-b border-white/10 px-4 py-2 md:flex">
+          {language ? <span className="text-code-fg font-mono text-xs">{language}</span> : <span />}
+          <Button disabled={hasCopied} size="sm" onClick={handleClickCopy}>
+            {hasCopied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+      )}
       <pre
-        className={cn('bg-code-bg text-code-fg overflow-x-auto rounded-(--radius) p-4 md:rounded-t-none', className)}
+        className={cn(
+          'bg-code-bg text-code-fg overflow-x-auto rounded-(--radius) p-4',
+          showCopy && 'md:rounded-t-none',
+          className,
+        )}
         data-language={language}
         {...props}>
         <span ref={preRef}>{children}</span>
       </pre>
-      <Button disabled={hasCopied} size="icon" onClick={handleClickCopy} className="absolute top-3 right-3 md:hidden">
-        {hasCopied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
-      </Button>
+      {showCopy && (
+        <Button disabled={hasCopied} size="icon" onClick={handleClickCopy} className="absolute top-3 right-3 md:hidden">
+          {hasCopied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+        </Button>
+      )}
     </div>
   );
 };
