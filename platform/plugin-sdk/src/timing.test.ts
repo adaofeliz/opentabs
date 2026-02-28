@@ -176,6 +176,30 @@ describe('retry', () => {
     expect(calls).toBe(1);
   });
 
+  test('throws Error with descriptive message when maxAttempts is 0', async () => {
+    await expect(retry(() => Promise.resolve('x'), { maxAttempts: 0 })).rejects.toThrow(
+      'retry: maxAttempts must be a finite number >= 1, got 0',
+    );
+  });
+
+  test('throws Error with descriptive message when maxAttempts is NaN', async () => {
+    await expect(retry(() => Promise.resolve('x'), { maxAttempts: NaN })).rejects.toThrow(
+      'retry: maxAttempts must be a finite number >= 1, got NaN',
+    );
+  });
+
+  test('throws Error with descriptive message when maxAttempts is Infinity', async () => {
+    await expect(retry(() => Promise.resolve('x'), { maxAttempts: Infinity })).rejects.toThrow(
+      'retry: maxAttempts must be a finite number >= 1, got Infinity',
+    );
+  });
+
+  test('throws Error with descriptive message when maxAttempts is -1', async () => {
+    await expect(retry(() => Promise.resolve('x'), { maxAttempts: -1 })).rejects.toThrow(
+      'retry: maxAttempts must be a finite number >= 1, got -1',
+    );
+  });
+
   test('throws DOMException when signal is aborted without a custom reason', async () => {
     const controller = new AbortController();
     controller.abort();

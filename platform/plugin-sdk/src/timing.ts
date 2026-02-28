@@ -34,6 +34,11 @@ export const sleep = (ms: number): Promise<void> => new Promise(resolve => setTi
  */
 export const retry = async <T>(fn: () => Promise<T>, opts?: RetryOptions): Promise<T> => {
   const maxAttempts = opts?.maxAttempts ?? 3;
+
+  if (!Number.isFinite(maxAttempts) || maxAttempts < 1) {
+    throw new Error(`retry: maxAttempts must be a finite number >= 1, got ${maxAttempts}`);
+  }
+
   const baseDelay = opts?.delay ?? 1_000;
   const backoff = opts?.backoff ?? false;
   const maxDelay = opts?.maxDelay ?? 30_000;
