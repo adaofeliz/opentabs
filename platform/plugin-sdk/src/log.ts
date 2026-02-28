@@ -42,11 +42,28 @@ const safeSerializeArg = (value: unknown): unknown => {
   if (type === 'symbol') return `[Symbol: ${(value as symbol).description ?? ''}]`;
   if (type === 'bigint') return `[BigInt: ${(value as bigint).toString()}]`;
 
-  // DOM nodes
-  if (typeof (value as { nodeType?: unknown }).nodeType === 'number') {
-    const node = value as { nodeName?: string; id?: string; className?: string };
-    const className = node.className ? `.${node.className.split(' ')[0] ?? ''}` : '';
-    return `[${node.nodeName ?? 'Node'}${node.id ? `#${node.id}` : ''}${className}]`;
+  // DOM nodes — require both nodeType (number) and nodeName (string) to avoid
+  // treating arbitrary objects like { nodeType: 1, className: 42 } as DOM nodes.
+  if (
+    typeof (value as { nodeType?: unknown }).nodeType === 'number' &&
+    typeof (value as { nodeName?: unknown }).nodeName === 'string'
+  ) {
+    try {
+      const node = value as { nodeName: string; id?: string; className?: unknown };
+      let classStr = '';
+      if (typeof node.className === 'string') {
+        classStr = node.className ? `.${node.className.split(' ')[0] ?? ''}` : '';
+      } else if (node.className !== null && typeof node.className === 'object') {
+        // SVGAnimatedString has a .baseVal string property
+        const baseVal = (node.className as { baseVal?: unknown }).baseVal;
+        if (typeof baseVal === 'string') {
+          classStr = baseVal ? `.${baseVal.split(' ')[0] ?? ''}` : '';
+        }
+      }
+      return `[${node.nodeName}${node.id ? `#${node.id}` : ''}${classStr}]`;
+    } catch {
+      // Fall through to JSON fallback
+    }
   }
 
   // Errors

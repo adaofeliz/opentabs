@@ -203,4 +203,52 @@ describe('safe serialization', () => {
     expect(data?.name).toBe('TestError');
     expect(data?.message).toBe('boom');
   });
+
+  test('serializes HTML element-like objects as [TAG#id.class]', () => {
+    const entries = collect();
+    // Simulates an HTML element (nodeType + nodeName + string className)
+    const div = { nodeType: 1, nodeName: 'DIV', id: 'myId', className: 'myClass otherClass' };
+    log.info('test', div);
+
+    expect(entries[0]?.data[0]).toBe('[DIV#myId.myClass]');
+  });
+
+  test('serializes SVG element-like objects (SVGAnimatedString className) without throwing', () => {
+    const entries = collect();
+    // Simulates an SVG element whose className is an SVGAnimatedString
+    const svg = {
+      nodeType: 1,
+      nodeName: 'svg',
+      id: 'myId',
+      className: { baseVal: 'myClass', animVal: 'myClass' },
+    };
+    log.info('test', svg);
+
+    expect(entries[0]?.data[0]).toBe('[svg#myId.myClass]');
+  });
+
+  test('non-DOM object with numeric nodeType falls through to JSON serialization', () => {
+    const entries = collect();
+    // A POJO with nodeType but no nodeName — should not be treated as a DOM node
+    const pojo = { nodeType: 1, className: 42 };
+    log.info('test', pojo);
+
+    const data = entries[0]?.data[0] as Record<string, unknown> | undefined;
+    expect(data?.['nodeType']).toBe(1);
+    expect(data?.['className']).toBe(42);
+  });
+
+  test('safeSerializeArg never throws for any input', () => {
+    const entries = collect();
+    // None of these should throw
+    expect(() => {
+      log.info(
+        'test',
+        { nodeType: 1, className: 42 }, // POJO with non-string className
+        { nodeType: 1, nodeName: 'svg', className: { baseVal: '' } }, // SVG-like with empty baseVal
+        { nodeType: 1, nodeName: 'DIV', className: '' }, // HTML-like with empty className
+      );
+    }).not.toThrow();
+    expect(entries[0]?.data).toHaveLength(3);
+  });
 });
