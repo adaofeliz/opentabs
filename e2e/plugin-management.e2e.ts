@@ -29,8 +29,10 @@ import {
   readTestConfig,
   writeTestConfig,
   createMinimalPlugin,
+  createMcpClient,
   startMcpServer,
 } from './fixtures.js';
+import { waitForToolList } from './helpers.js';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -492,6 +494,207 @@ test.describe('notification rejection', () => {
 
       // No error responses should be returned for notification-style calls
       expect(pluginResponses).toHaveLength(0);
+    } finally {
+      close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// config.setAllToolsEnabled — enable/disable all tools for a plugin
+// ---------------------------------------------------------------------------
+
+test.describe('config.setAllToolsEnabled', () => {
+  test('disabling a plugin removes its tools from tools/list', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+    const mcpClient = createMcpClient(mcpServer.port, mcpServer.secret);
+    await mcpClient.initialize();
+
+    try {
+      // Baseline: e2e-test plugin tools are present
+      const baselineTools = await mcpClient.listTools();
+      const hasEchoBaseline = baselineTools.some(t => t.name === 'e2e-test_echo');
+      expect(hasEchoBaseline).toBe(true);
+
+      // Disable all tools for the e2e-test plugin
+      const resp = await sendRequest('config.setAllToolsEnabled', {
+        plugin: 'e2e-test',
+        enabled: false,
+      });
+      expect(resp.error).toBeUndefined();
+      expect((resp.result as { ok: boolean }).ok).toBe(true);
+
+      // Wait for tools/list to reflect the change
+      await waitForToolList(
+        mcpClient,
+        tools => !tools.some(t => t.name === 'e2e-test_echo'),
+        10_000,
+        300,
+        'e2e-test_echo removed after disable',
+      );
+    } finally {
+      // Re-enable before cleanup so other tests are not affected
+      await sendRequest('config.setAllToolsEnabled', { plugin: 'e2e-test', enabled: true });
+      await mcpClient.close();
+      close();
+    }
+  });
+
+  test('re-enabling a disabled plugin restores its tools in tools/list', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+    const mcpClient = createMcpClient(mcpServer.port, mcpServer.secret);
+    await mcpClient.initialize();
+
+    try {
+      // Disable first
+      await sendRequest('config.setAllToolsEnabled', { plugin: 'e2e-test', enabled: false });
+      await waitForToolList(
+        mcpClient,
+        tools => !tools.some(t => t.name === 'e2e-test_echo'),
+        10_000,
+        300,
+        'e2e-test_echo removed after disable',
+      );
+
+      // Re-enable
+      const resp = await sendRequest('config.setAllToolsEnabled', {
+        plugin: 'e2e-test',
+        enabled: true,
+      });
+      expect(resp.error).toBeUndefined();
+      expect((resp.result as { ok: boolean }).ok).toBe(true);
+
+      // Wait for tools/list to reflect the re-enabled tools
+      await waitForToolList(
+        mcpClient,
+        tools => tools.some(t => t.name === 'e2e-test_echo'),
+        10_000,
+        300,
+        'e2e-test_echo restored after enable',
+      );
+    } finally {
+      await mcpClient.close();
+      close();
+    }
+  });
+
+  test('calling a disabled tool returns isError: true', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+    const mcpClient = createMcpClient(mcpServer.port, mcpServer.secret);
+    await mcpClient.initialize();
+
+    try {
+      // Disable the plugin
+      await sendRequest('config.setAllToolsEnabled', { plugin: 'e2e-test', enabled: false });
+      await waitForToolList(
+        mcpClient,
+        tools => !tools.some(t => t.name === 'e2e-test_echo'),
+        10_000,
+        300,
+        'e2e-test_echo removed after disable',
+      );
+
+      // Calling the disabled tool should return isError: true
+      const result = await mcpClient.callTool('e2e-test_echo', { message: 'hello' });
+      expect(result.isError).toBe(true);
+      expect(result.content).toContain('disabled');
+    } finally {
+      // Re-enable before cleanup
+      await sendRequest('config.setAllToolsEnabled', { plugin: 'e2e-test', enabled: true });
+      await mcpClient.close();
+      close();
+    }
+  });
+
+  test('returns -32602 for non-existent plugin', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+
+    try {
+      const resp = await sendRequest('config.setAllToolsEnabled', {
+        plugin: 'nonexistent-plugin',
+        enabled: false,
+      });
+
+      const error = expectError(resp, -32602);
+      expect(error.message).toContain('not found');
+    } finally {
+      close();
+    }
+  });
+
+  test('returns -32602 for invalid params', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+
+    try {
+      const resp = await sendRequest('config.setAllToolsEnabled', { plugin: 'e2e-test' });
+
+      expectError(resp, -32602);
+    } finally {
+      close();
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// config.setToolEnabled — enable/disable a single tool
+// ---------------------------------------------------------------------------
+
+test.describe('config.setToolEnabled', () => {
+  test('disabling a single tool removes only that tool from tools/list', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+    const mcpClient = createMcpClient(mcpServer.port, mcpServer.secret);
+    await mcpClient.initialize();
+
+    try {
+      // Baseline: echo tool is present
+      const baselineTools = await mcpClient.listTools();
+      const hasEcho = baselineTools.some(t => t.name === 'e2e-test_echo');
+      expect(hasEcho).toBe(true);
+
+      // Count total e2e-test tools before
+      const e2eToolsBefore = baselineTools.filter(t => t.name.startsWith('e2e-test_'));
+
+      // Disable only the echo tool
+      const resp = await sendRequest('config.setToolEnabled', {
+        plugin: 'e2e-test',
+        tool: 'echo',
+        enabled: false,
+      });
+      expect(resp.error).toBeUndefined();
+      expect((resp.result as { ok: boolean }).ok).toBe(true);
+
+      // Wait for echo to disappear
+      const updatedTools = await waitForToolList(
+        mcpClient,
+        tools => !tools.some(t => t.name === 'e2e-test_echo'),
+        10_000,
+        300,
+        'e2e-test_echo removed after single-tool disable',
+      );
+
+      // Other e2e-test tools should still be present
+      const e2eToolsAfter = updatedTools.filter(t => t.name.startsWith('e2e-test_'));
+      expect(e2eToolsAfter.length).toBe(e2eToolsBefore.length - 1);
+    } finally {
+      // Re-enable
+      await sendRequest('config.setToolEnabled', { plugin: 'e2e-test', tool: 'echo', enabled: true });
+      await mcpClient.close();
+      close();
+    }
+  });
+
+  test('returns -32602 for non-existent tool', async ({ mcpServer }) => {
+    const { sendRequest, close } = await connectWs(mcpServer.port, mcpServer.secret);
+
+    try {
+      const resp = await sendRequest('config.setToolEnabled', {
+        plugin: 'e2e-test',
+        tool: 'nonexistent_tool',
+        enabled: false,
+      });
+
+      const error = expectError(resp, -32602);
+      expect(error.message).toContain('not found');
     } finally {
       close();
     }
