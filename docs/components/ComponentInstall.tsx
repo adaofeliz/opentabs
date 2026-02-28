@@ -2,7 +2,7 @@
 
 import { Button } from './retroui';
 import { Tab, TabGroup, TabList, TabPanel, TabPanels } from '@headlessui/react';
-import { Check, Copy } from 'lucide-react';
+import { Check, ClipboardCopy } from 'lucide-react';
 import { useState } from 'react';
 import type { ReactNode } from 'react';
 
@@ -57,28 +57,6 @@ const highlightCommand = (command: string): ReactNode[] => {
   return nodes;
 };
 
-const CopyableCommand = ({ command }: { command: string }) => {
-  const [copied, setCopied] = useState(false);
-
-  const copyToClipboard = () => {
-    navigator.clipboard.writeText(command).catch(() => undefined);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
-  };
-
-  return (
-    <div className="group flex items-center justify-between gap-2">
-      <code className="flex-1 font-mono">{highlightCommand(command)}</code>
-      <Button size="sm" onClick={copyToClipboard} className="hidden shrink-0 md:block" title="Copy to clipboard">
-        {copied ? 'Copied' : 'Copy'}
-      </Button>
-      <Button className="shrink-0 md:hidden" size="icon" onClick={copyToClipboard} title="Copy to clipboard mobile">
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
-      </Button>
-    </div>
-  );
-};
-
 export const CliCommand = ({
   npmCommand,
   yarnCommand,
@@ -88,36 +66,59 @@ export const CliCommand = ({
   yarnCommand?: string;
   pnpmCommand?: string;
 }) => {
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
+
   const isNpx = npmCommand.includes('npx');
   const resolvedPnpm =
     pnpmCommand ?? (isNpx ? npmCommand.replace('npx', 'pnpm dlx') : npmCommand.replace('npm', 'pnpm'));
   const resolvedYarn =
     yarnCommand ?? (isNpx ? npmCommand.replace('npx', 'yarn dlx') : npmCommand.replace('npm install', 'yarn add'));
 
+  const commands = [npmCommand, resolvedPnpm, resolvedYarn];
+
+  const handleCopy = () => {
+    const command = commands[selectedIndex];
+    if (!command) return;
+    navigator.clipboard.writeText(command).catch(() => undefined);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
   return (
-    <TabGroup className="bg-code-bg my-2 rounded-(--radius) p-4">
-      <TabList className="mb-4 flex space-x-4 text-sm">
-        <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
-          npm
-        </Tab>
-        <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
-          pnpm
-        </Tab>
-        <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
-          yarn
-        </Tab>
-      </TabList>
-      <TabPanels className="text-code-fg text-sm">
-        <TabPanel>
-          <CopyableCommand command={npmCommand} />
-        </TabPanel>
-        <TabPanel>
-          <CopyableCommand command={resolvedPnpm} />
-        </TabPanel>
-        <TabPanel>
-          <CopyableCommand command={resolvedYarn} />
-        </TabPanel>
-      </TabPanels>
-    </TabGroup>
+    <div className="relative my-2">
+      <TabGroup className="bg-code-bg rounded-(--radius)" selectedIndex={selectedIndex} onChange={setSelectedIndex}>
+        <div className="flex items-center justify-between px-4 py-2 md:border-b md:border-white/10">
+          <TabList className="flex space-x-4 text-sm">
+            <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
+              npm
+            </Tab>
+            <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
+              pnpm
+            </Tab>
+            <Tab className="data-selected:text-code-fg relative cursor-pointer border-[#62E884] bg-transparent px-2 py-1 text-[#6272A4] focus:outline-hidden data-selected:border-b-2">
+              yarn
+            </Tab>
+          </TabList>
+          <Button disabled={copied} size="sm" onClick={handleCopy} className="hidden md:flex">
+            {copied ? 'Copied' : 'Copy'}
+          </Button>
+        </div>
+        <TabPanels className="text-code-fg p-4 text-sm">
+          <TabPanel>
+            <code className="font-mono">{highlightCommand(npmCommand)}</code>
+          </TabPanel>
+          <TabPanel>
+            <code className="font-mono">{highlightCommand(resolvedPnpm)}</code>
+          </TabPanel>
+          <TabPanel>
+            <code className="font-mono">{highlightCommand(resolvedYarn)}</code>
+          </TabPanel>
+        </TabPanels>
+      </TabGroup>
+      <Button disabled={copied} size="icon" onClick={handleCopy} className="absolute top-3 right-3 md:hidden">
+        {copied ? <Check className="h-4 w-4" /> : <ClipboardCopy className="h-4 w-4" />}
+      </Button>
+    </div>
   );
 };
