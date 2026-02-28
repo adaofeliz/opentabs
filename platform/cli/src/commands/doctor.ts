@@ -231,6 +231,7 @@ const defaultMcpClientLocations = (): McpClientLocation[] => [
   { name: 'Claude Code', path: join(homedir(), '.claude', 'settings', 'mcp.json') },
   { name: 'Cursor', path: join(process.cwd(), '.cursor', 'mcp.json') },
   { name: 'OpenCode', path: join(process.cwd(), 'opencode.json') },
+  { name: 'Windsurf', path: join(homedir(), '.codeium', 'windsurf', 'mcp_config.json') },
 ];
 
 const checkMcpClientConfig = async (
@@ -263,7 +264,7 @@ const checkMcpClientConfig = async (
   return warn(
     'MCP client config',
     'no MCP client configured for OpenTabs',
-    'Add an "opentabs" entry to ~/.claude/settings/mcp.json (Claude Code), .cursor/mcp.json (Cursor), or opencode.json (OpenCode)',
+    'Add an "opentabs" entry to ~/.claude/settings/mcp.json (Claude Code), .cursor/mcp.json (Cursor), opencode.json (OpenCode), or ~/.codeium/windsurf/mcp_config.json (Windsurf)',
   );
 };
 
