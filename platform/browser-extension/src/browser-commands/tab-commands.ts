@@ -61,7 +61,7 @@ export const handleBrowserNavigateTab = async (params: Record<string, unknown>, 
     const url = requireUrl(params, id);
     if (url === null) return;
     const tab = await chrome.tabs.update(tabId, { url });
-    sendSuccessResult(id, { id: tab?.id ?? tabId, title: tab?.title ?? '', url: tab?.url ?? url });
+    sendSuccessResult(id, { id: tab?.id ?? tabId, title: tab?.title ?? '', url });
   } catch (err) {
     sendErrorResult(id, err);
   }

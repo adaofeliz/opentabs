@@ -155,6 +155,20 @@ describe('handleBrowserNavigateTab', () => {
       error: { code: -32602 },
     });
   });
+
+  test('returns requested url, not pre-navigation tab url', async () => {
+    mockTabsUpdate.mockResolvedValueOnce({
+      id: 42,
+      title: 'Old Page',
+      url: 'https://old.example.com',
+    } as chrome.tabs.Tab);
+    await handleBrowserNavigateTab({ tabId: 42, url: 'https://new.example.com' }, 'req-23');
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-23',
+      result: { id: 42, url: 'https://new.example.com' },
+    });
+  });
 });
 
 // ---------------------------------------------------------------------------
