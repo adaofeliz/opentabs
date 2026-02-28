@@ -484,3 +484,23 @@ export const setupIsolatedIifeTest = async (configDirPrefix: string): Promise<Is
     throw error;
   }
 };
+
+// ---------------------------------------------------------------------------
+// IIFE manipulation
+// ---------------------------------------------------------------------------
+
+/**
+ * Replace the IIFE closing pattern `})();` with the given injection before it.
+ * Throws immediately if the regex does not match — prevents silent failures
+ * when the IIFE closing pattern changes (e.g. due to a build format change).
+ */
+export const replaceIifeClosing = (iife: string, injection: string): string => {
+  const modified = iife.replace(/}\)\(\);[\s]*$/, `${injection}\n})();\n`);
+  if (modified === iife) {
+    throw new Error(
+      'IIFE regex replacement did not match — the adapter.iife.js closing pattern may have changed. ' +
+        'Expected to find })(); at end of file.',
+    );
+  }
+  return modified;
+};

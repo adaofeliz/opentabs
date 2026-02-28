@@ -28,6 +28,7 @@ import {
   setupToolTest,
   setupIsolatedIifeTest,
   getExtensionId,
+  replaceIifeClosing,
 } from './helpers.js';
 import { test } from '@playwright/test';
 import fs from 'node:fs';
@@ -74,7 +75,7 @@ test.describe('IIFE injection — plugin.update re-injection', () => {
       ].join('\n');
       // Append the marker code just before the closing `})();`
       // The IIFE ends with `})();` — insert the marker before the last line
-      const modifiedIife = originalIife.replace(/}\)\(\);[\s]*$/, `${markerCode}\n})();\n`);
+      const modifiedIife = replaceIifeClosing(originalIife, markerCode);
       fs.writeFileSync(iifePath, modifiedIife, 'utf-8');
 
       // Wait for the file watcher to detect the IIFE change and send plugin.update
@@ -619,7 +620,7 @@ test.describe('IIFE injection — plugin.update during active tool dispatch', ()
         '// Injected by E2E test to verify re-injection during in-flight dispatch',
         'globalThis.__e2eReinjectMarker = true;',
       ].join('\n');
-      const modifiedIife = originalIife.replace(/}\)\(\);[\s]*$/, `${markerCode}\n})();\n`);
+      const modifiedIife = replaceIifeClosing(originalIife, markerCode);
       fs.writeFileSync(iifePath, modifiedIife, 'utf-8');
 
       // File watcher detects the change and sends plugin.update → force re-injection
@@ -708,7 +709,7 @@ test.describe('IIFE injection — teardown() lifecycle hook', () => {
         '// Injected by E2E test to verify teardown lifecycle hook',
         'globalThis.__e2eTeardownTestMarker = true;',
       ].join('\n');
-      const modifiedIife = originalIife.replace(/}\)\(\);[\s]*$/, `${markerCode}\n})();\n`);
+      const modifiedIife = replaceIifeClosing(originalIife, markerCode);
       fs.writeFileSync(iifePath, modifiedIife, 'utf-8');
 
       // Wait for file watcher to detect the IIFE change and send plugin.update
