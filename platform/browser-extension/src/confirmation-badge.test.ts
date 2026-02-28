@@ -135,6 +135,31 @@ describe('notifyConfirmationRequest', () => {
     vi.advanceTimersByTime(1);
     expect(mockSetBadgeText).toHaveBeenCalledWith({ text: '' });
   });
+
+  test('duplicate id does not increment pendingConfirmationCount a second time', () => {
+    notifyConfirmationRequest({ id: 'req-1', timeoutMs: 5000 });
+    mockSetBadgeText.mockClear();
+
+    // Second call with the same id — count must stay at 1, not become 2
+    notifyConfirmationRequest({ id: 'req-1', timeoutMs: 5000 });
+
+    // Badge text should not have been updated (count unchanged)
+    expect(mockSetBadgeText).not.toHaveBeenCalled();
+  });
+
+  test('old timeout handle does not fire after being replaced by duplicate id', () => {
+    notifyConfirmationRequest({ id: 'req-1', timeoutMs: 3000 });
+
+    // Replace with a second call using the same id but a longer timeout
+    notifyConfirmationRequest({ id: 'req-1', timeoutMs: 10000 });
+    mockSetBadgeText.mockClear();
+
+    // Advance past when the first timeout would have fired (3000 + 2000 buffer)
+    vi.advanceTimersByTime(3000 + 2000 + 1);
+
+    // The old timeout was cleared — badge must NOT have been cleared
+    expect(mockSetBadgeText).not.toHaveBeenCalled();
+  });
 });
 
 // ---------------------------------------------------------------------------

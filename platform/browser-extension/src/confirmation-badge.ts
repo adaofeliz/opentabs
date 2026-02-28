@@ -40,13 +40,20 @@ const updateConfirmationBadge = (): void => {
  * is closed and never sends sp:confirmationResponse or sp:confirmationTimeout.
  */
 const notifyConfirmationRequest = (params: Record<string, unknown>): void => {
-  pendingConfirmationCount++;
-  updateConfirmationBadge();
-
   const tool = typeof params.tool === 'string' ? params.tool : 'unknown tool';
   const domain = typeof params.domain === 'string' ? params.domain : 'unknown domain';
   const id = typeof params.id === 'string' ? params.id : String(Date.now());
   const timeoutMs = typeof params.timeoutMs === 'number' ? params.timeoutMs : 0;
+
+  // If this id already has a pending timeout, clear it and don't increment the
+  // count — the count was already incremented when the first request arrived.
+  const existingTimeoutId = confirmationTimeouts.get(id);
+  if (existingTimeoutId !== undefined) {
+    clearTimeout(existingTimeoutId);
+  } else {
+    pendingConfirmationCount++;
+    updateConfirmationBadge();
+  }
 
   // Set a background timeout slightly longer than the server-side timeout so
   // the badge clears automatically when the side panel is closed and cannot
