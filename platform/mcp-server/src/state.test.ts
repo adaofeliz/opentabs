@@ -139,9 +139,9 @@ describe('isSessionAllowed', () => {
     expect(isSessionAllowed(rules, 'slack_send_message', null)).toBe(true);
   });
 
-  test('domain_all with null domain matches calls with a specific domain', () => {
+  test('domain_all with null domain does not match calls with a specific domain', () => {
     const rules: SessionPermissionRule[] = [{ tool: null, domain: null, scope: 'domain_all' }];
-    expect(isSessionAllowed(rules, 'slack_send_message', 'example.com')).toBe(true);
+    expect(isSessionAllowed(rules, 'slack_send_message', 'example.com')).toBe(false);
   });
 
   test('domain_all with a non-null domain only matches calls with that same domain', () => {

@@ -6,7 +6,7 @@ import { afterAll, afterEach, beforeEach, describe, expect, test } from 'vitest'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ServerState } from './state.js';
+import type { ServerState, SessionPermissionRule } from './state.js';
 import type { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js';
 
 /**
@@ -263,6 +263,27 @@ describe('performReload', () => {
     expect(state.outdatedPlugins).toHaveLength(0);
   });
 
+  test('prunes stale session permission rules for tools no longer in the registry', async () => {
+    const pluginDir = createPluginDir(configDir, 'my-plugin');
+    writeConfig(configDir, [pluginDir]);
+
+    state.sessionPermissions = [
+      // Rule for a tool that will still exist after reload — should be kept
+      { tool: 'my-plugin_test_tool', domain: 'example.com', scope: 'tool_domain' } as SessionPermissionRule,
+      // Rule for a tool that no longer exists — should be pruned
+      { tool: 'old-plugin_removed_tool', domain: 'example.com', scope: 'tool_domain' } as SessionPermissionRule,
+      // Rule with tool=null (domain_all scope) — should always be kept
+      { tool: null, domain: 'example.com', scope: 'domain_all' } as SessionPermissionRule,
+    ];
+
+    await performReload(state, [], emptyTransports(), false);
+
+    expect(state.sessionPermissions).toHaveLength(2);
+    expect(state.sessionPermissions.some(r => r.tool === 'my-plugin_test_tool')).toBe(true);
+    expect(state.sessionPermissions.some(r => r.tool === null)).toBe(true);
+    expect(state.sessionPermissions.some(r => r.tool === 'old-plugin_removed_tool')).toBe(false);
+  });
+
   test('notifies MCP sessions of tool list changes on hot reload', async () => {
     let notifyCalled = 0;
     const srv = {
@@ -438,6 +459,37 @@ describe('performConfigReload', () => {
     await performConfigReload(state, [srv], emptyTransports());
 
     expect(notifyCalled).toBeGreaterThanOrEqual(1);
+  });
+
+  test('state fields are not mutated when rebuildCachedBrowserTools throws', async () => {
+    const pluginDir = createPluginDir(configDir, 'my-plugin');
+    writeConfig(configDir, [pluginDir]);
+
+    // Install a browser tool whose .input getter throws, simulating a schema build failure.
+    // rebuildCachedBrowserTools maps over state.browserTools and accesses bt.input for each.
+    const badBrowserTool: Record<string, unknown> = {
+      name: 'bad_tool',
+      description: 'bad',
+      handler: () => Promise.resolve([]),
+    };
+    Object.defineProperty(badBrowserTool, 'input', {
+      get() {
+        throw new Error('intentional schema build failure');
+      },
+      enumerable: true,
+    });
+    state.browserTools = [badBrowserTool as unknown as (typeof state.browserTools)[0]];
+
+    const initialRegistry = state.registry;
+    const initialToolConfig = state.toolConfig;
+
+    // performConfigReload catches the error from rebuildCachedBrowserTools and logs it.
+    // State must retain all previous values — no partial mutation should have occurred.
+    await performConfigReload(state, [], emptyTransports());
+
+    expect(state.registry).toBe(initialRegistry);
+    expect(state.registry.plugins.has('my-plugin')).toBe(false);
+    expect(state.toolConfig).toBe(initialToolConfig);
   });
 
   test('concurrent config reloads both complete successfully', async () => {

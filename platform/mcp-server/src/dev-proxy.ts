@@ -229,6 +229,15 @@ httpServer.on('upgrade', (req: IncomingMessage, socket: Duplex, head: Buffer) =>
   );
 });
 
+httpServer.on('error', (err: NodeJS.ErrnoException) => {
+  if (err.code === 'EADDRINUSE') {
+    console.error(`[proxy] Port ${PROXY_PORT} is already in use`);
+  } else {
+    console.error('[proxy] Dev proxy error:', err);
+  }
+  process.exit(1);
+});
+
 httpServer.listen(PROXY_PORT, '127.0.0.1', () => {
   const actualPort = (httpServer.address() as { port: number }).port;
   console.log(`[proxy] Dev proxy listening on http://localhost:${actualPort}`);

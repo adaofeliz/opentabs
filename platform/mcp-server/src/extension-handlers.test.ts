@@ -3,14 +3,16 @@ import {
   handleConfigSetBrowserToolEnabled,
   handleConfirmationResponse,
   handlePluginLog,
+  handleTabStateChanged,
+  handleTabSyncAll,
   handleToolProgress,
   rejectAllPendingConfirmations,
 } from './extension-handlers.js';
 import { clearAllLogs, getLogs } from './log-buffer.js';
-import { createState, DISPATCH_TIMEOUT_MS, MAX_DISPATCH_TIMEOUT_MS } from './state.js';
+import { createState, DISPATCH_TIMEOUT_MS, MAX_DISPATCH_TIMEOUT_MS, MAX_SESSION_PERMISSIONS } from './state.js';
 import { afterEach, beforeEach, describe, expect, vi, test } from 'vitest';
 import type { McpCallbacks } from './extension-handlers.js';
-import type { PendingConfirmation, PendingDispatch, SessionPermissionRule } from './state.js';
+import type { PendingConfirmation, PendingDispatch, RegisteredPlugin, SessionPermissionRule } from './state.js';
 
 /** Create a tracked PendingConfirmation that records resolve/reject calls */
 const createPendingConfirmation = (
@@ -120,6 +122,20 @@ describe('handleConfirmationResponse', () => {
     expect(rule.scope).toBe('domain_all');
   });
 
+  test('allow_always with scope domain_all falls back to tool_domain when pending.domain is null', () => {
+    const state = createState();
+    const pending = createPendingConfirmation({ tool: 'browser_screenshot', domain: null });
+    state.pendingConfirmations.set('conf-6b', pending);
+
+    handleConfirmationResponse(state, { id: 'conf-6b', decision: 'allow_always', scope: 'domain_all' });
+
+    expect(state.sessionPermissions).toHaveLength(1);
+    const rule = state.sessionPermissions[0] as SessionPermissionRule;
+    expect(rule.tool).toBe('browser_screenshot');
+    expect(rule.domain).toBeNull();
+    expect(rule.scope).toBe('tool_domain');
+  });
+
   test('missing params is silently ignored', () => {
     const state = createState();
     handleConfirmationResponse(state, undefined);
@@ -167,6 +183,31 @@ describe('handleConfirmationResponse', () => {
     expect(pending.resolved).toBe('allow_once');
     // Suppress unused variable lint
     void timerCleared;
+  });
+
+  test('sessionPermissions is capped at MAX_SESSION_PERMISSIONS — oldest entries are dropped', () => {
+    const state = createState();
+
+    // Pre-fill to the cap with distinct tool_domain rules
+    for (let i = 0; i < MAX_SESSION_PERMISSIONS; i++) {
+      const pending = createPendingConfirmation({ tool: `plugin_tool_${i}`, domain: `example-${i}.com` });
+      state.pendingConfirmations.set(`cap-${i}`, pending);
+      handleConfirmationResponse(state, { id: `cap-${i}`, decision: 'allow_always', scope: 'tool_domain' });
+    }
+
+    expect(state.sessionPermissions).toHaveLength(MAX_SESSION_PERMISSIONS);
+
+    // Add one more — the oldest entry should be dropped
+    const overflowPending = createPendingConfirmation({ tool: 'plugin_overflow', domain: 'overflow.com' });
+    state.pendingConfirmations.set('cap-overflow', overflowPending);
+    handleConfirmationResponse(state, { id: 'cap-overflow', decision: 'allow_always', scope: 'tool_domain' });
+
+    expect(state.sessionPermissions).toHaveLength(MAX_SESSION_PERMISSIONS);
+    // The newest entry should be present
+    const last = state.sessionPermissions[MAX_SESSION_PERMISSIONS - 1] as SessionPermissionRule;
+    expect(last.tool).toBe('plugin_overflow');
+    // The oldest entry (tool_0) should have been dropped
+    expect(state.sessionPermissions.some(r => r.tool === 'plugin_tool_0')).toBe(false);
   });
 });
 
@@ -798,5 +839,117 @@ describe('handleConfigSetBrowserToolEnabled', () => {
     handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: true }, 'req-6', noopCallbacks);
 
     expect(state.browserToolPolicy.browser_list_tabs).toBe(true);
+  });
+});
+
+describe('handleTabSyncAll — activeNetworkCaptures cleanup', () => {
+  test('removes stale activeNetworkCaptures entries for tabs absent from sync', () => {
+    const state = createState();
+    // Tab 1 and 2 had active captures before the sync
+    state.activeNetworkCaptures.add(1);
+    state.activeNetworkCaptures.add(2);
+    state.activeNetworkCaptures.add(3);
+
+    // Sync arrives: only tab 2 is still present
+    handleTabSyncAll(state, {
+      tabs: {
+        slack: { state: 'ready', tabs: [{ tabId: 2, url: 'https://app.slack.com', ready: true }] },
+      },
+    });
+
+    expect(state.activeNetworkCaptures.has(1)).toBe(false);
+    expect(state.activeNetworkCaptures.has(2)).toBe(true);
+    expect(state.activeNetworkCaptures.has(3)).toBe(false);
+  });
+
+  test('clears all activeNetworkCaptures when sync has no tabs', () => {
+    const state = createState();
+    state.activeNetworkCaptures.add(10);
+    state.activeNetworkCaptures.add(20);
+
+    handleTabSyncAll(state, { tabs: {} });
+
+    expect(state.activeNetworkCaptures.size).toBe(0);
+  });
+
+  test('retains activeNetworkCaptures entries for tabs still present after sync', () => {
+    const state = createState();
+    state.activeNetworkCaptures.add(5);
+
+    handleTabSyncAll(state, {
+      tabs: {
+        slack: { state: 'ready', tabs: [{ tabId: 5, url: 'https://app.slack.com', ready: true }] },
+      },
+    });
+
+    expect(state.activeNetworkCaptures.has(5)).toBe(true);
+  });
+});
+
+describe('handleTabStateChanged — activeNetworkCaptures cleanup', () => {
+  /** Set up a minimal registry with a given plugin name */
+  const withPlugin = (state: ReturnType<typeof createState>, pluginName: string) => {
+    state.registry = {
+      ...state.registry,
+      plugins: new Map([[pluginName, {} as RegisteredPlugin]]) as ReadonlyMap<string, RegisteredPlugin>,
+    };
+  };
+
+  test('removes activeNetworkCaptures entry when a tab is removed from the plugin mapping', () => {
+    const state = createState();
+    withPlugin(state, 'slack');
+    // Plugin currently has tabs 10 and 11, both with active captures
+    state.tabMapping.set('slack', {
+      state: 'ready',
+      tabs: [
+        { tabId: 10, url: 'https://app.slack.com', title: 'Slack', ready: true },
+        { tabId: 11, url: 'https://app.slack.com', title: 'Slack', ready: true },
+      ],
+    });
+    state.activeNetworkCaptures.add(10);
+    state.activeNetworkCaptures.add(11);
+
+    // State change arrives: only tab 10 remains
+    handleTabStateChanged(state, {
+      plugin: 'slack',
+      state: 'ready',
+      tabs: [{ tabId: 10, url: 'https://app.slack.com', title: 'Slack', ready: true }],
+    });
+
+    expect(state.activeNetworkCaptures.has(10)).toBe(true);
+    expect(state.activeNetworkCaptures.has(11)).toBe(false);
+  });
+
+  test('removes all plugin tab activeNetworkCaptures entries when state changes to closed', () => {
+    const state = createState();
+    withPlugin(state, 'slack');
+    state.tabMapping.set('slack', {
+      state: 'ready',
+      tabs: [{ tabId: 42, url: 'https://app.slack.com', title: 'Slack', ready: true }],
+    });
+    state.activeNetworkCaptures.add(42);
+
+    handleTabStateChanged(state, { plugin: 'slack', state: 'closed', tabs: [] });
+
+    expect(state.activeNetworkCaptures.has(42)).toBe(false);
+  });
+
+  test('does not touch activeNetworkCaptures for tabs that remain in the mapping', () => {
+    const state = createState();
+    withPlugin(state, 'slack');
+    state.tabMapping.set('slack', {
+      state: 'ready',
+      tabs: [{ tabId: 7, url: 'https://app.slack.com', title: 'Slack', ready: true }],
+    });
+    state.activeNetworkCaptures.add(7);
+
+    // Same tab 7 still present
+    handleTabStateChanged(state, {
+      plugin: 'slack',
+      state: 'ready',
+      tabs: [{ tabId: 7, url: 'https://app.slack.com', title: 'Slack', ready: true }],
+    });
+
+    expect(state.activeNetworkCaptures.has(7)).toBe(true);
   });
 });

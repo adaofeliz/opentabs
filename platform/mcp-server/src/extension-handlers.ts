@@ -18,6 +18,7 @@ import {
   prefixedToolName,
   isToolEnabled,
   isBrowserToolEnabled,
+  pushSessionPermission,
   DISPATCH_TIMEOUT_MS,
   MAX_DISPATCH_TIMEOUT_MS,
 } from './state.js';
@@ -190,6 +191,19 @@ const handleTabSyncAll = (state: ServerState, params: Record<string, unknown> | 
     state.tabMapping.set(pluginName, parseTabMapping(mapping as WireTabMapping));
   }
 
+  // Remove activeNetworkCaptures entries for tabs that are no longer present after the sync
+  const syncedTabIds = new Set<number>();
+  for (const mapping of state.tabMapping.values()) {
+    for (const tab of mapping.tabs) {
+      syncedTabIds.add(tab.tabId);
+    }
+  }
+  for (const tabId of state.activeNetworkCaptures) {
+    if (!syncedTabIds.has(tabId)) {
+      state.activeNetworkCaptures.delete(tabId);
+    }
+  }
+
   log.info(`tab.syncAll received — ${state.tabMapping.size} plugin(s) mapped`);
 };
 
@@ -236,7 +250,19 @@ const handleTabStateChanged = (
     state: params.state,
     tabs: Array.isArray(params.tabs) ? (params.tabs as WirePluginTabInfo[]) : [],
   };
-  state.tabMapping.set(plugin, parseTabMapping(wire));
+
+  const oldMapping = state.tabMapping.get(plugin);
+  const oldTabIds = new Set(oldMapping?.tabs.map(t => t.tabId) ?? []);
+  const newMapping = parseTabMapping(wire);
+  state.tabMapping.set(plugin, newMapping);
+  const newTabIdSet = new Set(newMapping.tabs.map(t => t.tabId));
+
+  // Remove activeNetworkCaptures entries for tabs removed from this plugin's mapping
+  for (const tabId of oldTabIds) {
+    if (!newTabIdSet.has(tabId)) {
+      state.activeNetworkCaptures.delete(tabId);
+    }
+  }
 
   log.info(`tab.stateChanged: ${plugin} → ${params.state}`);
 };
@@ -535,14 +561,22 @@ const handleConfirmationResponse = (state: ServerState, params: Record<string, u
     if (scope === 'tool_all') {
       rule.domain = null;
     } else if (scope === 'domain_all') {
-      rule.tool = null;
+      if (pending.domain === null) {
+        // domain_all without a domain context would match all domains — fall back to tool_domain
+        log.warn(
+          `domain_all scope requested for '${pending.tool}' but no domain context — falling back to tool_domain`,
+        );
+        rule.scope = 'tool_domain';
+      } else {
+        rule.tool = null;
+      }
     }
 
     const isDuplicate = state.sessionPermissions.some(
       r => r.tool === rule.tool && r.domain === rule.domain && r.scope === rule.scope,
     );
     if (!isDuplicate) {
-      state.sessionPermissions.push(rule);
+      pushSessionPermission(state, rule);
     }
   }
 
