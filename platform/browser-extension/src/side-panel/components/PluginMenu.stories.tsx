@@ -66,16 +66,16 @@ const LocalPlugin: Story = {
   ),
 };
 
-const ConfirmState: Story = {
+const WithConfirmDialog: Story = {
   render: () => (
     <div>
       <p className="text-muted-foreground mb-2 text-xs">
-        Open the menu to see Confirm? state after clicking Uninstall:
+        Open the menu and click Uninstall to see the confirmation dialog:
       </p>
       <PluginMenu
         plugin={mockNpmPlugin()}
         onUpdate={() => undefined}
-        onRemove={() => undefined}
+        onRemove={() => alert('Plugin removed!')}
         updating={false}
         removing={false}
       />
@@ -141,4 +141,4 @@ const AllStates: Story = {
 };
 
 export default meta;
-export { Default, WithUpdate, LocalPlugin, ConfirmState, AllStates };
+export { Default, WithUpdate, LocalPlugin, WithConfirmDialog, AllStates };

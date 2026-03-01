@@ -1,10 +1,10 @@
+import { Button } from './retro/Button';
+import { Dialog } from './retro/Dialog';
 import { Loader } from './retro/Loader';
 import { Menu } from './retro/Menu';
 import { ArrowUpCircle, MoreHorizontal, Trash2 } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import type { PluginState } from '../bridge';
-
-const CONFIRM_DURATION_MS = 3000;
 
 interface PluginMenuProps {
   plugin: PluginState;
@@ -16,23 +16,14 @@ interface PluginMenuProps {
 }
 
 const PluginMenu = ({ plugin, onUpdate, onRemove, updating, removing, className }: PluginMenuProps) => {
-  const [confirmPending, setConfirmPending] = useState(false);
-  const confirmTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-
-  useEffect(() => () => clearTimeout(confirmTimerRef.current), []);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const isLocal = plugin.source === 'local';
   const removeLabel = isLocal ? 'Remove' : 'Uninstall';
 
-  const handleRemoveClick = () => {
-    if (confirmPending) {
-      clearTimeout(confirmTimerRef.current);
-      setConfirmPending(false);
-      onRemove();
-    } else {
-      setConfirmPending(true);
-      confirmTimerRef.current = setTimeout(() => setConfirmPending(false), CONFIRM_DURATION_MS);
-    }
+  const handleConfirmRemove = () => {
+    setConfirmOpen(false);
+    onRemove();
   };
 
   return (
@@ -60,13 +51,48 @@ const PluginMenu = ({ plugin, onUpdate, onRemove, updating, removing, className 
           )}
           {plugin.update && <Menu.Separator />}
           <Menu.Item
-            onClick={handleRemoveClick}
+            onSelect={() => setConfirmOpen(true)}
             className="text-destructive focus:bg-destructive/10 focus:text-destructive data-[highlighted]:bg-destructive/10 data-[highlighted]:text-destructive">
             {removing ? <Loader size="sm" /> : <Trash2 className="h-3.5 w-3.5" />}
-            {confirmPending ? 'Confirm?' : removeLabel}
+            {removeLabel}
           </Menu.Item>
         </Menu.Content>
       </Menu>
+
+      <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+        <Dialog.Content>
+          <Dialog.Header className="bg-destructive text-destructive-foreground border-destructive">
+            {removeLabel} Plugin
+          </Dialog.Header>
+          <Dialog.Body>
+            <p className="text-foreground text-sm">
+              Are you sure you want to {removeLabel.toLowerCase()}{' '}
+              <strong className="font-head">{plugin.displayName}</strong>?
+            </p>
+            {isLocal ? (
+              <p className="text-muted-foreground mt-1 text-xs">This will remove the plugin path from your config.</p>
+            ) : (
+              <p className="text-muted-foreground mt-1 text-xs">
+                This will run npm uninstall and remove the plugin globally.
+              </p>
+            )}
+          </Dialog.Body>
+          <Dialog.Footer>
+            <Dialog.Close asChild>
+              <Button size="sm" variant="outline">
+                Cancel
+              </Button>
+            </Dialog.Close>
+            <Button
+              size="sm"
+              variant="outline"
+              className="text-destructive border-destructive"
+              onClick={handleConfirmRemove}>
+              {removeLabel}
+            </Button>
+          </Dialog.Footer>
+        </Dialog.Content>
+      </Dialog>
     </div>
   );
 };
