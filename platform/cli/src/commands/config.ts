@@ -289,6 +289,29 @@ const handleListTools = async (options: { port?: number }): Promise<void> => {
   console.log(pc.dim('Usage: opentabs config set tool.<name> enabled|disabled'));
 };
 
+const handleListBrowserTools = async (options: { port?: number }): Promise<void> => {
+  const port = resolvePort(options);
+  const tools = await fetchBrowserToolNames(port);
+
+  if (!tools) {
+    console.error(pc.yellow('Cannot reach the MCP server to list available browser tools.'));
+    console.error(`Start it with: ${pc.bold('opentabs start')}`);
+    process.exit(1);
+  }
+
+  if (tools.length === 0) {
+    console.log(pc.dim('No browser tools available (extension not connected).'));
+    return;
+  }
+
+  console.log(pc.bold('Available browser tools:'));
+  for (const name of tools) {
+    console.log(`  ${name}`);
+  }
+  console.log('');
+  console.log(pc.dim('Usage: opentabs config set browser-tool.<name> enabled|disabled'));
+};
+
 /**
  * Apply an enabled/disabled change to a policy map.
  * When enabled (the default), the entry is removed so defaults are not persisted.
@@ -548,6 +571,9 @@ const handleConfigSet = async (
   if (key === TOOL_PREFIX) {
     return handleListTools(options);
   }
+  if (key === BROWSER_TOOL_PREFIX) {
+    return handleListBrowserTools(options);
+  }
 
   if (!value) {
     console.error(pc.red('Missing value.'));
@@ -706,6 +732,7 @@ Examples:
   $ opentabs config set tool.                              List available tools
   $ opentabs config set tool.slack_send_message disabled
   $ opentabs config set tool.slack_send_message enabled
+  $ opentabs config set browser-tool.                      List available browser tools
   $ opentabs config set browser-tool.browser_execute_script disabled
   $ opentabs config set browser-tool.browser_execute_script enabled
   $ opentabs config set port 9515
