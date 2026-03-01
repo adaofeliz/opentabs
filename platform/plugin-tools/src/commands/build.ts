@@ -255,7 +255,25 @@ const notifyServer = async (): Promise<void> => {
   if (!secret) return;
 
   const portEnv = process.env['OPENTABS_PORT'];
-  const port = portEnv ? Number(portEnv) : DEFAULT_PORT;
+  let port: number;
+  if (portEnv !== undefined) {
+    port = Number(portEnv);
+  } else {
+    let configPort: number | null = null;
+    try {
+      const raw = readFileSync(getConfigPath(), 'utf-8');
+      const parsed: unknown = JSON.parse(raw);
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        const p = (parsed as Record<string, unknown>).port;
+        if (typeof p === 'number' && Number.isInteger(p) && p >= 1 && p <= 65535) {
+          configPort = p;
+        }
+      }
+    } catch {
+      // Config file missing or invalid — use default
+    }
+    port = configPort ?? DEFAULT_PORT;
+  }
   if (!Number.isFinite(port) || port < 1 || port > 65535) return;
 
   try {
