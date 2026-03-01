@@ -808,6 +808,7 @@ const WithBrowserToolsDemo = () => {
           tools={browserTools}
           activeTools={new Set()}
           onToolsChange={updater => setBrowserTools(updater)}
+          serverVersion="0.0.42"
         />
       </Accordion>
       <PluginList plugins={plugins} failedPlugins={[]} activeTools={new Set()} setPlugins={setPlugins} toolFilter="" />
@@ -830,6 +831,7 @@ const BrowserToolsOnlyDemo = () => {
           tools={browserTools}
           activeTools={new Set()}
           onToolsChange={updater => setBrowserTools(updater)}
+          serverVersion="0.0.42"
         />
       </Accordion>
     </SidePanelShell>

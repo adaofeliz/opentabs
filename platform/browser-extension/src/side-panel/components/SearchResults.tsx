@@ -23,6 +23,7 @@ interface SearchResultsProps {
   onUpdate?: (pluginName: string) => void;
   onRemove?: (pluginName: string) => void;
   removingPlugins?: Set<string>;
+  serverVersion?: string;
 }
 
 const SectionHeader = ({ children }: { children: ReactNode }) => (
@@ -50,6 +51,7 @@ const SearchResults = ({
   onUpdate,
   onRemove,
   removingPlugins,
+  serverVersion,
 }: SearchResultsProps) => {
   const filterLower = toolFilter.toLowerCase();
 
@@ -83,6 +85,7 @@ const SearchResults = ({
                 activeTools={activeTools}
                 onToolsChange={setBrowserTools}
                 toolFilter={toolFilter}
+                serverVersion={serverVersion}
               />
             </Accordion>
           )}

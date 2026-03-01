@@ -100,5 +100,21 @@ const Interactive: Story = {
   render: () => <InteractiveDemo />,
 };
 
+const WithServerVersionDemo = () => {
+  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: true })));
+  return (
+    <BrowserToolsCard
+      tools={tools}
+      activeTools={new Set()}
+      onToolsChange={updater => setTools(updater)}
+      serverVersion="0.0.42"
+    />
+  );
+};
+
+const WithServerVersion: Story = {
+  render: () => <WithServerVersionDemo />,
+};
+
 export default meta;
-export { Default, SomeDisabled, AllDisabled, WithActiveTool, WithToolFilter, Interactive };
+export { Default, SomeDisabled, AllDisabled, WithActiveTool, WithToolFilter, Interactive, WithServerVersion };

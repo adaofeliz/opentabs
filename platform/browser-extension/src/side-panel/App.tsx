@@ -32,6 +32,7 @@ const App = () => {
   const [plugins, setPlugins] = useState<PluginState[]>([]);
   const [failedPlugins, setFailedPlugins] = useState<FailedPluginState[]>([]);
   const [browserTools, setBrowserTools] = useState<BrowserToolState[]>([]);
+  const [serverVersion, setServerVersion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
   const [activeTools, setActiveTools] = useState<Set<string>>(new Set());
   const [searchQuery, setSearchQuery] = useState('');
@@ -75,6 +76,7 @@ const App = () => {
         setPlugins(updatedPlugins);
         setFailedPlugins(result.failedPlugins ?? []);
         setBrowserTools(result.browserTools ?? []);
+        setServerVersion(result.serverVersion);
         setActiveTools(prev => {
           const next = new Set<string>();
           for (const key of prev) {
@@ -221,6 +223,7 @@ const App = () => {
           setPlugins([]);
           setFailedPlugins([]);
           setBrowserTools([]);
+          setServerVersion(undefined);
           setActiveTools(new Set());
           setPendingConfirmations([]);
           handleSearchChange('');
@@ -346,12 +349,18 @@ const App = () => {
               onUpdate={handleUpdate}
               onRemove={handleRemove}
               removingPlugins={removingPlugins}
+              serverVersion={serverVersion}
             />
           ) : hasContent ? (
             <>
               {browserTools.length > 0 && (
                 <Accordion type="multiple" className="mb-2 space-y-2">
-                  <BrowserToolsCard tools={browserTools} activeTools={activeTools} onToolsChange={setBrowserTools} />
+                  <BrowserToolsCard
+                    tools={browserTools}
+                    activeTools={activeTools}
+                    onToolsChange={setBrowserTools}
+                    serverVersion={serverVersion}
+                  />
                 </Accordion>
               )}
               <PluginList

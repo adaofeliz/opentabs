@@ -1,6 +1,6 @@
 import { SearchResults } from './SearchResults';
 import { useState } from 'react';
-import type { PluginSearchResult, PluginState } from '../bridge';
+import type { BrowserToolState, PluginSearchResult, PluginState } from '../bridge';
 import type { Meta, StoryObj } from '@storybook/react';
 
 // ---------------------------------------------------------------------------
@@ -216,6 +216,35 @@ const InstallingPluginDemo = () => {
 
 const InstallingPlugin: Story = { render: () => <InstallingPluginDemo /> };
 
+const mockBrowserTools: BrowserToolState[] = [
+  { name: 'browser_list_tabs', description: 'List all open browser tabs', enabled: true },
+  { name: 'browser_screenshot_tab', description: 'Capture a screenshot of a tab', enabled: true },
+];
+
+const WithBrowserToolsDemo = () => {
+  const [plugins, setPlugins] = useState([mockPlugin()]);
+  const [browserTools, setBrowserTools] = useState(mockBrowserTools);
+  return (
+    <SearchResults
+      plugins={plugins}
+      failedPlugins={[]}
+      browserTools={browserTools}
+      activeTools={new Set()}
+      setPlugins={setPlugins}
+      setBrowserTools={setBrowserTools}
+      toolFilter="browser"
+      npmResults={[]}
+      npmSearching={false}
+      installingPlugins={new Set()}
+      onInstall={() => undefined}
+      installErrors={new Map()}
+      serverVersion="0.0.42"
+    />
+  );
+};
+
+const WithBrowserTools: Story = { render: () => <WithBrowserToolsDemo /> };
+
 const AllStatesDemo = () => {
   const [plugins1, setPlugins1] = useState([mockPlugin()]);
   const [plugins2, setPlugins2] = useState<PluginState[]>([]);
@@ -306,4 +335,4 @@ const AllStatesDemo = () => {
 const AllStates: Story = { render: () => <AllStatesDemo /> };
 
 export default meta;
-export { InstalledOnly, NpmOnly, Both, NoResults, NpmLoading, InstallingPlugin, AllStates };
+export { InstalledOnly, NpmOnly, Both, NoResults, NpmLoading, InstallingPlugin, WithBrowserTools, AllStates };
