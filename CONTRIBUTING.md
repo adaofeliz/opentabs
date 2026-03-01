@@ -126,7 +126,6 @@ The project uses [Husky](https://typicode.github.io/husky/) for git hooks:
 
 - Rejects any accidentally staged ralph state files (`.ralph/prd.json`, `.ralph/progress.txt`)
 - Runs `lint-staged`: Prettier and ESLint auto-fix on staged `.ts`, `.tsx`, and `.json` files; Prettier on `.md` files
-- Runs `knip` to catch unused exports and dependencies
 
 **Pre-push** (runs before every push):
 
