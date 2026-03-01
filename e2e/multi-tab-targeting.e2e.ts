@@ -1,0 +1,347 @@
+/**
+ * Multi-tab targeting E2E tests — verify the full pipeline:
+ *   MCP client → server → extension → specific tab → response
+ *
+ * Covers:
+ *   - plugin_list_tabs discovering multiple matching tabs
+ *   - Targeted tool dispatch via tabId to a specific tab
+ *   - Error handling for non-matching and non-existent tabId
+ *   - Auto-select fallback when tabId is omitted
+ *   - Readiness reporting per tab
+ */
+
+import { test, expect } from './fixtures.js';
+import { openTestAppTab, parseToolResult, waitForToolResult, setupToolTest, waitFor } from './helpers.js';
+
+/** Shape of plugin_list_tabs response entries. */
+interface PluginTabsEntry {
+  plugin: string;
+  displayName: string;
+  state: string;
+  tabs: Array<{ tabId: number; url: string; title: string; ready: boolean }>;
+}
+
+/**
+ * Poll plugin_list_tabs until the e2e-test plugin reports at least `count` tabs.
+ * Returns the parsed response array.
+ */
+const waitForTabCount = async (
+  callTool: (name: string, args: Record<string, unknown>) => Promise<{ content: string; isError: boolean }>,
+  count: number,
+  timeoutMs = 15_000,
+): Promise<PluginTabsEntry[]> => {
+  let last: PluginTabsEntry[] = [];
+  await waitFor(
+    async () => {
+      const result = await callTool('plugin_list_tabs', { plugin: 'e2e-test' });
+      if (result.isError) return false;
+      last = JSON.parse(result.content) as PluginTabsEntry[];
+      const entry = last[0];
+      return entry !== undefined && entry.tabs.length >= count;
+    },
+    timeoutMs,
+    500,
+    `plugin_list_tabs to report ${count} tab(s)`,
+  );
+  return last;
+};
+
+// ---------------------------------------------------------------------------
+// Test 1: plugin_list_tabs discovers multiple matching tabs
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — plugin_list_tabs', () => {
+  test('lists both tabs with correct URLs and tab IDs when two tabs match the same plugin', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    test.slow();
+
+    // Open first tab and wait for ready
+    const page1 = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Open second tab to the same test server
+    const page2 = await openTestAppTab(extensionContext, testServer.url, mcpServer, testServer);
+
+    // Wait for the second tab's adapter to be fully ready
+    await waitForToolResult(mcpClient, 'e2e-test_get_status', {}, { isError: false }, 15_000);
+
+    // Wait for the server to receive updated tab state with two tabs
+    const plugins = await waitForTabCount(mcpClient.callTool.bind(mcpClient), 2);
+
+    expect(plugins.length).toBe(1);
+    const pluginInfo = plugins[0];
+    if (!pluginInfo) throw new Error('Expected plugin entry in plugin_list_tabs response');
+
+    expect(pluginInfo.plugin).toBe('e2e-test');
+    expect(pluginInfo.state).toBe('ready');
+    expect(pluginInfo.tabs.length).toBe(2);
+
+    // Both tabs should have valid tab IDs and URLs matching the test server
+    for (const tab of pluginInfo.tabs) {
+      expect(tab.tabId).toBeGreaterThan(0);
+      expect(tab.url).toContain('localhost');
+      expect(tab.ready).toBe(true);
+    }
+
+    // Tab IDs should be distinct
+    const tabIds = pluginInfo.tabs.map(t => t.tabId);
+    expect(new Set(tabIds).size).toBe(2);
+
+    await page1.close();
+    await page2.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 2: Targeted dispatch via tabId executes on the correct tab
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — targeted dispatch', () => {
+  test('tool call with tabId executes on the specified tab', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    test.slow();
+
+    // Open first tab and wait for ready
+    const page1 = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Set a unique marker on page1
+    await page1.evaluate(() => {
+      (globalThis as Record<string, unknown>).__tabMarker = 'tab-one';
+    });
+
+    // Open second tab
+    const page2 = await openTestAppTab(extensionContext, testServer.url, mcpServer, testServer);
+
+    // Set a different marker on page2
+    await page2.evaluate(() => {
+      (globalThis as Record<string, unknown>).__tabMarker = 'tab-two';
+    });
+
+    // Wait for both tabs to be tracked
+    const plugins = await waitForTabCount(mcpClient.callTool.bind(mcpClient), 2);
+
+    const entry = plugins[0];
+    if (!entry) throw new Error('Expected plugin entry in plugin_list_tabs response');
+    expect(entry.tabs.length).toBe(2);
+
+    const firstTab = entry.tabs[0];
+    const secondTab = entry.tabs[1];
+    if (!firstTab || !secondTab) throw new Error('Expected two tab entries');
+
+    // Read markers from each tab to identify which is which.
+    // browser_execute_script returns { value: { value: <actual>, type: ... } }
+    const marker1Result = await mcpClient.callTool('browser_execute_script', {
+      tabId: firstTab.tabId,
+      code: 'return globalThis.__tabMarker',
+    });
+    expect(marker1Result.isError).toBe(false);
+    const marker1Data = parseToolResult(marker1Result.content);
+    const marker1Nested = marker1Data.value as Record<string, unknown>;
+    const marker1Value = marker1Nested.value as string;
+
+    // Determine which tabId is 'tab-one' and which is 'tab-two'
+    let tabOneId: number;
+    let tabTwoId: number;
+    if (marker1Value === 'tab-one') {
+      tabOneId = firstTab.tabId;
+      tabTwoId = secondTab.tabId;
+    } else {
+      tabOneId = secondTab.tabId;
+      tabTwoId = firstTab.tabId;
+    }
+
+    // Call sdk_get_page_global with tabId targeting 'tab-two'
+    const targetResult = await mcpClient.callTool('e2e-test_sdk_get_page_global', {
+      path: '__tabMarker',
+      tabId: tabTwoId,
+    });
+    expect(targetResult.isError).toBe(false);
+    const targetParsed = parseToolResult(targetResult.content);
+    expect(targetParsed.value).toBe('tab-two');
+
+    // Verify targeting the other tab returns 'tab-one'
+    const otherResult = await mcpClient.callTool('e2e-test_sdk_get_page_global', {
+      path: '__tabMarker',
+      tabId: tabOneId,
+    });
+    expect(otherResult.isError).toBe(false);
+    const otherParsed = parseToolResult(otherResult.content);
+    expect(otherParsed.value).toBe('tab-one');
+
+    await page1.close();
+    await page2.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 3: Non-matching tab URL returns error
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — URL mismatch', () => {
+  test('tool call with tabId pointing to a non-matching tab returns URL mismatch error', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    // Open a matching tab so the plugin is available
+    const page = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Open a non-matching tab (use 127.0.0.1 instead of localhost — different origin)
+    const nonMatchingPage = await extensionContext.newPage();
+    await nonMatchingPage.goto(testServer.url.replace('localhost', '127.0.0.1'), {
+      waitUntil: 'load',
+    });
+
+    // Get the non-matching tab's ID via browser_list_tabs.
+    // browser_list_tabs returns { id, title, url, active, windowId } per tab.
+    const listTabsResult = await mcpClient.callTool('browser_list_tabs');
+    expect(listTabsResult.isError).toBe(false);
+    const allTabs = JSON.parse(listTabsResult.content) as Array<{
+      id: number;
+      url: string;
+    }>;
+
+    // Find the tab with 127.0.0.1 URL
+    const nonMatchingTab = allTabs.find(t => t.url.includes('127.0.0.1'));
+    if (!nonMatchingTab) throw new Error('Could not find non-matching tab with 127.0.0.1 URL');
+
+    // Call a plugin tool with the non-matching tab's ID
+    const result = await mcpClient.callTool('e2e-test_echo', {
+      message: 'should-fail',
+      tabId: nonMatchingTab.id,
+    });
+
+    expect(result.isError).toBe(true);
+    // The error should mention URL not matching
+    expect(result.content.toLowerCase()).toMatch(/url|pattern|match/);
+
+    await nonMatchingPage.close();
+    await page.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 4: Non-existent tabId returns clean error
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — non-existent tab', () => {
+  test('tool call with non-existent tabId returns clean error', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    // Open a matching tab so the plugin is available
+    const page = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Call a plugin tool with a non-existent tab ID
+    const result = await mcpClient.callTool('e2e-test_echo', {
+      message: 'should-fail',
+      tabId: 999999,
+    });
+
+    expect(result.isError).toBe(true);
+    // The error should mention the tab not being found / no usable tab
+    expect(result.content.toLowerCase()).toMatch(/tab|not found|no usable/);
+
+    await page.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 5: Auto-select when tabId is omitted with multiple tabs
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — auto-select fallback', () => {
+  test('tool call without tabId dispatches to best-ranked tab when multiple tabs are open', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    test.slow();
+
+    // Open first tab and wait for ready
+    const page1 = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Open second tab
+    const page2 = await openTestAppTab(extensionContext, testServer.url, mcpServer, testServer);
+
+    // Wait for both tabs to be tracked
+    await waitForTabCount(mcpClient.callTool.bind(mcpClient), 2);
+
+    // Call echo WITHOUT tabId — should auto-select and succeed
+    const result = await mcpClient.callTool('e2e-test_echo', { message: 'auto-select' });
+    expect(result.isError).toBe(false);
+    const parsed = parseToolResult(result.content);
+    expect(parsed.message).toBe('auto-select');
+
+    // Verify the tool actually dispatched (test server received the call)
+    const invocations = await testServer.invocations();
+    const echoInvocations = invocations.filter(
+      i => i.path === '/api/echo' && (i.body as Record<string, unknown>).message === 'auto-select',
+    );
+    expect(echoInvocations.length).toBe(1);
+
+    await page1.close();
+    await page2.close();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Test 6: plugin_list_tabs returns readiness info
+// ---------------------------------------------------------------------------
+
+test.describe('Multi-tab targeting — readiness info', () => {
+  test('plugin_list_tabs shows ready:true for matching tabs with injected adapters', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    // Open a matching tab and wait for ready
+    const page = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Call plugin_list_tabs
+    const result = await mcpClient.callTool('plugin_list_tabs', { plugin: 'e2e-test' });
+    expect(result.isError).toBe(false);
+
+    const plugins = JSON.parse(result.content) as PluginTabsEntry[];
+
+    expect(plugins.length).toBe(1);
+    const pluginInfo = plugins[0];
+    if (!pluginInfo) throw new Error('Expected plugin entry in plugin_list_tabs response');
+
+    expect(pluginInfo.state).toBe('ready');
+    expect(pluginInfo.tabs.length).toBeGreaterThanOrEqual(1);
+
+    // The tab should be marked as ready
+    const readyTab = pluginInfo.tabs[0];
+    if (!readyTab) throw new Error('Expected at least one tab entry');
+    expect(readyTab.ready).toBe(true);
+    expect(readyTab.tabId).toBeGreaterThan(0);
+    expect(readyTab.url).toContain('localhost');
+
+    // plugin_list_tabs without plugin arg returns all plugins
+    const allResult = await mcpClient.callTool('plugin_list_tabs', {});
+    expect(allResult.isError).toBe(false);
+    const allPlugins = JSON.parse(allResult.content) as PluginTabsEntry[];
+    // Should include e2e-test
+    const e2ePlugin = allPlugins.find(p => p.plugin === 'e2e-test');
+    if (!e2ePlugin) throw new Error('Expected e2e-test plugin in all-plugins response');
+    expect(e2ePlugin.tabs.length).toBeGreaterThanOrEqual(1);
+    const firstTab = e2ePlugin.tabs[0];
+    if (!firstTab) throw new Error('Expected at least one tab in e2e-test plugin');
+    expect(firstTab.ready).toBe(true);
+
+    await page.close();
+  });
+});
