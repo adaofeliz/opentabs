@@ -1,6 +1,6 @@
 import { requireStringParam } from './browser-commands/helpers.js';
 import { MAX_INPUT_SIZE, MAX_SCRIPT_TIMEOUT_MS, SCRIPT_TIMEOUT_MS } from './constants.js';
-import { dispatchWithTabFallback, resolvePlugin } from './dispatch-helpers.js';
+import { dispatchToTargetedTab, dispatchWithTabFallback, resolvePlugin } from './dispatch-helpers.js';
 import { JSONRPC_INTERNAL_ERROR, JSONRPC_INVALID_PARAMS } from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import { toErrorMessage } from '@opentabs-dev/shared';
@@ -372,26 +372,41 @@ const handleToolDispatch = async (params: Record<string, unknown>, id: string | 
     return;
   }
 
+  const targetTabId = typeof params.tabId === 'number' ? params.tabId : undefined;
+
   const plugin = await resolvePlugin(pluginName, id);
   if (!plugin) return;
 
   const link = getPluginLink(plugin);
 
-  await dispatchWithTabFallback({
-    id,
-    pluginName,
-    plugin,
-    operationName: 'tool execution',
-    executeOnTab: async tabId => {
-      await injectToolInvocationLog(tabId, pluginName, toolName, link);
-      await injectProgressListener(tabId, dispatchId);
-      try {
-        return await executeToolOnTab(tabId, pluginName, toolName, input, dispatchId);
-      } finally {
-        removeProgressListener(tabId, dispatchId);
-      }
-    },
-  });
+  const executeOnTab = async (tid: number): Promise<DispatchResult> => {
+    await injectToolInvocationLog(tid, pluginName, toolName, link);
+    await injectProgressListener(tid, dispatchId);
+    try {
+      return await executeToolOnTab(tid, pluginName, toolName, input, dispatchId);
+    } finally {
+      removeProgressListener(tid, dispatchId);
+    }
+  };
+
+  if (targetTabId !== undefined) {
+    await dispatchToTargetedTab({
+      id,
+      pluginName,
+      plugin,
+      tabId: targetTabId,
+      operationName: 'tool execution',
+      executeOnTab,
+    });
+  } else {
+    await dispatchWithTabFallback({
+      id,
+      pluginName,
+      plugin,
+      operationName: 'tool execution',
+      executeOnTab,
+    });
+  }
 };
 
 export { getPluginLink, handleToolDispatch, notifyDispatchProgress };

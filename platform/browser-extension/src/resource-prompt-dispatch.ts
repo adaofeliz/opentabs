@@ -1,6 +1,11 @@
 import { requireStringParam } from './browser-commands/helpers.js';
 import { SCRIPT_TIMEOUT_MS } from './constants.js';
-import { dispatchWithTabFallback, executeWithTimeout, resolvePlugin } from './dispatch-helpers.js';
+import {
+  dispatchToTargetedTab,
+  dispatchWithTabFallback,
+  executeWithTimeout,
+  resolvePlugin,
+} from './dispatch-helpers.js';
 import { JSONRPC_INVALID_PARAMS } from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import type { DispatchResult } from './dispatch-helpers.js';
@@ -194,16 +199,31 @@ const handleResourceRead = async (params: Record<string, unknown>, id: string | 
   const resourceUri = requireStringParam(params, 'uri', id);
   if (!resourceUri) return;
 
+  const targetTabId = typeof params.tabId === 'number' ? params.tabId : undefined;
+
   const plugin = await resolvePlugin(pluginName, id);
   if (!plugin) return;
 
-  await dispatchWithTabFallback({
-    id,
-    pluginName,
-    plugin,
-    operationName: 'resource read',
-    executeOnTab: tabId => executeResourceReadOnTab(tabId, pluginName, resourceUri),
-  });
+  const executeOnTab = (tid: number) => executeResourceReadOnTab(tid, pluginName, resourceUri);
+
+  if (targetTabId !== undefined) {
+    await dispatchToTargetedTab({
+      id,
+      pluginName,
+      plugin,
+      tabId: targetTabId,
+      operationName: 'resource read',
+      executeOnTab,
+    });
+  } else {
+    await dispatchWithTabFallback({
+      id,
+      pluginName,
+      plugin,
+      operationName: 'resource read',
+      executeOnTab,
+    });
+  }
 };
 
 /**
@@ -233,16 +253,31 @@ const handlePromptGet = async (params: Record<string, unknown>, id: string | num
     promptArgs[key] = String(val);
   }
 
+  const targetTabId = typeof params.tabId === 'number' ? params.tabId : undefined;
+
   const plugin = await resolvePlugin(pluginName, id);
   if (!plugin) return;
 
-  await dispatchWithTabFallback({
-    id,
-    pluginName,
-    plugin,
-    operationName: 'prompt get',
-    executeOnTab: tabId => executePromptGetOnTab(tabId, pluginName, promptName, promptArgs),
-  });
+  const executeOnTab = (tid: number) => executePromptGetOnTab(tid, pluginName, promptName, promptArgs);
+
+  if (targetTabId !== undefined) {
+    await dispatchToTargetedTab({
+      id,
+      pluginName,
+      plugin,
+      tabId: targetTabId,
+      operationName: 'prompt get',
+      executeOnTab,
+    });
+  } else {
+    await dispatchWithTabFallback({
+      id,
+      pluginName,
+      plugin,
+      operationName: 'prompt get',
+      executeOnTab,
+    });
+  }
 };
 
 export { handleResourceRead, handlePromptGet };
