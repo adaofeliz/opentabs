@@ -108,34 +108,40 @@ export const handleBrowserListResources = async (
 
     await withDebugger(tabId, async () => {
       await chrome.debugger.sendCommand({ tabId }, 'Page.enable');
-      const treeResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceTree')) as {
-        frameTree: CdpFrameResourceTree;
-      };
+      try {
+        const treeResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceTree')) as {
+          frameTree: CdpFrameResourceTree;
+        };
 
-      const frames: Array<{ url: string; securityOrigin: string }> = [];
-      const resources: Array<{ url: string; type: string; mimeType: string; contentLength: number }> = [];
+        const frames: Array<{ url: string; securityOrigin: string }> = [];
+        const resources: Array<{ url: string; type: string; mimeType: string; contentLength: number }> = [];
 
-      const walk = (node: CdpFrameResourceTree): void => {
-        frames.push({ url: node.frame.url, securityOrigin: node.frame.securityOrigin });
-        for (const r of node.resources) {
-          if (typeFilter && r.type !== typeFilter) continue;
-          resources.push({
-            url: r.url,
-            type: r.type,
-            mimeType: r.mimeType,
-            contentLength: r.contentLength ?? -1,
-          });
+        const walk = (node: CdpFrameResourceTree): void => {
+          frames.push({ url: node.frame.url, securityOrigin: node.frame.securityOrigin });
+          for (const r of node.resources) {
+            if (typeFilter && r.type !== typeFilter) continue;
+            resources.push({
+              url: r.url,
+              type: r.type,
+              mimeType: r.mimeType,
+              contentLength: r.contentLength ?? -1,
+            });
+          }
+          if (node.childFrames) {
+            for (const child of node.childFrames) walk(child);
+          }
+        };
+
+        walk(treeResult.frameTree);
+
+        resources.sort((a, b) => a.type.localeCompare(b.type) || a.url.localeCompare(b.url));
+
+        sendSuccessResult(id, { frames, resources });
+      } finally {
+        if (isCapturing(tabId)) {
+          await chrome.debugger.sendCommand({ tabId }, 'Page.disable').catch(() => {});
         }
-        if (node.childFrames) {
-          for (const child of node.childFrames) walk(child);
-        }
-      };
-
-      walk(treeResult.frameTree);
-
-      resources.sort((a, b) => a.type.localeCompare(b.type) || a.url.localeCompare(b.url));
-
-      sendSuccessResult(id, { frames, resources });
+      }
     });
   } catch (err) {
     sendErrorResult(id, err);
@@ -155,47 +161,52 @@ export const handleBrowserGetResourceContent = async (
 
     await withDebugger(tabId, async () => {
       await chrome.debugger.sendCommand({ tabId }, 'Page.enable');
+      try {
+        // Get the resource tree to find which frame owns the requested resource
+        const treeResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceTree')) as {
+          frameTree: CdpFrameResourceTree;
+        };
 
-      // Get the resource tree to find which frame owns the requested resource
-      const treeResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceTree')) as {
-        frameTree: CdpFrameResourceTree;
-      };
+        const match = findFrameForResource(treeResult.frameTree, url);
+        if (!match) {
+          sendValidationError(
+            id,
+            `Resource not found in page: ${url}. Use browser_list_resources to find valid resource URLs.`,
+          );
+          return;
+        }
 
-      const match = findFrameForResource(treeResult.frameTree, url);
-      if (!match) {
-        sendValidationError(
-          id,
-          `Resource not found in page: ${url}. Use browser_list_resources to find valid resource URLs.`,
-        );
-        return;
-      }
+        const contentResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceContent', {
+          frameId: match.frameId,
+          url,
+        })) as { content: string; base64Encoded: boolean };
 
-      const contentResult = (await chrome.debugger.sendCommand({ tabId }, 'Page.getResourceContent', {
-        frameId: match.frameId,
-        url,
-      })) as { content: string; base64Encoded: boolean };
+        let content = contentResult.content;
+        let base64Encoded = contentResult.base64Encoded;
 
-      let content = contentResult.content;
-      let base64Encoded = contentResult.base64Encoded;
+        // Decode base64 text resources to UTF-8 strings
+        if (base64Encoded && isTextMimeType(match.mimeType)) {
+          try {
+            content = new TextDecoder().decode(Uint8Array.from(atob(content), c => c.charCodeAt(0)));
+            base64Encoded = false;
+          } catch {
+            // Decoding failed — return base64 as-is
+          }
+        }
 
-      // Decode base64 text resources to UTF-8 strings
-      if (base64Encoded && isTextMimeType(match.mimeType)) {
-        try {
-          content = new TextDecoder().decode(Uint8Array.from(atob(content), c => c.charCodeAt(0)));
-          base64Encoded = false;
-        } catch {
-          // Decoding failed — return base64 as-is
+        // Truncate text content that exceeds maxLength
+        let truncated = false;
+        if (!base64Encoded && content.length > maxLength) {
+          content = content.slice(0, maxLength) + '... (truncated)';
+          truncated = true;
+        }
+
+        sendSuccessResult(id, { url, content, base64Encoded, mimeType: match.mimeType, truncated });
+      } finally {
+        if (isCapturing(tabId)) {
+          await chrome.debugger.sendCommand({ tabId }, 'Page.disable').catch(() => {});
         }
       }
-
-      // Truncate text content that exceeds maxLength
-      let truncated = false;
-      if (!base64Encoded && content.length > maxLength) {
-        content = content.slice(0, maxLength) + '... (truncated)';
-        truncated = true;
-      }
-
-      sendSuccessResult(id, { url, content, base64Encoded, mimeType: match.mimeType, truncated });
     });
   } catch (err) {
     sendErrorResult(id, err);

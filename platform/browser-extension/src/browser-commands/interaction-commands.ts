@@ -14,6 +14,7 @@ import {
   POLL_INTERVAL_MS,
   TEXT_PREVIEW_MAX_LENGTH,
 } from '../constants.js';
+import { isCapturing } from '../network-capture.js';
 import { toErrorMessage } from '@opentabs-dev/shared';
 
 /**
@@ -375,6 +376,10 @@ export const handleBrowserHandleDialog = async (
         const msg = toErrorMessage(err);
         const isNoDialog = msg.includes('No dialog is showing') || msg.includes('no dialog');
         sendErrorResult(id, isNoDialog ? new Error('No JavaScript dialog is currently open on this tab') : err);
+      } finally {
+        if (isCapturing(tabId)) {
+          await chrome.debugger.sendCommand({ tabId }, 'Page.disable').catch(() => {});
+        }
       }
     });
   } catch (err) {
