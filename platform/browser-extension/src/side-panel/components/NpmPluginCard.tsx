@@ -33,7 +33,7 @@ const NpmPluginCard = ({ plugin, installing, error, onInstall }: NpmPluginCardPr
               </Badge>
             )}
           </div>
-          <span className="text-muted-foreground truncate font-mono text-xs">{plugin.author}</span>
+          <span className="text-muted-foreground truncate font-sans text-xs">{plugin.author}</span>
         </div>
         <Button size="sm" variant="default" disabled={installing} onClick={onInstall} className="shrink-0">
           {installing ? <Loader size="sm" /> : 'Install'}
