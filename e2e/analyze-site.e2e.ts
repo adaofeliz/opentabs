@@ -100,25 +100,33 @@ const analyzeSite = async (mcpClient: McpClient, path: string, waitSeconds = 3):
 
   const url = `${analyzeSiteServer.url}${path}`;
 
-  // Snapshot tab IDs before the analysis
+  // Snapshot tab IDs before the analysis (outside try/finally so it's available in cleanup)
   const beforeResult = await mcpClient.callTool('browser_list_tabs');
   const tabsBefore = new Set((JSON.parse(beforeResult.content) as Array<{ id: number }>).map(t => t.id));
 
-  const result = await mcpClient.callTool('plugin_analyze_site', { url, waitSeconds }, { timeout: 60_000 });
-  if (result.isError) {
-    throw new Error(`plugin_analyze_site returned error: ${result.content}`);
-  }
-
-  // Close any tabs that appeared during the analysis (safety net)
-  const afterResult = await mcpClient.callTool('browser_list_tabs');
-  const tabsAfter = JSON.parse(afterResult.content) as Array<{ id: number }>;
-  for (const tab of tabsAfter) {
-    if (!tabsBefore.has(tab.id)) {
-      await mcpClient.callTool('browser_close_tab', { tabId: tab.id }).catch(() => {});
+  let resultContent = '';
+  try {
+    const result = await mcpClient.callTool('plugin_analyze_site', { url, waitSeconds }, { timeout: 60_000 });
+    if (result.isError) {
+      throw new Error(`plugin_analyze_site returned error: ${result.content}`);
+    }
+    resultContent = result.content;
+  } finally {
+    // Close any tabs that appeared during the analysis (safety net — runs even if the tool call throws)
+    try {
+      const afterResult = await mcpClient.callTool('browser_list_tabs');
+      const tabsAfter = JSON.parse(afterResult.content) as Array<{ id: number }>;
+      for (const tab of tabsAfter) {
+        if (!tabsBefore.has(tab.id)) {
+          await mcpClient.callTool('browser_close_tab', { tabId: tab.id }).catch(() => {});
+        }
+      }
+    } catch {
+      // best-effort cleanup — ignore errors so the original exception is not suppressed
     }
   }
 
-  return parseToolResult(result.content) as unknown as SiteAnalysis;
+  return parseToolResult(resultContent) as unknown as SiteAnalysis;
 };
 
 // ---------------------------------------------------------------------------
