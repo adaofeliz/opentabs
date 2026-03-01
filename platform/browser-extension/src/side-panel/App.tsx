@@ -58,40 +58,6 @@ const App = () => {
     pluginsRef.current = plugins;
   }, [connected, loading, plugins]);
 
-  const loadPlugins = (): Promise<void> => {
-    const now = Date.now();
-    if (now - lastFetchRef.current < 200) return Promise.resolve();
-    lastFetchRef.current = now;
-    return fetchConfigState()
-      .then(result => {
-        let updatedPlugins = result.plugins ?? [];
-        if (pendingTabStates.current.size > 0) {
-          updatedPlugins = updatedPlugins.map(p => {
-            const buffered = pendingTabStates.current.get(p.name);
-            return buffered ? { ...p, tabState: buffered } : p;
-          });
-          pendingTabStates.current.clear();
-        }
-        setPluginsLoaded(true);
-        setPlugins(updatedPlugins);
-        setFailedPlugins(result.failedPlugins ?? []);
-        setBrowserTools(result.browserTools ?? []);
-        setServerVersion(result.serverVersion);
-        setActiveTools(prev => {
-          const next = new Set<string>();
-          for (const key of prev) {
-            if (key.startsWith('browser:') || updatedPlugins.some(p => key.startsWith(p.name + ':'))) {
-              next.add(key);
-            }
-          }
-          return next;
-        });
-      })
-      .catch(() => {
-        // Server may not be ready yet
-      });
-  };
-
   const { handleNotification, clearConfirmationTimeout } = useServerNotifications({
     setPlugins,
     setActiveTools,
@@ -174,6 +140,40 @@ const App = () => {
   };
 
   useEffect(() => {
+    const loadPlugins = (): Promise<void> => {
+      const now = Date.now();
+      if (now - lastFetchRef.current < 200) return Promise.resolve();
+      lastFetchRef.current = now;
+      return fetchConfigState()
+        .then(result => {
+          let updatedPlugins = result.plugins ?? [];
+          if (pendingTabStates.current.size > 0) {
+            updatedPlugins = updatedPlugins.map(p => {
+              const buffered = pendingTabStates.current.get(p.name);
+              return buffered ? { ...p, tabState: buffered } : p;
+            });
+            pendingTabStates.current.clear();
+          }
+          setPluginsLoaded(true);
+          setPlugins(updatedPlugins);
+          setFailedPlugins(result.failedPlugins ?? []);
+          setBrowserTools(result.browserTools ?? []);
+          setServerVersion(result.serverVersion);
+          setActiveTools(prev => {
+            const next = new Set<string>();
+            for (const key of prev) {
+              if (key.startsWith('browser:') || updatedPlugins.some(p => key.startsWith(p.name + ':'))) {
+                next.add(key);
+              }
+            }
+            return next;
+          });
+        })
+        .catch(() => {
+          // Server may not be ready yet
+        });
+    };
+
     void getConnectionState()
       .then(async result => {
         setConnected(result.connected);
@@ -223,7 +223,10 @@ const App = () => {
           setServerVersion(undefined);
           setActiveTools(new Set());
           setPendingConfirmations([]);
-          handleSearchChange('');
+          setSearchQuery('');
+          clearTimeout(npmSearchTimer.current);
+          setNpmResults([]);
+          setNpmSearching(false);
           rejectAllPending();
         }
         sendResponse({ ok: true });
@@ -262,7 +265,7 @@ const App = () => {
 
     chrome.runtime.onMessage.addListener(listener);
     return () => chrome.runtime.onMessage.removeListener(listener);
-  }, [loadPlugins, handleNotification, handleSearchChange]);
+  }, [handleNotification]);
 
   const handleConfirmationRespond = (
     id: string,
