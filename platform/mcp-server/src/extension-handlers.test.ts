@@ -1,4 +1,6 @@
 import {
+  handleConfigGetState,
+  handleConfigSetBrowserToolEnabled,
   handleConfirmationResponse,
   handlePluginLog,
   handleToolProgress,
@@ -35,6 +37,7 @@ const createPendingConfirmation = (
 const noopCallbacks: McpCallbacks = {
   onToolConfigChanged: () => {},
   onToolConfigPersist: () => {},
+  onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
 };
@@ -579,5 +582,206 @@ describe('handlePluginLog', () => {
     expect(receivedEntry).toBeDefined();
     const entry = receivedEntry as { data: unknown };
     expect(entry.data).toEqual({ key: 'value' });
+  });
+});
+
+describe('handleConfigGetState', () => {
+  /** Create a mock WsHandle that captures sent JSON messages */
+  const createMockWs = (): { ws: { send: (msg: string) => void; close: () => void }; messages: string[] } => {
+    const messages: string[] = [];
+    return { ws: { send: msg => messages.push(msg), close: () => {} }, messages };
+  };
+
+  test('includes browserTools in the result', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List all open browser tabs', inputSchema: {}, tool: null as never },
+      { name: 'browser_screenshot', description: 'Capture a screenshot', inputSchema: {}, tool: null as never },
+    ];
+
+    handleConfigGetState(state, 'req-1');
+
+    expect(messages).toHaveLength(1);
+    const response = JSON.parse(messages[0] as string) as {
+      result: { browserTools: { name: string; description: string; enabled: boolean }[] };
+    };
+    expect(response.result.browserTools).toHaveLength(2);
+    expect(response.result.browserTools[0]).toEqual({
+      name: 'browser_list_tabs',
+      description: 'List all open browser tabs',
+      enabled: true,
+    });
+    expect(response.result.browserTools[1]).toEqual({
+      name: 'browser_screenshot',
+      description: 'Capture a screenshot',
+      enabled: true,
+    });
+  });
+
+  test('browser tools are sorted alphabetically by name', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_screenshot', description: 'Screenshot', inputSchema: {}, tool: null as never },
+      { name: 'browser_click', description: 'Click', inputSchema: {}, tool: null as never },
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+    ];
+
+    handleConfigGetState(state, 'req-2');
+
+    const response = JSON.parse(messages[0] as string) as {
+      result: { browserTools: { name: string }[] };
+    };
+    expect(response.result.browserTools.map(t => t.name)).toEqual([
+      'browser_click',
+      'browser_list_tabs',
+      'browser_screenshot',
+    ]);
+  });
+
+  test('browser tool disabled in browserToolPolicy has enabled: false', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+      { name: 'browser_screenshot', description: 'Screenshot', inputSchema: {}, tool: null as never },
+    ];
+    state.browserToolPolicy = { browser_list_tabs: false };
+
+    handleConfigGetState(state, 'req-3');
+
+    const response = JSON.parse(messages[0] as string) as {
+      result: { browserTools: { name: string; enabled: boolean }[] };
+    };
+    const listTabs = response.result.browserTools.find(t => t.name === 'browser_list_tabs');
+    const screenshot = response.result.browserTools.find(t => t.name === 'browser_screenshot');
+    expect(listTabs?.enabled).toBe(false);
+    expect(screenshot?.enabled).toBe(true);
+  });
+
+  test('empty cachedBrowserTools returns empty browserTools array', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+
+    handleConfigGetState(state, 'req-4');
+
+    const response = JSON.parse(messages[0] as string) as {
+      result: { browserTools: unknown[] };
+    };
+    expect(response.result.browserTools).toEqual([]);
+  });
+});
+
+describe('handleConfigSetBrowserToolEnabled', () => {
+  /** Create a mock WsHandle that captures sent JSON messages */
+  const createMockWs = (): { ws: { send: (msg: string) => void; close: () => void }; messages: string[] } => {
+    const messages: string[] = [];
+    return { ws: { send: msg => messages.push(msg), close: () => {} }, messages };
+  };
+
+  test('valid toggle sets browserToolPolicy and returns { ok: true }', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+    ];
+
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: false }, 'req-1', noopCallbacks);
+
+    expect(state.browserToolPolicy.browser_list_tabs).toBe(false);
+    // First message is plugins.changed notification, second is the result
+    expect(messages).toHaveLength(2);
+    const notification = JSON.parse(messages[0] as string) as { method: string };
+    expect(notification.method).toBe('plugins.changed');
+    const response = JSON.parse(messages[1] as string) as { result: { ok: boolean }; id: string };
+    expect(response.result).toEqual({ ok: true });
+    expect(response.id).toBe('req-1');
+  });
+
+  test('calls onToolConfigChanged and onBrowserToolPolicyPersist', () => {
+    const state = createState();
+    const { ws } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+    ];
+    let configChanged = false;
+    let policyPersisted = false;
+    const callbacks: McpCallbacks = {
+      ...noopCallbacks,
+      onToolConfigChanged: () => {
+        configChanged = true;
+      },
+      onBrowserToolPolicyPersist: () => {
+        policyPersisted = true;
+      },
+    };
+
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: false }, 'req-2', callbacks);
+
+    expect(configChanged).toBe(true);
+    expect(policyPersisted).toBe(true);
+  });
+
+  test('invalid tool name returns error', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+    ];
+
+    handleConfigSetBrowserToolEnabled(state, { tool: 'nonexistent_tool', enabled: false }, 'req-3', noopCallbacks);
+
+    expect(messages).toHaveLength(1);
+    const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
+    expect(response.error.code).toBe(-32602);
+    expect(response.error.message).toContain('Browser tool not found');
+  });
+
+  test('missing params returns error', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+
+    handleConfigSetBrowserToolEnabled(state, undefined, 'req-4', noopCallbacks);
+
+    expect(messages).toHaveLength(1);
+    const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
+    expect(response.error.code).toBe(-32602);
+    expect(response.error.message).toBe('Missing params');
+  });
+
+  test('invalid param types return error', () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+
+    handleConfigSetBrowserToolEnabled(state, { tool: 123, enabled: 'yes' }, 'req-5', noopCallbacks);
+
+    expect(messages).toHaveLength(1);
+    const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
+    expect(response.error.code).toBe(-32602);
+    expect(response.error.message).toContain('expected tool (string), enabled (boolean)');
+  });
+
+  test('re-enabling a disabled tool sets policy to true', () => {
+    const state = createState();
+    const { ws } = createMockWs();
+    state.extensionWs = ws;
+    state.cachedBrowserTools = [
+      { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
+    ];
+    state.browserToolPolicy = { browser_list_tabs: false };
+
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: true }, 'req-6', noopCallbacks);
+
+    expect(state.browserToolPolicy.browser_list_tabs).toBe(true);
   });
 });

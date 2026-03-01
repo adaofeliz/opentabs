@@ -28,6 +28,7 @@ const createMockWs = (): WsHandle & { sent: string[] } => ({
 const noopCallbacks = {
   onToolConfigChanged: () => {},
   onToolConfigPersist: () => {},
+  onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
 };
@@ -1332,6 +1333,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onToolConfigPersist: () => {
         configPersistCalled = true;
       },
+      onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
     };
@@ -1491,6 +1493,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onToolConfigPersist: () => {
         configPersistCalled = true;
       },
+      onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
     };
@@ -1605,6 +1608,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onToolConfigPersist: () => {
         configPersistCalled = true;
       },
+      onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
     };
@@ -1822,6 +1826,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       onToolConfigPersist: () => {
         configPersistCalled = true;
       },
+      onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
     };
@@ -1855,6 +1860,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       onToolConfigPersist: () => {
         configPersistCalled = true;
       },
+      onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
     };

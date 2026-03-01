@@ -14,11 +14,18 @@ import {
   removePlugin,
   checkPluginUpdates,
 } from './plugin-management.js';
-import { prefixedToolName, isToolEnabled, DISPATCH_TIMEOUT_MS, MAX_DISPATCH_TIMEOUT_MS } from './state.js';
+import {
+  prefixedToolName,
+  isToolEnabled,
+  isBrowserToolEnabled,
+  DISPATCH_TIMEOUT_MS,
+  MAX_DISPATCH_TIMEOUT_MS,
+} from './state.js';
 import type { PluginLogEntry } from './log-buffer.js';
 import type { RegisteredPlugin, ServerState, TabMapping, ConfirmationScope, SessionPermissionRule } from './state.js';
 import type {
   ConfigSetAllToolsEnabledParams,
+  ConfigSetBrowserToolEnabledParams,
   ConfigSetToolEnabledParams,
   JsonRpcError,
   JsonRpcNotification,
@@ -31,6 +38,7 @@ import type {
 interface McpCallbacks {
   onToolConfigChanged: () => void;
   onToolConfigPersist: () => void;
+  onBrowserToolPolicyPersist: () => void;
   onPluginLog: (entry: PluginLogEntry) => void;
   onReload: () => Promise<{ plugins: number; durationMs: number }>;
 }
@@ -228,11 +236,21 @@ const handleConfigGetState = (state: ServerState, id: string | number): void => 
       };
     });
 
+  const browserTools = state.cachedBrowserTools
+    .slice()
+    .sort((a, b) => a.name.localeCompare(b.name))
+    .map(ct => ({
+      name: ct.name,
+      description: ct.description,
+      enabled: isBrowserToolEnabled(state, ct.name),
+    }));
+
   sendToExtension(state, {
     jsonrpc: '2.0',
     result: {
       plugins,
       failedPlugins: state.discoveryErrors.map(e => ({ specifier: e.specifier, error: e.error })),
+      browserTools,
     },
     id,
   });
@@ -314,6 +332,44 @@ const handleConfigSetAllToolsEnabled = (
   }
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
+
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    result: { ok: true },
+    id,
+  });
+};
+
+const handleConfigSetBrowserToolEnabled = (
+  state: ServerState,
+  params: Record<string, unknown> | undefined,
+  id: string | number,
+  callbacks: McpCallbacks,
+): void => {
+  if (!params) {
+    sendJsonRpcError(state, id, -32602, 'Missing params');
+    return;
+  }
+
+  const browserToolParams = params as Partial<ConfigSetBrowserToolEnabledParams>;
+  const tool = browserToolParams.tool;
+  const enabled = browserToolParams.enabled;
+
+  if (typeof tool !== 'string' || typeof enabled !== 'boolean') {
+    sendJsonRpcError(state, id, -32602, 'Invalid params: expected tool (string), enabled (boolean)');
+    return;
+  }
+
+  if (!state.cachedBrowserTools.some(c => c.name === tool)) {
+    sendJsonRpcError(state, id, -32602, `Browser tool not found: ${tool}`);
+    return;
+  }
+
+  state.browserToolPolicy[tool] = enabled;
+  callbacks.onToolConfigChanged();
+  callbacks.onBrowserToolPolicyPersist();
+
+  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: {} });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -618,6 +674,7 @@ export {
   handleConfigGetState,
   handleConfigSetToolEnabled,
   handleConfigSetAllToolsEnabled,
+  handleConfigSetBrowserToolEnabled,
   handlePluginSearch,
   handlePluginInstall,
   handlePluginUpdateFromRegistry,

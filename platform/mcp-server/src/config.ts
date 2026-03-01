@@ -358,6 +358,46 @@ const saveToolConfig = async (
 };
 
 /**
+ * Persist only the browser tool enabled/disabled policy to config.json.
+ *
+ * Reads the current config from disk, updates only the `browserToolPolicy`
+ * field, and writes it back atomically. Follows the same read-modify-write
+ * pattern as saveToolConfig to prevent overwriting externally-added data.
+ *
+ * The read-modify-write is serialized via state.configWriteMutex.
+ */
+const saveBrowserToolPolicy = async (
+  state: { configWriteMutex: Promise<void> },
+  browserToolPolicy: Record<string, boolean>,
+): Promise<void> => {
+  const configDir = getConfigDir();
+  const configPath = getConfigPath();
+  const prev = state.configWriteMutex;
+  const writePromise = (async () => {
+    await prev;
+    await mkdir(configDir, { recursive: true, mode: 0o700 });
+
+    const record = await readConfigWithRetry(configPath, 2, 50);
+    if (!record) {
+      log.warn('Cannot persist browser tool policy — config file unreadable');
+      return;
+    }
+
+    const current = parseConfigRecord(record);
+    const updated: OpentabsConfig = {
+      localPlugins: current.localPlugins,
+      tools: current.tools,
+      browserToolPolicy,
+      permissions: current.permissions,
+      skipConfirmation: current.skipConfirmation,
+    };
+    await atomicWriteConfig(configPath, JSON.stringify(updated, null, 2) + '\n');
+  })();
+  state.configWriteMutex = writePromise.catch(() => {});
+  await writePromise;
+};
+
+/**
  * Write auth.json to the managed extension directory so the Chrome extension
  * can bootstrap the shared secret without an unauthenticated HTTP request.
  * auth.json contains only the secret — port configuration lives in chrome.storage.local.
@@ -410,6 +450,7 @@ export {
   loadConfig,
   loadSecret,
   saveConfig,
+  saveBrowserToolPolicy,
   saveToolConfig,
   writeAuthFile,
   generateSecret,

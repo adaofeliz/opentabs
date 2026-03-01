@@ -25,6 +25,7 @@ import type { WsHandle } from '@opentabs-dev/shared';
 const noopCallbacks = {
   onToolConfigChanged: () => {},
   onToolConfigPersist: () => {},
+  onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
 };

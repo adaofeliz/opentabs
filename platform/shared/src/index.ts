@@ -267,10 +267,18 @@ export interface ConfigStateFailedPlugin {
   error: string;
 }
 
+/** A browser tool entry in config.getState result */
+export interface ConfigStateBrowserTool {
+  name: string;
+  description: string;
+  enabled: boolean;
+}
+
 /** config.getState result */
 export interface ConfigStateResult {
   plugins: ConfigStatePlugin[];
   failedPlugins: ConfigStateFailedPlugin[];
+  browserTools: ConfigStateBrowserTool[];
 }
 
 /** config.setToolEnabled request params */
@@ -283,6 +291,12 @@ export interface ConfigSetToolEnabledParams {
 /** config.setAllToolsEnabled request params */
 export interface ConfigSetAllToolsEnabledParams {
   plugin: string;
+  enabled: boolean;
+}
+
+/** config.setBrowserToolEnabled request params */
+export interface ConfigSetBrowserToolEnabledParams {
+  tool: string;
   enabled: boolean;
 }
 

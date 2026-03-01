@@ -12,7 +12,7 @@
  * hot reload and removes entries whose transport is no longer in the map.
  */
 
-import { saveToolConfig } from './config.js';
+import { saveBrowserToolPolicy, saveToolConfig } from './config.js';
 import { isDev } from './dev-mode.js';
 import {
   handleExtensionMessage,
@@ -61,6 +61,11 @@ const createMcpCallbacks = (
   },
   onToolConfigPersist: () => {
     saveToolConfig(state, { ...state.toolConfig }).catch(() => {
+      // Best-effort persistence — errors are non-fatal for in-memory state
+    });
+  },
+  onBrowserToolPolicyPersist: () => {
+    saveBrowserToolPolicy(state, { ...state.browserToolPolicy }).catch(() => {
       // Best-effort persistence — errors are non-fatal for in-memory state
     });
   },
