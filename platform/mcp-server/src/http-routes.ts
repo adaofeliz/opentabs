@@ -270,17 +270,21 @@ const handleHealth = (
 
   const hs = getHotState();
 
-  const pluginDetails = [...state.registry.plugins.values()].map(p => ({
-    name: p.name,
-    displayName: p.displayName,
-    toolCount: p.tools.length,
-    tools: p.tools.map(t => prefixedToolName(p.name, t.name)),
-    tabState: state.tabMapping.get(p.name)?.state ?? 'closed',
-    source: p.source,
-    sdkVersion: p.sdkVersion ?? null,
-    logBufferSize: getLogCount(p.name),
-    ...(p.iconSvg ? { iconSvg: p.iconSvg } : {}),
-  }));
+  const pluginDetails = [...state.registry.plugins.values()].map(p => {
+    const tabInfo = state.tabMapping.get(p.name);
+    return {
+      name: p.name,
+      displayName: p.displayName,
+      toolCount: p.tools.length,
+      tools: p.tools.map(t => prefixedToolName(p.name, t.name)),
+      tabState: tabInfo?.state ?? 'closed',
+      tabs: tabInfo?.tabs ?? [],
+      source: p.source,
+      sdkVersion: p.sdkVersion ?? null,
+      logBufferSize: getLogCount(p.name),
+      ...(p.iconSvg ? { iconSvg: p.iconSvg } : {}),
+    };
+  });
 
   const browserToolCount = state.cachedBrowserTools.length;
   const pluginToolCount = state.registry.toolLookup.size;

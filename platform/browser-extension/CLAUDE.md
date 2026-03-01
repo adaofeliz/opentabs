@@ -121,7 +121,18 @@ Keep styled primitives and business logic in separate layers. The retro componen
 
 ### Tab State Machine
 
-Each plugin has three tab states: `closed` (no matching tab), `unavailable` (tab exists but `isReady()` returns false), and `ready` (tab exists and authenticated). The extension reports state changes to the MCP server.
+Each plugin has three tab states: `closed` (no matching tab), `unavailable` (tab exists but `isReady()` returns false), and `ready` (tab exists and authenticated). The aggregate state is derived from all matching tabs: `ready` if any tab is ready, `unavailable` if tabs exist but none are ready, `closed` if no tabs exist.
+
+The extension probes ALL matching tabs for readiness (not just the first ready one) and reports a `tabs: PluginTabInfo[]` array with per-tab `{ tabId, url, title, ready }` in both `tab.syncAll` and `tab.stateChanged` messages. The `lastKnownState` cache stores serialized `{ state, tabs }` JSON strings so that tab list changes (new tabs opened, tabs closed, URL/title changes, readiness changes) trigger notifications even when the aggregate state is unchanged.
+
+### Tool Dispatch
+
+When the MCP server dispatches a tool call, the extension receives the `tool.dispatch` message and routes to one of two paths based on whether a `tabId` is present in the params:
+
+- **Targeted dispatch** (tabId present): Dispatches directly to the specified tab. Validates the tab exists via `chrome.tabs.get()` and that its URL matches the plugin's URL patterns (security check to prevent cross-origin abuse). Returns an error if the tab doesn't exist, the URL doesn't match, or the adapter isn't ready — no fallback to other tabs.
+- **Auto-select dispatch** (tabId absent): Uses `dispatchWithTabFallback` — ranks matching tabs (active tab in focused window > active tab in any window > any tab in focused window > other tabs) and tries each in order until one succeeds.
+
+Resource reads (`handleResourceRead`) and prompt gets (`handlePromptGet`) follow the same two-path dispatch logic.
 
 ### Port Configuration
 

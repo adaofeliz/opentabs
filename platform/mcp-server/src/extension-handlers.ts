@@ -31,6 +31,7 @@ import type {
   JsonRpcNotification,
   JsonRpcRequest,
   JsonRpcResult,
+  PluginTabInfo,
   TabSyncAllParams,
 } from '@opentabs-dev/shared';
 
@@ -139,18 +140,43 @@ const serializePluginForExtension = (
 
 // --- Tab handlers ---
 
+/** Wire shape for a single tab info entry — all fields may be absent or wrong type */
+interface WirePluginTabInfo {
+  tabId?: number;
+  url?: string;
+  title?: string;
+  ready?: boolean;
+}
+
 /** Wire shape for tab mapping entries — all fields may be absent or wrong type */
 interface WireTabMapping {
   state?: string;
-  tabId?: number | null;
-  url?: string | null;
+  tabs?: WirePluginTabInfo[];
 }
 
-const parseTabMapping = (wire: WireTabMapping): TabMapping => ({
-  state: wire.state === 'closed' || wire.state === 'unavailable' || wire.state === 'ready' ? wire.state : 'closed',
-  tabId: typeof wire.tabId === 'number' ? wire.tabId : null,
-  url: typeof wire.url === 'string' ? wire.url : null,
-});
+/** Parse a single wire tab info entry into a validated PluginTabInfo */
+const parsePluginTabInfo = (wire: WirePluginTabInfo): PluginTabInfo | null => {
+  if (typeof wire.tabId !== 'number') return null;
+  return {
+    tabId: wire.tabId,
+    url: typeof wire.url === 'string' ? wire.url : '',
+    title: typeof wire.title === 'string' ? wire.title : '',
+    ready: wire.ready === true,
+  };
+};
+
+const parseTabMapping = (wire: WireTabMapping): TabMapping => {
+  const state =
+    wire.state === 'closed' || wire.state === 'unavailable' || wire.state === 'ready' ? wire.state : 'closed';
+  const tabs: PluginTabInfo[] = [];
+  if (Array.isArray(wire.tabs)) {
+    for (const raw of wire.tabs) {
+      const parsed = parsePluginTabInfo(raw);
+      if (parsed) tabs.push(parsed);
+    }
+  }
+  return { state, tabs };
+};
 
 const handleTabSyncAll = (state: ServerState, params: Record<string, unknown> | undefined): void => {
   if (!params) return;
@@ -207,12 +233,11 @@ const handleTabStateChanged = (
 
   const wire: WireTabMapping = {
     state: params.state,
-    tabId: typeof params.tabId === 'number' ? params.tabId : null,
-    url: typeof params.url === 'string' ? params.url : null,
+    tabs: Array.isArray(params.tabs) ? (params.tabs as WirePluginTabInfo[]) : [],
   };
   state.tabMapping.set(plugin, parseTabMapping(wire));
 
-  log.info(`tab.stateChanged: ${plugin} → ${wire.state ?? 'unknown'}`);
+  log.info(`tab.stateChanged: ${plugin} → ${params.state}`);
 };
 
 // --- Config handlers ---
@@ -661,12 +686,13 @@ const handlePluginCheckUpdates = async (state: ServerState, id: string | number)
   }
 };
 
-export type { McpCallbacks, WireTabMapping };
+export type { McpCallbacks, WireTabMapping, WirePluginTabInfo };
 export {
   sendToExtension,
   sendJsonRpcError,
   sendPluginManagementError,
   serializePluginForExtension,
+  parsePluginTabInfo,
   parseTabMapping,
   VALID_LOG_LEVELS,
   handleTabSyncAll,

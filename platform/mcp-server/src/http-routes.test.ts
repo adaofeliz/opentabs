@@ -330,7 +330,10 @@ describe('/health endpoint', () => {
       ],
       [],
     );
-    state.tabMapping.set('test-plugin', { state: 'ready', tabId: 1, url: 'https://example.com' });
+    state.tabMapping.set('test-plugin', {
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'https://example.com', title: 'Example', ready: true }],
+    });
 
     const body = await fetchJson<HealthResponse>(handlers, 'http://localhost:9876/health');
 
@@ -681,8 +684,11 @@ describe('wsClose handler', () => {
 
     state.activeNetworkCaptures.add(1);
     state.activeNetworkCaptures.add(2);
-    state.tabMapping.set('plugin-a', { state: 'ready', tabId: 1, url: 'https://example.com' });
-    state.tabMapping.set('plugin-b', { state: 'unavailable', tabId: null, url: null });
+    state.tabMapping.set('plugin-a', {
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'https://example.com', title: 'Example', ready: true }],
+    });
+    state.tabMapping.set('plugin-b', { state: 'unavailable', tabs: [] });
 
     handlers.wsClose(ws);
 

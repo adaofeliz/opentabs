@@ -23,9 +23,10 @@ import {
 import { getActiveCapturesSummary } from '../network-capture.js';
 import { getAllPluginMeta, getPluginMeta } from '../plugin-storage.js';
 import { findAllMatchingTabs } from '../tab-matching.js';
-import { getLastKnownStates } from '../tab-state.js';
+import { getAggregateState, getLastKnownStates } from '../tab-state.js';
 import type { BgForceReconnectMessage, OffscreenGetLogsMessage, SpGetStateMessage } from '../extension-messages.js';
 import type { LogEntry, LogFilterOptions, LogStats } from '../log-collector.js';
+import type { PluginTabInfo, TabState } from '@opentabs-dev/shared';
 
 export const handleExtensionGetState = async (id: string | number): Promise<void> => {
   try {
@@ -48,14 +49,29 @@ export const handleExtensionGetState = async (id: string | number): Promise<void
     // Plugin metadata with tab states
     const pluginIndex = await getAllPluginMeta();
     const lastKnownStates = getLastKnownStates();
-    const plugins = Object.values(pluginIndex).map(meta => ({
-      name: meta.name,
-      version: meta.version,
-      displayName: meta.displayName,
-      urlPatterns: meta.urlPatterns,
-      toolCount: meta.tools.length,
-      tabState: lastKnownStates.get(meta.name) ?? 'closed',
-    }));
+    const plugins = Object.values(pluginIndex).map(meta => {
+      const cached = lastKnownStates.get(meta.name);
+      let tabState: TabState = 'closed';
+      let tabs: PluginTabInfo[] = [];
+      if (cached) {
+        try {
+          const parsed = JSON.parse(cached) as { state: TabState; tabs: PluginTabInfo[] };
+          tabState = parsed.state;
+          tabs = parsed.tabs;
+        } catch {
+          tabState = getAggregateState(cached);
+        }
+      }
+      return {
+        name: meta.name,
+        version: meta.version,
+        displayName: meta.displayName,
+        urlPatterns: meta.urlPatterns,
+        toolCount: meta.tools.length,
+        tabState,
+        tabs,
+      };
+    });
 
     // Active network captures
     const networkCaptures = getActiveCapturesSummary();

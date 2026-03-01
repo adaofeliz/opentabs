@@ -1,4 +1,9 @@
-import { JSONRPC_ADAPTER_NOT_READY, JSONRPC_INTERNAL_ERROR, JSONRPC_NO_USABLE_TAB } from './json-rpc-errors.js';
+import {
+  JSONRPC_ADAPTER_NOT_READY,
+  JSONRPC_INTERNAL_ERROR,
+  JSONRPC_NO_USABLE_TAB,
+  JSONRPC_TAB_NOT_MATCHED,
+} from './json-rpc-errors.js';
 import { sendToServer } from './messaging.js';
 import { getPluginMeta } from './plugin-storage.js';
 import { sanitizeErrorMessage } from './sanitize-error.js';
@@ -195,5 +200,87 @@ const dispatchWithTabFallback = async (config: TabFallbackConfig): Promise<void>
   }
 };
 
-export { dispatchWithTabFallback, executeWithTimeout, resolvePlugin, isAdapterNotReady };
+/**
+ * Configuration for dispatchToTargetedTab.
+ */
+interface TargetedDispatchConfig {
+  id: string | number;
+  pluginName: string;
+  plugin: PluginMeta;
+  tabId: number;
+  operationName: string;
+  executeOnTab: (tabId: number) => Promise<DispatchResult>;
+}
+
+/**
+ * Dispatch to a specific tab by ID. Validates that:
+ * 1. The tab exists (chrome.tabs.get succeeds)
+ * 2. The tab's URL matches the plugin's URL patterns (security check)
+ * 3. The adapter is ready (no fallback to other tabs)
+ *
+ * Sends the JSON-RPC response to the server and returns void.
+ */
+const dispatchToTargetedTab = async (config: TargetedDispatchConfig): Promise<void> => {
+  const { id, pluginName, plugin, tabId, operationName, executeOnTab } = config;
+
+  // 1. Verify the tab exists
+  let tab: chrome.tabs.Tab;
+  try {
+    tab = await chrome.tabs.get(tabId);
+  } catch {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: {
+        code: JSONRPC_NO_USABLE_TAB,
+        message: `Tab ${tabId} does not exist`,
+      },
+      id,
+    });
+    return;
+  }
+
+  // 2. Security check: verify the tab's URL matches the plugin's URL patterns
+  if (!tab.url || !urlMatchesPatterns(tab.url, plugin.urlPatterns)) {
+    sendToServer({
+      jsonrpc: '2.0',
+      error: {
+        code: JSONRPC_TAB_NOT_MATCHED,
+        message: `Tab ${tabId} does not match URL patterns for plugin "${pluginName}"`,
+      },
+      id,
+    });
+    return;
+  }
+
+  // 3. Execute on the targeted tab — no fallback to other tabs
+  try {
+    const result = await executeOnTab(tabId);
+
+    if (result.type === 'success') {
+      sendToServer({ jsonrpc: '2.0', result: { output: result.output }, id });
+      return;
+    }
+
+    sendToServer({
+      jsonrpc: '2.0',
+      error: { code: result.code, message: sanitizeErrorMessage(result.message), data: result.data },
+      id,
+    });
+  } catch (err) {
+    const msg = toErrorMessage(err);
+    const isTabGone = msg.includes('No tab with id') || msg.includes('Cannot access');
+    sendToServer({
+      jsonrpc: '2.0',
+      error: {
+        code: isTabGone ? JSONRPC_NO_USABLE_TAB : JSONRPC_INTERNAL_ERROR,
+        message: isTabGone
+          ? `Tab closed during ${operationName}`
+          : `Script execution failed: ${sanitizeErrorMessage(msg)}`,
+      },
+      id,
+    });
+  }
+};
+
+export { dispatchToTargetedTab, dispatchWithTabFallback, executeWithTimeout, resolvePlugin, isAdapterNotReady };
 export type { DispatchResult };

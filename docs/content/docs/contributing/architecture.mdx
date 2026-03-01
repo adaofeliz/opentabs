@@ -171,14 +171,15 @@ File-based injection bypasses page Content Security Policy (CSP). Because adapte
 
 When an AI agent calls a tool:
 
-1. The MCP server validates the input against the pre-compiled JSON Schema
+1. The MCP server strips the optional `tabId` from the input args (if present), validates the remaining input against the pre-compiled JSON Schema, and threads `tabId` as a top-level field in the `tool.dispatch` params
 2. The server sends a `tool.dispatch` JSON-RPC request over WebSocket
-3. The extension finds matching tabs using the plugin's URL patterns
-4. Tabs are ranked: active tab in focused window > active tab in any window > any tab in focused window > other tabs
-5. The extension calls `adapter.handle(toolName, input)` in the MAIN world via `chrome.scripting.executeScript()`
-6. The result flows back through WebSocket to the MCP server, which returns it to the AI agent
+3. The extension routes to one of two dispatch paths based on whether `tabId` is present:
+   - **Targeted dispatch** (tabId present): Dispatches directly to the specified tab after validating the tab exists and its URL matches the plugin's URL patterns. Returns an error if the tab doesn't exist, the URL doesn't match (security check), or the adapter isn't ready — no fallback
+   - **Auto-select dispatch** (tabId absent): Ranks all matching ready tabs (active tab in focused window > active tab in any window > any tab in focused window > other tabs) and tries each in order until one succeeds
+4. The extension calls `adapter.handle(toolName, input)` in the MAIN world via `chrome.scripting.executeScript()`
+5. The result flows back through WebSocket to the MCP server, which returns it to the AI agent
 
-Resource reads (`resource.read`) and prompt gets (`prompt.get`) follow the same pipeline. They do not support progress reporting or lifecycle hooks.
+Resource reads (`resource.read`) and prompt gets (`prompt.get`) follow the same pipeline with the same two-path dispatch. They do not support progress reporting or lifecycle hooks.
 
 ### Tab State Machine
 
@@ -207,7 +208,9 @@ Each plugin has three tab states:
   </Table.Body>
 </Table>
 
-The extension reports state changes to the MCP server via `tab.stateChanged` messages. Tool dispatch only attempts tabs in the `ready` state.
+The extension probes all matching tabs for readiness and reports a `tabs` array per plugin (each entry: `{ tabId, url, title, ready }`) via `tab.stateChanged` and `tab.syncAll` messages. The aggregate state is derived from all matching tabs: `ready` if any tab is ready, `unavailable` if tabs exist but none ready, `closed` if no tabs exist. Tool dispatch only attempts tabs in the `ready` state.
+
+To discover which tabs are available for a plugin, use the `plugin_list_tabs` MCP tool. To target a specific tab, pass its `tabId` as an optional parameter to any plugin tool (all plugin tools have `tabId` injected into their input schema automatically).
 
 ## Wire Protocol
 

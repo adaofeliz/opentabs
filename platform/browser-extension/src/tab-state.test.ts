@@ -1,5 +1,5 @@
 import { vi, describe, expect, test, beforeEach } from 'vitest';
-import type { PluginMeta } from './extension-messages.js';
+import type { PluginMeta, PluginTabStateInfo } from './extension-messages.js';
 
 // ---------------------------------------------------------------------------
 // Module mocks — set up before importing tab-state.ts so that the exported
@@ -67,6 +67,7 @@ const {
   clearPluginTabState,
   updateLastKnownState,
   getLastKnownStates,
+  getAggregateState,
   checkTabRemoved,
   checkTabChanged,
   sendTabSyncAll,
@@ -83,6 +84,15 @@ const makePlugin = (overrides?: Partial<PluginMeta>): PluginMeta => ({
   ...overrides,
 });
 
+/** Helper to build a PluginTabStateInfo for updateLastKnownState calls */
+const makeStateInfo = (
+  state: 'closed' | 'unavailable' | 'ready',
+  tabs: PluginTabStateInfo['tabs'] = [],
+): PluginTabStateInfo => ({
+  state,
+  tabs,
+});
+
 // ---------------------------------------------------------------------------
 // computePluginTabState
 // ---------------------------------------------------------------------------
@@ -97,48 +107,59 @@ describe('computePluginTabState', () => {
     mockFindAllMatchingTabs.mockResolvedValue([]);
 
     const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'closed', tabId: null, url: null });
+    expect(result).toEqual({ state: 'closed', tabs: [] });
   });
 
   test('returns ready when adapter isReady returns true', async () => {
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com/page' } as chrome.tabs.Tab]);
-    mockExecuteScript.mockResolvedValue([{ result: true }]);
-
-    const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'ready', tabId: 1, url: 'https://example.com/page' });
-  });
-
-  test('returns unavailable when adapter isReady returns false', async () => {
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 2, url: 'https://example.com/other' } as chrome.tabs.Tab]);
-    mockExecuteScript.mockResolvedValue([{ result: false }]);
-
-    const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'unavailable', tabId: 2, url: 'https://example.com/other' });
-  });
-
-  test('returns unavailable when executeScript throws', async () => {
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 3, url: 'https://example.com/error' } as chrome.tabs.Tab]);
-    mockExecuteScript.mockRejectedValue(new Error('Tab crashed'));
-
-    const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'unavailable', tabId: 3, url: 'https://example.com/error' });
-  });
-
-  test('skips tabs with undefined id', async () => {
     mockFindAllMatchingTabs.mockResolvedValue([
-      { url: 'https://example.com/no-id' } as chrome.tabs.Tab,
-      { id: 5, url: 'https://example.com/has-id' } as chrome.tabs.Tab,
+      { id: 1, url: 'https://example.com/page', title: 'Page' } as chrome.tabs.Tab,
     ]);
     mockExecuteScript.mockResolvedValue([{ result: true }]);
 
     const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'ready', tabId: 5, url: 'https://example.com/has-id' });
+    expect(result.state).toBe('ready');
+    expect(result.tabs).toEqual([{ tabId: 1, url: 'https://example.com/page', title: 'Page', ready: true }]);
   });
 
-  test('returns ready for first ready tab among multiple', async () => {
+  test('returns unavailable when adapter isReady returns false', async () => {
     mockFindAllMatchingTabs.mockResolvedValue([
-      { id: 10, url: 'https://example.com/a' } as chrome.tabs.Tab,
-      { id: 11, url: 'https://example.com/b' } as chrome.tabs.Tab,
+      { id: 2, url: 'https://example.com/other', title: 'Other' } as chrome.tabs.Tab,
+    ]);
+    mockExecuteScript.mockResolvedValue([{ result: false }]);
+
+    const result = await computePluginTabState(makePlugin());
+    expect(result.state).toBe('unavailable');
+    expect(result.tabs).toEqual([{ tabId: 2, url: 'https://example.com/other', title: 'Other', ready: false }]);
+  });
+
+  test('returns unavailable when executeScript throws', async () => {
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 3, url: 'https://example.com/error', title: 'Error' } as chrome.tabs.Tab,
+    ]);
+    mockExecuteScript.mockRejectedValue(new Error('Tab crashed'));
+
+    const result = await computePluginTabState(makePlugin());
+    expect(result.state).toBe('unavailable');
+    expect(result.tabs).toEqual([{ tabId: 3, url: 'https://example.com/error', title: 'Error', ready: false }]);
+  });
+
+  test('skips tabs with undefined id', async () => {
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { url: 'https://example.com/no-id', title: 'No ID' } as chrome.tabs.Tab,
+      { id: 5, url: 'https://example.com/has-id', title: 'Has ID' } as chrome.tabs.Tab,
+    ]);
+    mockExecuteScript.mockResolvedValue([{ result: true }]);
+
+    const result = await computePluginTabState(makePlugin());
+    expect(result.state).toBe('ready');
+    expect(result.tabs).toHaveLength(1);
+    expect(result.tabs[0]).toEqual({ tabId: 5, url: 'https://example.com/has-id', title: 'Has ID', ready: true });
+  });
+
+  test('probes all tabs and returns full list with per-tab readiness', async () => {
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 10, url: 'https://example.com/a', title: 'A' } as chrome.tabs.Tab,
+      { id: 11, url: 'https://example.com/b', title: 'B' } as chrome.tabs.Tab,
     ]);
     let callCount = 0;
     mockExecuteScript.mockImplementation(() => {
@@ -148,28 +169,34 @@ describe('computePluginTabState', () => {
     });
 
     const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'ready', tabId: 11, url: 'https://example.com/b' });
+    expect(result.state).toBe('ready');
+    expect(result.tabs).toEqual([
+      { tabId: 10, url: 'https://example.com/a', title: 'A', ready: false },
+      { tabId: 11, url: 'https://example.com/b', title: 'B', ready: true },
+    ]);
   });
 
-  test('returns unavailable with fallback tab url when none are ready', async () => {
+  test('returns unavailable with all tabs when none are ready', async () => {
     mockFindAllMatchingTabs.mockResolvedValue([
-      { id: 20, url: 'https://example.com/first' } as chrome.tabs.Tab,
-      { id: 21, url: 'https://example.com/second' } as chrome.tabs.Tab,
+      { id: 20, url: 'https://example.com/first', title: 'First' } as chrome.tabs.Tab,
+      { id: 21, url: 'https://example.com/second', title: 'Second' } as chrome.tabs.Tab,
     ]);
     mockExecuteScript.mockResolvedValue([{ result: false }]);
 
     const result = await computePluginTabState(makePlugin());
     expect(result.state).toBe('unavailable');
-    expect(result.tabId).toBe(20);
-    expect(result.url).toBe('https://example.com/first');
+    expect(result.tabs).toHaveLength(2);
+    expect(result.tabs[0]).toMatchObject({ tabId: 20, ready: false });
+    expect(result.tabs[1]).toMatchObject({ tabId: 21, ready: false });
   });
 
-  test('returns unavailable with null url when tab url is undefined', async () => {
+  test('returns empty url/title when tab properties are undefined', async () => {
     mockFindAllMatchingTabs.mockResolvedValue([{ id: 30 } as chrome.tabs.Tab]);
     mockExecuteScript.mockResolvedValue([{ result: false }]);
 
     const result = await computePluginTabState(makePlugin());
-    expect(result).toEqual({ state: 'unavailable', tabId: 30, url: null });
+    expect(result.state).toBe('unavailable');
+    expect(result.tabs).toEqual([{ tabId: 30, url: '', title: '', ready: false }]);
   });
 });
 
@@ -188,29 +215,33 @@ describe('lastKnownState cache', () => {
   });
 
   test('updateLastKnownState populates the cache', async () => {
-    await updateLastKnownState('my-plugin', 'ready');
-    expect(getLastKnownStates().get('my-plugin')).toBe('ready');
+    await updateLastKnownState('my-plugin', makeStateInfo('ready'));
+    const cached = getLastKnownStates().get('my-plugin');
+    expect(cached).toBeDefined();
+    expect(getAggregateState(cached ?? '')).toBe('ready');
   });
 
   test('updateLastKnownState overwrites previous value', async () => {
-    await updateLastKnownState('my-plugin', 'ready');
-    await updateLastKnownState('my-plugin', 'closed');
-    expect(getLastKnownStates().get('my-plugin')).toBe('closed');
+    await updateLastKnownState('my-plugin', makeStateInfo('ready'));
+    await updateLastKnownState('my-plugin', makeStateInfo('closed'));
+    const cached = getLastKnownStates().get('my-plugin');
+    expect(getAggregateState(cached ?? '')).toBe('closed');
   });
 
   test('clearTabStateCache clears all entries', async () => {
-    await updateLastKnownState('alpha', 'ready');
-    await updateLastKnownState('beta', 'unavailable');
+    await updateLastKnownState('alpha', makeStateInfo('ready'));
+    await updateLastKnownState('beta', makeStateInfo('unavailable'));
     clearTabStateCache();
     expect(getLastKnownStates().size).toBe(0);
   });
 
   test('clearPluginTabState removes a single plugin entry', async () => {
-    await updateLastKnownState('alpha', 'ready');
-    await updateLastKnownState('beta', 'unavailable');
+    await updateLastKnownState('alpha', makeStateInfo('ready'));
+    await updateLastKnownState('beta', makeStateInfo('unavailable'));
     clearPluginTabState('alpha');
     expect(getLastKnownStates().has('alpha')).toBe(false);
-    expect(getLastKnownStates().get('beta')).toBe('unavailable');
+    const cached = getLastKnownStates().get('beta');
+    expect(getAggregateState(cached ?? '')).toBe('unavailable');
   });
 
   test('clearPluginTabState is a no-op for unknown plugins', () => {
@@ -232,45 +263,43 @@ describe('withPluginLock (via updateLastKnownState)', () => {
     // Run enough operations that an unbounded chain would be observable as a
     // slowdown or stack overflow; verifies chain-breaking does not break correctness.
     for (let i = 0; i < 100; i++) {
-      await updateLastKnownState('my-plugin', i % 2 === 0 ? 'ready' : 'closed');
+      await updateLastKnownState('my-plugin', makeStateInfo(i % 2 === 0 ? 'ready' : 'closed'));
     }
     // 100th iteration (i=99, odd) sets 'closed'
-    expect(getLastKnownStates().get('my-plugin')).toBe('closed');
+    const cached = getLastKnownStates().get('my-plugin');
+    expect(getAggregateState(cached ?? '')).toBe('closed');
   });
 
   test('concurrent operations for the same plugin serialize correctly', async () => {
     const executionOrder: string[] = [];
 
-    // We use notifyAffectedPlugins indirectly via checkTabRemoved with a
-    // delayed mock to verify serialization. Instead, we use the fact that
-    // concurrent updateLastKnownState calls should produce a deterministic
-    // final state because they execute in queue order.
     const updates = ['ready', 'unavailable', 'closed', 'ready', 'unavailable'] as const;
     // Launch all without awaiting — they should serialize via the lock
     const promises = updates.map((state, i) => {
       executionOrder.push(`start-${i}`);
-      return updateLastKnownState('plugin-a', state);
+      return updateLastKnownState('plugin-a', makeStateInfo(state));
     });
     await Promise.all(promises);
 
     // All operations started before any completed (concurrent launch)
     expect(executionOrder).toEqual(['start-0', 'start-1', 'start-2', 'start-3', 'start-4']);
     // Final state is the last enqueued update
-    expect(getLastKnownStates().get('plugin-a')).toBe('unavailable');
+    const cached = getLastKnownStates().get('plugin-a');
+    expect(getAggregateState(cached ?? '')).toBe('unavailable');
   });
 
   test('concurrent operations for different plugins run independently', async () => {
     const promises = [
-      updateLastKnownState('alpha', 'ready'),
-      updateLastKnownState('beta', 'closed'),
-      updateLastKnownState('alpha', 'closed'),
-      updateLastKnownState('beta', 'ready'),
+      updateLastKnownState('alpha', makeStateInfo('ready')),
+      updateLastKnownState('beta', makeStateInfo('closed')),
+      updateLastKnownState('alpha', makeStateInfo('closed')),
+      updateLastKnownState('beta', makeStateInfo('ready')),
     ];
     await Promise.all(promises);
 
     // Each plugin's last queued state wins
-    expect(getLastKnownStates().get('alpha')).toBe('closed');
-    expect(getLastKnownStates().get('beta')).toBe('ready');
+    expect(getAggregateState(getLastKnownStates().get('alpha') ?? '')).toBe('closed');
+    expect(getAggregateState(getLastKnownStates().get('beta') ?? '')).toBe('ready');
   });
 });
 
@@ -298,7 +327,10 @@ describe('checkTabRemoved', () => {
     mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
 
     // The plugin was previously ready, now after tab removal it computes as closed
-    await updateLastKnownState('slack', 'ready');
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
 
     mockFindAllMatchingTabs.mockResolvedValue([]);
 
@@ -307,8 +339,7 @@ describe('checkTabRemoved', () => {
     expect(mockSendTabStateNotification).toHaveBeenCalledTimes(1);
     expect(mockSendTabStateNotification).toHaveBeenCalledWith('slack', {
       state: 'closed',
-      tabId: null,
-      url: null,
+      tabs: [],
     });
   });
 
@@ -316,7 +347,7 @@ describe('checkTabRemoved', () => {
     const plugin = makePlugin({ name: 'slack' });
     mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
 
-    await updateLastKnownState('slack', 'closed');
+    await updateLastKnownState('slack', makeStateInfo('closed'));
     mockFindAllMatchingTabs.mockResolvedValue([]);
 
     await checkTabRemoved(1);
@@ -329,8 +360,14 @@ describe('checkTabRemoved', () => {
     const pluginB = makePlugin({ name: 'beta' });
     mockGetAllPluginMeta.mockResolvedValue({ alpha: pluginA, beta: pluginB });
 
-    await updateLastKnownState('alpha', 'ready');
-    await updateLastKnownState('beta', 'ready');
+    await updateLastKnownState(
+      'alpha',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
+    await updateLastKnownState(
+      'beta',
+      makeStateInfo('ready', [{ tabId: 2, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
 
     mockFindAllMatchingTabs.mockResolvedValue([]);
 
@@ -367,7 +404,9 @@ describe('checkTabChanged', () => {
     mockUrlMatchesPatterns.mockReturnValue(true);
 
     // Transition from no state to ready
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com/page' } as chrome.tabs.Tab]);
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 1, url: 'https://example.com/page', title: 'Page' } as chrome.tabs.Tab,
+    ]);
     mockExecuteScript.mockResolvedValue([{ result: true }]);
 
     await checkTabChanged(1, { url: 'https://example.com/page' } as chrome.tabs.OnUpdatedInfo);
@@ -375,8 +414,7 @@ describe('checkTabChanged', () => {
     expect(mockSendTabStateNotification).toHaveBeenCalledTimes(1);
     expect(mockSendTabStateNotification).toHaveBeenCalledWith('slack', {
       state: 'ready',
-      tabId: 1,
-      url: 'https://example.com/page',
+      tabs: [{ tabId: 1, url: 'https://example.com/page', title: 'Page', ready: true }],
     });
   });
 
@@ -400,7 +438,9 @@ describe('checkTabChanged', () => {
     } as chrome.tabs.Tab);
     mockUrlMatchesPatterns.mockReturnValue(true);
 
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com/loaded' } as chrome.tabs.Tab]);
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 1, url: 'https://example.com/loaded', title: 'Loaded' } as chrome.tabs.Tab,
+    ]);
     mockExecuteScript.mockResolvedValue([{ result: true }]);
 
     await checkTabChanged(1, { status: 'complete' } as chrome.tabs.OnUpdatedInfo);
@@ -419,14 +459,20 @@ describe('checkTabChanged', () => {
     expect(mockSendTabStateNotification).not.toHaveBeenCalled();
   });
 
-  test('suppresses notification when state has not changed', async () => {
+  test('suppresses notification when state and tabs have not changed', async () => {
     const plugin = makePlugin({ name: 'slack' });
     mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
     mockUrlMatchesPatterns.mockReturnValue(true);
 
-    await updateLastKnownState('slack', 'ready');
+    // Pre-populate cache with the same state that will be computed
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com/page', title: 'Page', ready: true }]),
+    );
 
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com/page' } as chrome.tabs.Tab]);
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 1, url: 'https://example.com/page', title: 'Page' } as chrome.tabs.Tab,
+    ]);
     mockExecuteScript.mockResolvedValue([{ result: true }]);
 
     await checkTabChanged(1, { url: 'https://example.com/page' } as chrome.tabs.OnUpdatedInfo);
@@ -443,8 +489,11 @@ describe('checkTabChanged', () => {
     });
 
     // active-plugin was ready, closed-plugin was already closed
-    await updateLastKnownState('active-plugin', 'ready');
-    await updateLastKnownState('closed-plugin', 'closed');
+    await updateLastKnownState(
+      'active-plugin',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
+    await updateLastKnownState('closed-plugin', makeStateInfo('closed'));
 
     // Neither plugin's URL patterns match the new URL
     mockUrlMatchesPatterns.mockReturnValue(false);
@@ -458,8 +507,7 @@ describe('checkTabChanged', () => {
     expect(mockSendTabStateNotification).toHaveBeenCalledTimes(1);
     expect(mockSendTabStateNotification).toHaveBeenCalledWith('active-plugin', {
       state: 'closed',
-      tabId: null,
-      url: null,
+      tabs: [],
     });
   });
 });
@@ -488,7 +536,9 @@ describe('sendTabSyncAll', () => {
   test('sends tab.syncAll with computed states and populates cache', async () => {
     const plugin = makePlugin({ name: 'slack' });
     mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
-    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com/page' } as chrome.tabs.Tab]);
+    mockFindAllMatchingTabs.mockResolvedValue([
+      { id: 1, url: 'https://example.com/page', title: 'Page' } as chrome.tabs.Tab,
+    ]);
     mockExecuteScript.mockResolvedValue([{ result: true }]);
 
     await sendTabSyncAll();
@@ -499,11 +549,16 @@ describe('sendTabSyncAll', () => {
       jsonrpc: '2.0',
       method: 'tab.syncAll',
     });
-    const params = sentData.params as { tabs: Record<string, unknown> };
-    expect(params.tabs.slack).toMatchObject({ state: 'ready', tabId: 1 });
+    const params = sentData.params as { tabs: Record<string, { state: string; tabs: unknown[] }> };
+    expect(params.tabs.slack).toMatchObject({
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'https://example.com/page', title: 'Page', ready: true }],
+    });
 
     // Verify cache was populated
-    expect(getLastKnownStates().get('slack')).toBe('ready');
+    const cached = getLastKnownStates().get('slack');
+    expect(cached).toBeDefined();
+    expect(getAggregateState(cached ?? '')).toBe('ready');
 
     // Verify side panel was notified
     expect(mockForwardToSidePanel).toHaveBeenCalledTimes(1);

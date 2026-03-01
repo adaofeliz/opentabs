@@ -134,8 +134,14 @@ describe('performReload', () => {
   });
 
   test('prunes stale tabMapping entries for removed plugins', async () => {
-    state.tabMapping.set('old-plugin', { state: 'ready', tabId: 1, url: 'http://example.com' });
-    state.tabMapping.set('my-plugin', { state: 'ready', tabId: 2, url: 'http://alpha.com' });
+    state.tabMapping.set('old-plugin', {
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'http://example.com', title: 'Example', ready: true }],
+    });
+    state.tabMapping.set('my-plugin', {
+      state: 'ready',
+      tabs: [{ tabId: 2, url: 'http://alpha.com', title: 'Alpha', ready: true }],
+    });
 
     const pluginDir = createPluginDir(configDir, 'my-plugin');
     writeConfig(configDir, [pluginDir]);
@@ -397,7 +403,10 @@ describe('performConfigReload', () => {
   });
 
   test('prunes stale tabMapping entries', async () => {
-    state.tabMapping.set('removed-plugin', { state: 'ready', tabId: 1, url: 'http://example.com' });
+    state.tabMapping.set('removed-plugin', {
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'http://example.com', title: 'Example', ready: true }],
+    });
 
     await performConfigReload(state, [], emptyTransports());
 

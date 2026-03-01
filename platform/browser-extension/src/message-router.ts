@@ -325,7 +325,7 @@ const handlePluginUpdate = async (params: Record<string, unknown>): Promise<void
   // updateLastKnownState goes through the plugin lock to avoid interleaving
   // with concurrent checkTabChanged / checkTabRemoved for the same plugin.
   const newState = await computePluginTabState(meta);
-  await updateLastKnownState(meta.name, newState.state);
+  await updateLastKnownState(meta.name, newState);
   sendTabStateNotification(meta.name, newState);
 
   // Notify the side panel so it refreshes its plugin list without user interaction

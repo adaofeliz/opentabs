@@ -16,6 +16,7 @@ import type {
   ManifestTool,
   ManifestResource,
   ManifestPrompt,
+  PluginTabInfo,
   WsHandle,
 } from '@opentabs-dev/shared';
 import type { FSWatcher } from 'node:fs';
@@ -107,11 +108,11 @@ export interface RegisteredPlugin {
   iconInactiveSvg?: string;
 }
 
-/** Tab mapping entry for a plugin */
+/** Tab mapping entry for a plugin — tracks aggregate state and all matching tabs */
 export interface TabMapping {
   state: TabState;
-  tabId: number | null;
-  url: string | null;
+  /** All matching tabs for this plugin with per-tab readiness */
+  tabs: PluginTabInfo[];
 }
 
 /** Pending dispatch awaiting extension response (tool.dispatch or browser.*) */

@@ -71,7 +71,9 @@ Each subdirectory has its own `CLAUDE.md` with package-specific details.
 
 **Resource URI prefixing**: Plugin resource URIs are prefixed with `opentabs+<plugin>://` to make them globally unique across plugins.
 
-**Tab state machine**: Each plugin has three tab states: `closed`, `unavailable`, and `ready`. The extension reports state changes to the MCP server.
+**Tab state machine**: Each plugin has three tab states: `closed`, `unavailable`, and `ready`. The extension reports all matching tabs per plugin (with per-tab readiness) to the MCP server via `tab.syncAll` and `tab.stateChanged`.
+
+**Multi-tab targeting**: When multiple tabs match a plugin, AI agents can target a specific tab by passing an optional `tabId` parameter to any plugin tool. The platform injects `tabId` into every plugin tool's input schema automatically — plugin authors never see it. Use `plugin_list_tabs` to discover available tabs and their IDs before targeting. Without `tabId`, the platform auto-selects the best-ranked tab (existing behavior).
 
 **Authentication and secrets**: The WebSocket secret is stored in `~/.opentabs/extension/auth.json` as `{ "secret": "<hex>" }`. This is the single source of truth — `config.json` does not store the secret.
 

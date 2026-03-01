@@ -333,10 +333,18 @@ export const getEnabledToolsList = (
     for (const toolDef of plugin.tools) {
       const prefixed = prefixedToolName(plugin.name, toolDef.name);
       if (!isToolEnabled(state, prefixed)) continue;
+      const clonedSchema = structuredClone(toolDef.input_schema);
+      const properties = (clonedSchema.properties ?? {}) as Record<string, unknown>;
+      properties.tabId = {
+        type: 'integer',
+        description:
+          'Optional. Target a specific browser tab by its ID. When omitted, the platform automatically selects the best matching tab. Use browser_list_tabs or plugin_list_tabs to discover tab IDs.',
+      };
+      clonedSchema.properties = properties;
       tools.push({
         name: prefixed,
         description: trustTierPrefix(plugin.trustTier) + toolDef.description,
-        inputSchema: toolDef.input_schema,
+        inputSchema: clonedSchema,
       });
     }
   }

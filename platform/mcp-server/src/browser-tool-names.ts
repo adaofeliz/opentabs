@@ -50,6 +50,7 @@ const BROWSER_TOOL_NAMES: readonly string[] = [
   'extension_check_adapter',
   'extension_force_reconnect',
   'plugin_analyze_site',
+  'plugin_list_tabs',
 ];
 
 export { BROWSER_TOOL_NAMES };

@@ -316,6 +316,12 @@ const handlePluginToolCall = async (
   lookup: ToolLookupEntry,
   extra: RequestHandlerExtra,
 ): Promise<ToolCallResult> => {
+  // Extract platform-injected tabId before validation — the plugin's own
+  // schema doesn't know about tabId, so it must be stripped before Ajv runs
+  // (otherwise plugins with additionalProperties: false would reject it).
+  const tabId = typeof args.tabId === 'number' ? args.tabId : undefined;
+  delete args.tabId;
+
   // Validate args against the tool's JSON Schema before dispatching.
   // The validator is pre-compiled at discovery time for performance.
   // If schema compilation failed, reject the call entirely — unvalidated
@@ -421,7 +427,7 @@ const handlePluginToolCall = async (
     const result = await dispatchToExtension(
       state,
       'tool.dispatch',
-      { plugin: pluginName, tool: toolBaseName, input: args },
+      { plugin: pluginName, tool: toolBaseName, input: args, ...(tabId !== undefined && { tabId }) },
       { label: `${pluginName}/${toolBaseName}`, progressToken, onProgress },
     );
     const rawOutput = (result as Record<string, unknown>).output ?? result;

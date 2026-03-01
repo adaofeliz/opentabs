@@ -41,6 +41,7 @@ const TOOL_TIERS: Record<string, ToolTier> = {
   extension_get_logs: 'observe',
   extension_get_side_panel: 'observe',
   extension_check_adapter: 'observe',
+  plugin_list_tabs: 'observe',
 
   // Interact tier — modifies page state or captures content
   browser_clear_console_logs: 'interact',

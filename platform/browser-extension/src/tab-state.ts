@@ -3,21 +3,27 @@ import { forwardToSidePanel, sendTabStateNotification, sendToServer } from './me
 import { getAllPluginMeta } from './plugin-storage.js';
 import { findAllMatchingTabs, urlMatchesPatterns } from './tab-matching.js';
 import type { PluginMeta, PluginTabStateInfo } from './extension-messages.js';
-import type { TabState } from '@opentabs-dev/shared';
+import type { PluginTabInfo, TabState } from '@opentabs-dev/shared';
 
 /**
- * Last-known tab state cache per plugin. Used by checkTabChanged and
- * checkTabRemoved to suppress redundant tab.stateChanged notifications
- * when a tab event fires but the plugin's effective state hasn't actually
- * changed (e.g., a page reload where the plugin was "ready" before and
- * is still "ready" after).
+ * Serialize a PluginTabStateInfo to a deterministic string for diff detection.
+ * Changes in aggregate state, tab count, tab IDs, URLs, titles, or readiness
+ * all produce different strings, ensuring notifications fire for any change.
+ */
+const serializeTabState = (info: PluginTabStateInfo): string => JSON.stringify({ state: info.state, tabs: info.tabs });
+
+/**
+ * Last-known tab state cache per plugin. Stores a serialized representation
+ * of { state, tabs } so that changes in the tab list (new tabs, closed tabs,
+ * URL changes, title changes, readiness changes) trigger notifications even
+ * when the aggregate state hasn't changed.
  *
  * The cache is populated by sendTabSyncAll (called after sync.full) and
  * updated on every state change notification sent to the server.
  * It is cleared on disconnect and repopulated when sync.full arrives on
  * the next connection.
  */
-const lastKnownState = new Map<string, TabState>();
+const lastKnownState = new Map<string, string>();
 
 /**
  * Per-plugin promise chain for serializing state computations. Concurrent
@@ -92,39 +98,38 @@ const probeTabReadiness = async (tabId: number, pluginName: string): Promise<boo
 
 /**
  * Compute the tab state for a single plugin by checking all matching tabs
- * for adapter readiness. Reports 'ready' if ANY matching tab is ready,
+ * for adapter readiness. Probes every matching tab and returns the full list
+ * with per-tab readiness. Aggregate state: 'ready' if any tab is ready,
  * 'unavailable' if tabs exist but none are ready, 'closed' if no tabs match.
  */
 const computePluginTabState = async (plugin: PluginMeta): Promise<PluginTabStateInfo> => {
-  const tabs = await findAllMatchingTabs(plugin);
-  if (tabs.length === 0) {
-    return { state: 'closed', tabId: null, url: null };
+  const matchingTabs = await findAllMatchingTabs(plugin);
+  if (matchingTabs.length === 0) {
+    return { state: 'closed', tabs: [] };
   }
 
-  // Track the first unavailable tab for fallback reporting
-  let firstUnavailable: chrome.tabs.Tab | undefined;
+  const tabInfos: PluginTabInfo[] = [];
 
-  for (const tab of tabs) {
+  for (const tab of matchingTabs) {
     if (tab.id === undefined) continue;
+    let ready = false;
     try {
-      const ready = await probeTabReadiness(tab.id, plugin.name);
-      if (ready) {
-        return { state: 'ready', tabId: tab.id, url: tab.url ?? null };
-      }
-      firstUnavailable ??= tab;
+      ready = await probeTabReadiness(tab.id, plugin.name);
     } catch (err) {
       console.warn(`[opentabs] computePluginTabState failed for plugin ${plugin.name} in tab ${tab.id}:`, err);
-      firstUnavailable ??= tab;
     }
+    tabInfos.push({
+      tabId: tab.id,
+      url: tab.url ?? '',
+      title: tab.title ?? '',
+      ready,
+    });
   }
 
-  // All matching tabs exist but none are ready
-  const fallbackTab = firstUnavailable ?? tabs[0];
-  return {
-    state: 'unavailable',
-    tabId: fallbackTab?.id ?? null,
-    url: fallbackTab?.url ?? null,
-  };
+  const hasReady = tabInfos.some(t => t.ready);
+  const state: TabState = hasReady ? 'ready' : 'unavailable';
+
+  return { state, tabs: tabInfos };
 };
 
 /**
@@ -161,7 +166,7 @@ const sendTabSyncAll = async (): Promise<void> => {
     entries.map(([pluginName, stateInfo]) => {
       pluginNamesInSync.add(pluginName);
       return withPluginLock(pluginName, () => {
-        lastKnownState.set(pluginName, stateInfo.state);
+        lastKnownState.set(pluginName, serializeTabState(stateInfo));
         return Promise.resolve();
       });
     }),
@@ -188,7 +193,7 @@ const sendTabSyncAll = async (): Promise<void> => {
       data: {
         jsonrpc: '2.0',
         method: 'tab.stateChanged',
-        params: { plugin: pluginName, state: stateInfo.state, tabId: stateInfo.tabId, url: stateInfo.url },
+        params: { plugin: pluginName, state: stateInfo.state, tabs: stateInfo.tabs },
       },
     });
   }
@@ -219,14 +224,28 @@ const clearPluginTabState = (pluginName: string): void => {
  * reads and writes for the same plugin. Called by handlePluginUpdate in
  * message-router.ts after computing the new state via computePluginTabState.
  */
-const updateLastKnownState = (pluginName: string, state: TabState): Promise<void> =>
+const updateLastKnownState = (pluginName: string, stateInfo: PluginTabStateInfo): Promise<void> =>
   withPluginLock(pluginName, () => {
-    lastKnownState.set(pluginName, state);
+    lastKnownState.set(pluginName, serializeTabState(stateInfo));
     return Promise.resolve();
   });
 
-/** Return a snapshot of last-known tab states for all plugins. */
-const getLastKnownStates = (): ReadonlyMap<string, TabState> => lastKnownState;
+/**
+ * Return a snapshot of last-known tab state info for all plugins.
+ * Each entry is the serialized { state, tabs } string. Callers that need
+ * just the aggregate TabState should parse the JSON and extract `.state`.
+ */
+const getLastKnownStates = (): ReadonlyMap<string, string> => lastKnownState;
+
+/** Extract the aggregate TabState from a serialized cache entry. */
+const getAggregateState = (serialized: string): TabState => {
+  try {
+    const parsed = JSON.parse(serialized) as { state: TabState };
+    return parsed.state;
+  } catch {
+    return 'closed';
+  }
+};
 
 /**
  * Compute state for each affected plugin, diff against the lastKnownState
@@ -240,13 +259,17 @@ const notifyAffectedPlugins = async (affectedPlugins: PluginMeta[]): Promise<voi
       withPluginLock(plugin.name, async () => {
         const newState = await computePluginTabState(plugin);
 
-        // Suppress redundant notifications: only send if state actually changed
+        // Suppress redundant notifications: only send if state or tab list changed.
+        // Serialized comparison catches tab list changes (new tabs, closed tabs,
+        // URL changes, title changes, readiness changes) even when the aggregate
+        // state is unchanged.
+        const serialized = serializeTabState(newState);
         const previous = lastKnownState.get(plugin.name);
-        if (previous === newState.state) return;
+        if (previous === serialized) return;
 
         // Update the cache before sending so rapid sequential events see the
         // latest state and don't produce duplicate notifications.
-        lastKnownState.set(plugin.name, newState.state);
+        lastKnownState.set(plugin.name, serialized);
 
         sendTabStateNotification(plugin.name, newState);
       }),
@@ -290,11 +313,11 @@ const checkTabChanged = async (changedTabId: number, changeInfo: chrome.tabs.OnU
     // before navigation, so recomputing their state discovers they no longer
     // have a matching tab and transitions them to 'closed'.
     const changedUrl = changeInfo.url;
-    affectedPlugins = plugins.filter(
-      p =>
-        urlMatchesPatterns(changedUrl, p.urlPatterns) ||
-        (lastKnownState.has(p.name) && lastKnownState.get(p.name) !== 'closed'),
-    );
+    affectedPlugins = plugins.filter(p => {
+      if (urlMatchesPatterns(changedUrl, p.urlPatterns)) return true;
+      const cached = lastKnownState.get(p.name);
+      return cached !== undefined && getAggregateState(cached) !== 'closed';
+    });
   } else if (changeInfo.status === 'complete') {
     // Page finished loading — fetch the tab's current URL once and filter
     // plugins by pattern match instead of calling findMatchingTab per plugin.
@@ -307,11 +330,11 @@ const checkTabChanged = async (changedTabId: number, changeInfo: chrome.tabs.OnU
       return;
     }
     if (!tabUrl) return;
-    affectedPlugins = plugins.filter(
-      p =>
-        urlMatchesPatterns(tabUrl, p.urlPatterns) ||
-        (lastKnownState.has(p.name) && lastKnownState.get(p.name) !== 'closed'),
-    );
+    affectedPlugins = plugins.filter(p => {
+      if (urlMatchesPatterns(tabUrl, p.urlPatterns)) return true;
+      const cached = lastKnownState.get(p.name);
+      return cached !== undefined && getAggregateState(cached) !== 'closed';
+    });
   } else {
     return;
   }
@@ -327,6 +350,7 @@ export {
   clearPluginTabState,
   clearTabStateCache,
   computePluginTabState,
+  getAggregateState,
   getLastKnownStates,
   sendTabSyncAll,
   updateLastKnownState,

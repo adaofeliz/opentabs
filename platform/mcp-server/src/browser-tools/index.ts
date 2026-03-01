@@ -36,6 +36,7 @@ import { listResources } from './list-resources.js';
 import { listTabs } from './list-tabs.js';
 import { navigateTab } from './navigate-tab.js';
 import { openTab } from './open-tab.js';
+import { pluginListTabs } from './plugin-list-tabs.js';
 import { pressKey } from './press-key.js';
 import { queryElements } from './query-elements.js';
 import { reloadExtension } from './reload-extension.js';
@@ -88,6 +89,7 @@ const browserTools: BrowserToolDefinition[] = [
   extensionCheckAdapter,
   extensionForceReconnect,
   analyzeSiteTool,
+  pluginListTabs,
 ];
 
 // Validate that BROWSER_TOOL_NAMES in browser-tool-names.ts stays in sync

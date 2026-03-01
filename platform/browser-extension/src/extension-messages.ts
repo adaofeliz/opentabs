@@ -1,4 +1,4 @@
-import type { TabState, TrustTier, WireToolDef } from '@opentabs-dev/shared';
+import type { PluginTabInfo, TabState, TrustTier, WireToolDef } from '@opentabs-dev/shared';
 
 // ---------------------------------------------------------------------------
 // Internal Chrome extension message types — discriminated union
@@ -167,8 +167,7 @@ export type InternalMessage =
 /** Tab state info for a single plugin — shared shape used by tab.stateChanged payloads */
 export interface PluginTabStateInfo {
   state: TabState;
-  tabId: number | null;
-  url: string | null;
+  tabs: PluginTabInfo[];
 }
 
 /** Lightweight plugin metadata stored in the `plugins_meta` index (no IIFE content) */

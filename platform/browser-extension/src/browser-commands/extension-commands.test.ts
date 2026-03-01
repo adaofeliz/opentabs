@@ -54,6 +54,7 @@ vi.mock('../tab-matching.js', () => ({
 
 vi.mock('../tab-state.js', () => ({
   getLastKnownStates: vi.fn(() => new Map()),
+  getAggregateState: vi.fn(() => 'closed'),
 }));
 
 // Stub chrome APIs

@@ -33,8 +33,7 @@ export const sendTabStateNotification = (pluginName: string, stateInfo: PluginTa
   const params = {
     plugin: pluginName,
     state: stateInfo.state,
-    tabId: stateInfo.tabId,
-    url: stateInfo.url,
+    tabs: stateInfo.tabs,
   };
 
   sendToServer({

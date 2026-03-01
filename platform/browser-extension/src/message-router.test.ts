@@ -201,11 +201,12 @@ vi.mock('./iife-injection.js', () => ({
 
 vi.mock('./tab-state.js', () => ({
   sendTabSyncAll: vi.fn(() => Promise.resolve()),
-  computePluginTabState: vi.fn(() => Promise.resolve({ state: 'closed', tabId: null, url: null })),
+  computePluginTabState: vi.fn(() => Promise.resolve({ state: 'closed', tabs: [] })),
   clearTabStateCache: vi.fn(),
   clearPluginTabState: vi.fn(),
   updateLastKnownState: vi.fn(() => Promise.resolve()),
   getLastKnownStates: vi.fn(() => new Map()),
+  getAggregateState: vi.fn(() => 'closed'),
   checkTabRemoved: vi.fn(() => Promise.resolve()),
   checkTabChanged: vi.fn(() => Promise.resolve()),
 }));
@@ -1324,7 +1325,11 @@ describe('handleServerMessage', () => {
     test('forwards tab.stateChanged to side panel', () => {
       const message = {
         method: 'tab.stateChanged',
-        params: { plugin: 'slack', state: 'ready', tabId: 1, url: 'https://slack.com' },
+        params: {
+          plugin: 'slack',
+          state: 'ready',
+          tabs: [{ tabId: 1, url: 'https://slack.com', title: 'Slack', ready: true }],
+        },
       };
 
       handleServerMessage(message);
