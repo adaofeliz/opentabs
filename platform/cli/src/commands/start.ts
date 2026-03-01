@@ -13,7 +13,7 @@
 import { installExtension } from './setup.js';
 import { ensureAuthSecret, getConfigDir, getLogFilePath, getPidFilePath, readAuthSecret } from '../config.js';
 import { parsePort, resolvePort } from '../parse-port.js';
-import { isWindows, platformExec, toErrorMessage } from '@opentabs-dev/shared';
+import { DEFAULT_PORT, isWindows, platformExec, toErrorMessage } from '@opentabs-dev/shared';
 import pc from 'picocolors';
 import { spawn } from 'node:child_process';
 import { mkdirSync, createWriteStream } from 'node:fs';
@@ -380,7 +380,7 @@ const handleStart = async (options: StartOptions): Promise<void> => {
     }
 
     try {
-      await writeFile(getPidFilePath(), String(pid), { mode: 0o600 });
+      await writeFile(getPidFilePath(), JSON.stringify({ pid, port }), { mode: 0o600 });
     } catch (err) {
       console.error(pc.red(`Error: Failed to write PID file: ${toErrorMessage(err)}`));
       process.exit(1);
@@ -391,7 +391,8 @@ const handleStart = async (options: StartOptions): Promise<void> => {
 
     console.log(`Server started in background (PID: ${String(pid)})`);
     console.log(pc.dim(`Logs: ${logFilePath}`));
-    console.log(pc.dim(`Stop: opentabs stop`));
+    const stopCmd = port !== DEFAULT_PORT ? `opentabs stop --port ${String(port)}` : 'opentabs stop';
+    console.log(pc.dim(`Stop: ${stopCmd}`));
     return;
   }
 
