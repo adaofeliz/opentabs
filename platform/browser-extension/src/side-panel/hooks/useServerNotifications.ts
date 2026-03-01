@@ -64,7 +64,10 @@ const useServerNotifications = ({
           id: params.id,
           tool: params.tool,
           domain: typeof params.domain === 'string' ? params.domain : null,
-          tabId: typeof params.tabId === 'number' ? params.tabId : undefined,
+          tabId:
+            typeof params.tabId === 'number' && Number.isInteger(params.tabId) && params.tabId > 0
+              ? params.tabId
+              : undefined,
           paramsPreview: typeof params.paramsPreview === 'string' ? params.paramsPreview : '',
           timeoutMs: params.timeoutMs,
           receivedAt: Date.now(),

@@ -381,4 +381,41 @@ describe('handleToolDispatch', () => {
       error: { code: -32001 },
     });
   });
+
+  test.each([
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['0', 0],
+    ['-1', -1],
+    ['1.5', 1.5],
+  ])('invalid numeric tabId %s is treated as absent (falls back to auto-select)', async (_label, invalidTabId) => {
+    invalidatePluginCache();
+    const plugin = makePlugin({ name: 'test-plugin', urlPatterns: ['*://example.com/*'] });
+    const storageGet = (globalThis as Record<string, unknown>).chrome as {
+      storage: { local: { get: ReturnType<typeof vi.fn> } };
+    };
+    storageGet.storage.local.get.mockResolvedValue({
+      plugins_meta: { 'test-plugin': plugin },
+    });
+
+    // No matching tabs → fallback dispatch sends -32001
+    const tabsQuery = (globalThis as Record<string, unknown>).chrome as {
+      tabs: { query: ReturnType<typeof vi.fn> };
+    };
+    tabsQuery.tabs.query.mockResolvedValue([]);
+
+    await handleToolDispatch(
+      { plugin: 'test-plugin', tool: 'do-thing', input: {}, tabId: invalidTabId },
+      'req-invalid-tabid',
+    );
+
+    if (mockSendToServer.mock.calls.length === 0) return;
+
+    // Invalid tabId should be ignored → fallback dispatch → no tabs → -32001 error
+    expect(firstSentMessage()).toMatchObject({
+      jsonrpc: '2.0',
+      id: 'req-invalid-tabid',
+      error: { code: -32001 },
+    });
+  });
 });

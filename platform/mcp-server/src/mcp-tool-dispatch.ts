@@ -321,7 +321,7 @@ const handlePluginToolCall = async (
   // (otherwise plugins with additionalProperties: false would reject it).
   // Use destructuring instead of delete to avoid mutating the caller's object.
   const { tabId: rawTabId, ...pluginArgs } = args;
-  const tabId = typeof rawTabId === 'number' ? rawTabId : undefined;
+  const tabId = typeof rawTabId === 'number' && Number.isInteger(rawTabId) && rawTabId > 0 ? rawTabId : undefined;
 
   // Validate args against the tool's JSON Schema before dispatching.
   // The validator is pre-compiled at discovery time for performance.

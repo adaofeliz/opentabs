@@ -372,7 +372,8 @@ const handleToolDispatch = async (params: Record<string, unknown>, id: string | 
     return;
   }
 
-  const targetTabId = typeof params.tabId === 'number' ? params.tabId : undefined;
+  const rawTabId = params.tabId;
+  const targetTabId = typeof rawTabId === 'number' && Number.isInteger(rawTabId) && rawTabId > 0 ? rawTabId : undefined;
 
   const plugin = await resolvePlugin(pluginName, id);
   if (!plugin) return;

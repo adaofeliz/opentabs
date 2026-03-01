@@ -1139,6 +1139,35 @@ describe('handlePluginToolCall', () => {
     expect(dispatchParams).not.toHaveProperty('tabId');
   });
 
+  test.each([
+    ['NaN', NaN],
+    ['Infinity', Infinity],
+    ['0', 0],
+    ['-1', -1],
+    ['1.5', 1.5],
+  ])('invalid tabId %s is treated as absent (no tab targeting)', async (_label, invalidTabId) => {
+    vi.mocked(dispatchToExtension).mockResolvedValue({ output: {} });
+    const state = createMockState();
+    const validate = vi.fn().mockReturnValue(true);
+    const lookup = createMockLookup({ validate });
+    const extra = createMockExtra();
+
+    await handlePluginToolCall(
+      state,
+      'testplugin_test_action',
+      { tabId: invalidTabId },
+      'testplugin',
+      'test_action',
+      lookup,
+      extra,
+    );
+
+    // Invalid tabId is excluded from pluginArgs via destructuring and treated as absent
+    const dispatchCall = vi.mocked(dispatchToExtension).mock.calls[0];
+    const dispatchParams = dispatchCall?.[2] as Record<string, unknown>;
+    expect(dispatchParams).not.toHaveProperty('tabId');
+  });
+
   test('original args object is not mutated', async () => {
     vi.mocked(dispatchToExtension).mockResolvedValue({ output: {} });
     const state = createMockState();
