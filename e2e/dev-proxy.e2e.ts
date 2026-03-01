@@ -22,7 +22,14 @@ import {
   writeTestConfig,
   fetchWsInfo,
 } from './fixtures.js';
-import { waitForLog, waitForExtensionConnected, waitForToolList, parseToolResult, setupToolTest } from './helpers.js';
+import {
+  waitForLog,
+  waitForExtensionConnected,
+  waitForToolList,
+  waitForToolResult,
+  parseToolResult,
+  setupToolTest,
+} from './helpers.js';
 import { execSync } from 'node:child_process';
 import fs, { readFileSync } from 'node:fs';
 
@@ -677,6 +684,67 @@ test.describe('Dev proxy WebSocket upgrade during worker restart', () => {
     } finally {
       await server.kill();
       cleanupTestConfigDir(configDir);
+    }
+  });
+});
+
+test.describe.serial('Dev proxy multi-client tool dispatch after hot reload', () => {
+  test('both MCP clients dispatch tools end-to-end after hot reload', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    test.slow();
+
+    const page = await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Create a second MCP client to test concurrent multi-client dispatch
+    const client2 = createMcpClient(mcpServer.port, mcpServer.secret);
+    await client2.initialize();
+
+    try {
+      // Baseline: both clients dispatch e2e-test_echo through the extension
+      const baseline1 = await mcpClient.callTool('e2e-test_echo', { message: 'client1-before' });
+      expect(baseline1.isError).toBe(false);
+      expect(parseToolResult(baseline1.content).message).toBe('client1-before');
+
+      const baseline2 = await client2.callTool('e2e-test_echo', { message: 'client2-before' });
+      expect(baseline2.isError).toBe(false);
+      expect(parseToolResult(baseline2.content).message).toBe('client2-before');
+
+      // Trigger hot reload — the dev proxy kills the old worker and forks a new one
+      mcpServer.logs.length = 0;
+      mcpServer.triggerHotReload();
+
+      // Wait for the new worker to fully start
+      await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+
+      // Wait for the extension to reconnect to the new worker (the proxy kills
+      // old WebSocket connections during restart, so the extension detects the
+      // close and re-establishes the connection)
+      await waitForExtensionConnected(mcpServer, 30_000);
+
+      // Wait for the extension to resync its plugin/tool state with the new worker
+      await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
+
+      // Poll until the tool is callable again (tab state = ready after worker restart).
+      // Both clients auto-reinitialize their sessions against the new worker.
+      await waitForToolResult(mcpClient, 'e2e-test_echo', { message: 'poll-check' }, { isError: false }, 20_000);
+
+      // Both clients must be able to dispatch e2e-test_echo end-to-end after hot reload.
+      // This exercises the full relay path: MCP client → proxy → new worker → extension
+      // WebSocket → adapter IIFE → tool handler → extension → worker → proxy → client.
+      const after1 = await mcpClient.callTool('e2e-test_echo', { message: 'client1-after' });
+      expect(after1.isError).toBe(false);
+      expect(parseToolResult(after1.content).message).toBe('client1-after');
+
+      const after2 = await client2.callTool('e2e-test_echo', { message: 'client2-after' });
+      expect(after2.isError).toBe(false);
+      expect(parseToolResult(after2.content).message).toBe('client2-after');
+    } finally {
+      await client2.close();
+      await page.close();
     }
   });
 });
