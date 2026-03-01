@@ -131,6 +131,7 @@ test.describe('plugin icon build validation', () => {
     // The inactive variant should contain only achromatic colors
     const inactiveSvg = manifest.iconInactiveSvg as string;
     const inactiveColors = extractHexColors(inactiveSvg);
+    expect(inactiveColors.length).toBeGreaterThan(0);
     for (const color of inactiveColors) {
       const r = color.slice(1, 3);
       const g = color.slice(3, 5);
