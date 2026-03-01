@@ -514,6 +514,18 @@ describe('generateInactiveIcon', () => {
     expect(result).toContain('fill="rgba(54, 54, 54, 0.5)"');
   });
 
+  test('fill="rgba(255, 0, 0)" (rgba without alpha) → hex gray #363636', () => {
+    const svg = svgWrap('<rect fill="rgba(255, 0, 0)"/>');
+    const result = generateInactiveIcon(svg);
+    expect(result).toContain('fill="#363636"');
+  });
+
+  test('fill="rgba(255, 0, 0, 50%)" (percentage alpha) → gray conversion preserves percentage alpha', () => {
+    const svg = svgWrap('<rect fill="rgba(255, 0, 0, 50%)"/>');
+    const result = generateInactiveIcon(svg);
+    expect(result).toContain('fill="rgba(54, 54, 54, 50%)"');
+  });
+
   test('stroke="rgb(0, 128, 255)" → stroke attribute is converted', () => {
     // gray = round(0.2126*0 + 0.7152*128 + 0.0722*255)
     // = round(0 + 91.55 + 18.41) = round(109.96) = 110 → #6e6e6e

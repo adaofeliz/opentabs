@@ -447,7 +447,8 @@ const convertColorToGray = (value: string): string => {
   }
 
   // rgba() — legacy comma-separated with optional percentage components: rgba(R, G, B, A)
-  const rgbaMatch = lowerValue.match(/^rgba\(\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*([\d.]+)\s*\)/);
+  // Alpha accepts numeric (0.5) or percentage (50%) values.
+  const rgbaMatch = lowerValue.match(/^rgba\(\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*([\d.]+%?)\s*\)/);
   if (rgbaMatch) {
     const red = parseRgbComponent(rgbaMatch[1] ?? '0');
     const green = parseRgbComponent(rgbaMatch[2] ?? '0');
@@ -457,8 +458,9 @@ const convertColorToGray = (value: string): string => {
     return `rgba(${gray}, ${gray}, ${gray}, ${alpha})`;
   }
 
-  // rgb() — legacy comma-separated with optional percentage components: rgb(R, G, B)
-  const rgbMatch = lowerValue.match(/^rgb\(\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*(\d+%?)\s*\)/);
+  // rgb()/rgba() — legacy comma-separated with optional percentage components: rgb(R, G, B) or rgba(R, G, B)
+  // rgba() without an alpha parameter is treated as fully opaque and converted to hex.
+  const rgbMatch = lowerValue.match(/^rgba?\(\s*(\d+%?)\s*,\s*(\d+%?)\s*,\s*(\d+%?)\s*\)/);
   if (rgbMatch) {
     const red = parseRgbComponent(rgbMatch[1] ?? '0');
     const green = parseRgbComponent(rgbMatch[2] ?? '0');
