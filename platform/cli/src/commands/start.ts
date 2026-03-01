@@ -161,12 +161,16 @@ const indent = (json: string, prefix: string): string =>
 const getMcpClientConfigs = (
   mcpUrl: string,
   secret: string | null,
-): Array<{ label: string; file: string; json: Record<string, unknown> }> => {
+): Array<{ label: string; file: string; json: Record<string, unknown>; cliCommand?: string }> => {
   const authHeaders = secret ? { Authorization: `Bearer ${secret}` } : undefined;
+  const claudeCliCommand = secret
+    ? `claude mcp add --transport http opentabs ${mcpUrl} --header "Authorization: Bearer ${secret}"`
+    : `claude mcp add --transport http opentabs ${mcpUrl}`;
   return [
     {
       label: 'Claude Code',
-      file: '~/.claude/settings/mcp.json',
+      file: '~/.claude.json',
+      cliCommand: claudeCliCommand,
       json: {
         mcpServers: {
           opentabs: { type: 'streamable-http', url: mcpUrl, ...(authHeaders && { headers: authHeaders }) },
@@ -202,9 +206,17 @@ const printMcpClientConfigs = (mcpUrl: string, secret: string | null, primaryOnl
   const configs = getMcpClientConfigs(mcpUrl, secret);
   const displayConfigs = primaryOnly ? configs.slice(0, 1) : configs;
 
-  for (const { label, file, json } of displayConfigs) {
-    console.log(pc.dim(`${pad}${pc.bold(label)} (${file}):`));
-    console.log(pc.dim(indent(JSON.stringify(json, null, 2), pad)));
+  for (const { label, file, json, cliCommand } of displayConfigs) {
+    if (cliCommand) {
+      console.log(pc.dim(`${pad}${pc.bold(label)} — recommended, add via CLI:`));
+      console.log(pc.dim(`${pad}  ${cliCommand}`));
+      console.log('');
+      console.log(pc.dim(`${pad}${pc.bold(label)} — manual alternative (${file}):`));
+      console.log(pc.dim(indent(JSON.stringify(json, null, 2), pad)));
+    } else {
+      console.log(pc.dim(`${pad}${pc.bold(label)} (${file}):`));
+      console.log(pc.dim(indent(JSON.stringify(json, null, 2), pad)));
+    }
     console.log('');
   }
 
