@@ -590,63 +590,66 @@ fixtureTest.describe('Strict CSP — multiple plugins on same page', () => {
 
       // Create a minimal second plugin matching http://localhost/*
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-csp-multi-plugin-'));
-      const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-extra-plugin', [
-        { name: 'noop', description: 'No-op tool for strict-CSP multi-plugin test' },
-      ]);
+      try {
+        const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-extra-plugin', [
+          { name: 'noop', description: 'No-op tool for strict-CSP multi-plugin test' },
+        ]);
 
-      // Add the second plugin to the config and enable its tool
-      const config = readTestConfig(mcpServer.configDir);
-      config.localPlugins.push(extraPluginDir);
-      config.tools['csp-extra-plugin_noop'] = true;
-      writeTestConfig(mcpServer.configDir, config);
+        // Add the second plugin to the config and enable its tool
+        const config = readTestConfig(mcpServer.configDir);
+        config.localPlugins.push(extraPluginDir);
+        config.tools['csp-extra-plugin_noop'] = true;
+        writeTestConfig(mcpServer.configDir, config);
 
-      // Trigger hot reload — server discovers both plugins, sends sync.full
-      mcpServer.logs.length = 0;
-      mcpServer.triggerHotReload();
+        // Trigger hot reload — server discovers both plugins, sends sync.full
+        mcpServer.logs.length = 0;
+        mcpServer.triggerHotReload();
 
-      await waitForLog(mcpServer, 'Hot reload complete', 20_000);
-      await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
+        await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+        await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
 
-      // Wait for the extra plugin's tool to appear in the MCP tool list
-      await waitForToolList(
-        mcpClient,
-        list => list.some(t => t.name === 'csp-extra-plugin_noop'),
-        10_000,
-        300,
-        'csp-extra-plugin_noop to appear in tool list',
-      );
+        // Wait for the extra plugin's tool to appear in the MCP tool list
+        await waitForToolList(
+          mcpClient,
+          list => list.some(t => t.name === 'csp-extra-plugin_noop'),
+          10_000,
+          300,
+          'csp-extra-plugin_noop to appear in tool list',
+        );
 
-      // Wait for both adapters to be present in the strict-CSP page
-      await waitFor(
-        async () => {
-          const adapters = await page.evaluate(() => {
-            const ot = (globalThis as Record<string, unknown>).__openTabs as
-              | { adapters?: Record<string, unknown> }
-              | undefined;
-            return {
-              e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
-              extraPlugin: ot?.adapters?.['csp-extra-plugin'] !== undefined,
-            };
-          });
-          return adapters.e2eTest && adapters.extraPlugin;
-        },
-        15_000,
-        500,
-        'both e2e-test and csp-extra-plugin adapters to be present on strict-CSP page',
-      );
+        // Wait for both adapters to be present in the strict-CSP page
+        await waitFor(
+          async () => {
+            const adapters = await page.evaluate(() => {
+              const ot = (globalThis as Record<string, unknown>).__openTabs as
+                | { adapters?: Record<string, unknown> }
+                | undefined;
+              return {
+                e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
+                extraPlugin: ot?.adapters?.['csp-extra-plugin'] !== undefined,
+              };
+            });
+            return adapters.e2eTest && adapters.extraPlugin;
+          },
+          15_000,
+          500,
+          'both e2e-test and csp-extra-plugin adapters to be present on strict-CSP page',
+        );
 
-      // Verify both adapter names are in the page
-      const adapterNames = await page.evaluate(() => {
-        const ot = (globalThis as Record<string, unknown>).__openTabs as
-          | { adapters?: Record<string, unknown> }
-          | undefined;
-        return Object.keys(ot?.adapters ?? {}).sort();
-      });
-      expect(adapterNames).toContain('csp-extra-plugin');
-      expect(adapterNames).toContain('e2e-test');
+        // Verify both adapter names are in the page
+        const adapterNames = await page.evaluate(() => {
+          const ot = (globalThis as Record<string, unknown>).__openTabs as
+            | { adapters?: Record<string, unknown> }
+            | undefined;
+          return Object.keys(ot?.adapters ?? {}).sort();
+        });
+        expect(adapterNames).toContain('csp-extra-plugin');
+        expect(adapterNames).toContain('e2e-test');
 
-      await page.close();
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+        await page.close();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     },
   );
 
@@ -657,55 +660,58 @@ fixtureTest.describe('Strict CSP — multiple plugins on same page', () => {
 
       // Add a second plugin
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-csp-dispatch-'));
-      const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-dispatch-extra', [
-        { name: 'noop', description: 'No-op tool for dispatch test' },
-      ]);
+      try {
+        const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-dispatch-extra', [
+          { name: 'noop', description: 'No-op tool for dispatch test' },
+        ]);
 
-      const config = readTestConfig(mcpServer.configDir);
-      config.localPlugins.push(extraPluginDir);
-      config.tools['csp-dispatch-extra_noop'] = true;
-      writeTestConfig(mcpServer.configDir, config);
+        const config = readTestConfig(mcpServer.configDir);
+        config.localPlugins.push(extraPluginDir);
+        config.tools['csp-dispatch-extra_noop'] = true;
+        writeTestConfig(mcpServer.configDir, config);
 
-      mcpServer.logs.length = 0;
-      mcpServer.triggerHotReload();
+        mcpServer.logs.length = 0;
+        mcpServer.triggerHotReload();
 
-      await waitForLog(mcpServer, 'Hot reload complete', 20_000);
-      await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
+        await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+        await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
 
-      // Wait for both adapters
-      await waitFor(
-        async () => {
-          const adapters = await page.evaluate(() => {
-            const ot = (globalThis as Record<string, unknown>).__openTabs as
-              | { adapters?: Record<string, unknown> }
-              | undefined;
-            return {
-              e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
-              extraPlugin: ot?.adapters?.['csp-dispatch-extra'] !== undefined,
-            };
-          });
-          return adapters.e2eTest && adapters.extraPlugin;
-        },
-        15_000,
-        500,
-        'both adapters present for dispatch test',
-      );
+        // Wait for both adapters
+        await waitFor(
+          async () => {
+            const adapters = await page.evaluate(() => {
+              const ot = (globalThis as Record<string, unknown>).__openTabs as
+                | { adapters?: Record<string, unknown> }
+                | undefined;
+              return {
+                e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
+                extraPlugin: ot?.adapters?.['csp-dispatch-extra'] !== undefined,
+              };
+            });
+            return adapters.e2eTest && adapters.extraPlugin;
+          },
+          15_000,
+          500,
+          'both adapters present for dispatch test',
+        );
 
-      // e2e-test tool dispatch works with two adapters on the strict-CSP page
-      const echoResult = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
-        message: 'csp-dual-adapter-echo',
-      });
-      expect(echoResult.ok).toBe(true);
-      expect(echoResult.message).toBe('csp-dual-adapter-echo');
+        // e2e-test tool dispatch works with two adapters on the strict-CSP page
+        const echoResult = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
+          message: 'csp-dual-adapter-echo',
+        });
+        expect(echoResult.ok).toBe(true);
+        expect(echoResult.message).toBe('csp-dual-adapter-echo');
 
-      const greetResult = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_greet', {
-        name: 'DualCSP',
-      });
-      expect(greetResult.ok).toBe(true);
-      expect(greetResult.greeting).toBe('Hello, DualCSP!');
+        const greetResult = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_greet', {
+          name: 'DualCSP',
+        });
+        expect(greetResult.ok).toBe(true);
+        expect(greetResult.greeting).toBe('Hello, DualCSP!');
 
-      await page.close();
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+        await page.close();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     },
   );
 
@@ -716,89 +722,92 @@ fixtureTest.describe('Strict CSP — multiple plugins on same page', () => {
 
       // Add a second plugin
       const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-csp-remove-'));
-      const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-removable', [
-        { name: 'noop', description: 'No-op tool for removal test' },
-      ]);
+      try {
+        const extraPluginDir = createMinimalPlugin(tmpDir, 'csp-removable', [
+          { name: 'noop', description: 'No-op tool for removal test' },
+        ]);
 
-      const config = readTestConfig(mcpServer.configDir);
-      config.localPlugins.push(extraPluginDir);
-      config.tools['csp-removable_noop'] = true;
-      writeTestConfig(mcpServer.configDir, config);
+        const config = readTestConfig(mcpServer.configDir);
+        config.localPlugins.push(extraPluginDir);
+        config.tools['csp-removable_noop'] = true;
+        writeTestConfig(mcpServer.configDir, config);
 
-      mcpServer.logs.length = 0;
-      mcpServer.triggerHotReload();
+        mcpServer.logs.length = 0;
+        mcpServer.triggerHotReload();
 
-      await waitForLog(mcpServer, 'Hot reload complete', 20_000);
-      await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
+        await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+        await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
 
-      // Wait for both adapters to be present
-      await waitFor(
-        async () => {
-          const adapters = await page.evaluate(() => {
-            const ot = (globalThis as Record<string, unknown>).__openTabs as
-              | { adapters?: Record<string, unknown> }
-              | undefined;
-            return {
-              e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
-              extraPlugin: ot?.adapters?.['csp-removable'] !== undefined,
-            };
-          });
-          return adapters.e2eTest && adapters.extraPlugin;
-        },
-        15_000,
-        500,
-        'both adapters present before removal',
-      );
+        // Wait for both adapters to be present
+        await waitFor(
+          async () => {
+            const adapters = await page.evaluate(() => {
+              const ot = (globalThis as Record<string, unknown>).__openTabs as
+                | { adapters?: Record<string, unknown> }
+                | undefined;
+              return {
+                e2eTest: ot?.adapters?.['e2e-test'] !== undefined,
+                extraPlugin: ot?.adapters?.['csp-removable'] !== undefined,
+              };
+            });
+            return adapters.e2eTest && adapters.extraPlugin;
+          },
+          15_000,
+          500,
+          'both adapters present before removal',
+        );
 
-      // Verify e2e-test tool dispatch works with both adapters
-      const beforeRemoval = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
-        message: 'csp-before-removal',
-      });
-      expect(beforeRemoval.message).toBe('csp-before-removal');
+        // Verify e2e-test tool dispatch works with both adapters
+        const beforeRemoval = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
+          message: 'csp-before-removal',
+        });
+        expect(beforeRemoval.message).toBe('csp-before-removal');
 
-      // Remove the second plugin from config (keep only e2e-test)
-      const updatedConfig = readTestConfig(mcpServer.configDir);
-      updatedConfig.localPlugins = updatedConfig.localPlugins.filter(p => !p.includes('csp-removable'));
-      delete updatedConfig.tools['csp-removable_noop'];
-      writeTestConfig(mcpServer.configDir, updatedConfig);
+        // Remove the second plugin from config (keep only e2e-test)
+        const updatedConfig = readTestConfig(mcpServer.configDir);
+        updatedConfig.localPlugins = updatedConfig.localPlugins.filter(p => !p.includes('csp-removable'));
+        delete updatedConfig.tools['csp-removable_noop'];
+        writeTestConfig(mcpServer.configDir, updatedConfig);
 
-      // Trigger hot reload — server discovers only e2e-test, sends sync.full
-      mcpServer.logs.length = 0;
-      mcpServer.triggerHotReload();
+        // Trigger hot reload — server discovers only e2e-test, sends sync.full
+        mcpServer.logs.length = 0;
+        mcpServer.triggerHotReload();
 
-      await waitForLog(mcpServer, 'Hot reload complete', 20_000);
-      await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
+        await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+        await waitForLog(mcpServer, 'tab.syncAll received', 20_000);
 
-      // Wait for the removed plugin's tool to disappear from the tool list
-      await waitForToolList(
-        mcpClient,
-        list => !list.some(t => t.name === 'csp-removable_noop'),
-        10_000,
-        300,
-        'csp-removable_noop to be removed from tool list',
-      );
+        // Wait for the removed plugin's tool to disappear from the tool list
+        await waitForToolList(
+          mcpClient,
+          list => !list.some(t => t.name === 'csp-removable_noop'),
+          10_000,
+          300,
+          'csp-removable_noop to be removed from tool list',
+        );
 
-      // e2e-test adapter and tool dispatch still works on the strict-CSP page
-      // after the second plugin was removed
-      await waitForToolResult(mcpClient, 'e2e-test_get_status', {}, { isError: false }, 15_000);
+        // e2e-test adapter and tool dispatch still works on the strict-CSP page
+        // after the second plugin was removed
+        await waitForToolResult(mcpClient, 'e2e-test_get_status', {}, { isError: false }, 15_000);
 
-      const afterRemoval = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
-        message: 'csp-after-removal',
-      });
-      expect(afterRemoval.ok).toBe(true);
-      expect(afterRemoval.message).toBe('csp-after-removal');
+        const afterRemoval = await callToolExpectSuccess(mcpClient, mcpServer, 'e2e-test_echo', {
+          message: 'csp-after-removal',
+        });
+        expect(afterRemoval.ok).toBe(true);
+        expect(afterRemoval.message).toBe('csp-after-removal');
 
-      // Verify e2e-test adapter is still present in the page
-      const adapterPresent = await page.evaluate(() => {
-        const ot = (globalThis as Record<string, unknown>).__openTabs as
-          | { adapters?: Record<string, unknown> }
-          | undefined;
-        return ot?.adapters?.['e2e-test'] !== undefined;
-      });
-      expect(adapterPresent).toBe(true);
+        // Verify e2e-test adapter is still present in the page
+        const adapterPresent = await page.evaluate(() => {
+          const ot = (globalThis as Record<string, unknown>).__openTabs as
+            | { adapters?: Record<string, unknown> }
+            | undefined;
+          return ot?.adapters?.['e2e-test'] !== undefined;
+        });
+        expect(adapterPresent).toBe(true);
 
-      await page.close();
-      fs.rmSync(tmpDir, { recursive: true, force: true });
+        await page.close();
+      } finally {
+        fs.rmSync(tmpDir, { recursive: true, force: true });
+      }
     },
   );
 });
