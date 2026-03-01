@@ -1,3 +1,4 @@
+import { BrowserToolsMenu } from './BrowserToolsMenu.js';
 import { Accordion } from './retro/Accordion.js';
 import { Alert } from './retro/Alert.js';
 import { Badge } from './retro/Badge.js';
@@ -24,11 +25,13 @@ const BrowserToolsCard = ({
   activeTools,
   onToolsChange,
   toolFilter,
+  serverVersion,
 }: {
   tools: BrowserToolState[];
   activeTools: Set<string>;
   onToolsChange: (updater: (tools: BrowserToolState[]) => BrowserToolState[]) => void;
   toolFilter?: string;
+  serverVersion?: string;
 }) => {
   const [toggleError, setToggleError] = useState<string | null>(null);
   const errorTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
@@ -95,9 +98,7 @@ const BrowserToolsCard = ({
           </div>
           <ChevronDown className="chevron h-4 w-4 shrink-0 transition-transform duration-200" />
         </AccordionPrimitive.Trigger>
-        <div className="shrink-0 px-1" aria-hidden="true">
-          <div className="h-6 w-6" />
-        </div>
+        <BrowserToolsMenu serverVersion={serverVersion} className="flex shrink-0 items-center px-1" />
         <div
           className="flex shrink-0 items-center px-3"
           onClick={(e: React.MouseEvent) => e.stopPropagation()}
