@@ -253,12 +253,16 @@ describe('tool config round-trip with isToolEnabled', () => {
 });
 
 describe('saveConfig error propagation', () => {
+  // Root bypasses POSIX file permissions, so chmod-based write-failure
+  // simulation does not work when running as root (e.g., Docker containers).
+  const isRoot = process.getuid?.() === 0;
+
   beforeEach(async () => {
     process.env.OPENTABS_CONFIG_DIR = TEST_BASE_DIR;
     await removeConfig();
   });
 
-  test('saveConfig propagates write errors to the caller', async () => {
+  test.skipIf(isRoot)('saveConfig propagates write errors to the caller', async () => {
     await loadConfig();
     // Make the directory non-writable so atomicWrite cannot create temp files
     await chmod(TEST_BASE_DIR, 0o555);
@@ -282,7 +286,7 @@ describe('saveConfig error propagation', () => {
     await chmod(TEST_BASE_DIR, 0o700);
   });
 
-  test('saveConfig mutex does not deadlock after a failed write', async () => {
+  test.skipIf(isRoot)('saveConfig mutex does not deadlock after a failed write', async () => {
     await loadConfig();
     await chmod(TEST_BASE_DIR, 0o555);
 
@@ -312,7 +316,7 @@ describe('saveConfig error propagation', () => {
     expect(loaded.localPlugins).toEqual(['/test/path']);
   });
 
-  test('saveToolConfig propagates write errors to the caller', async () => {
+  test.skipIf(isRoot)('saveToolConfig propagates write errors to the caller', async () => {
     await loadConfig();
     await chmod(TEST_BASE_DIR, 0o555);
 
@@ -324,7 +328,7 @@ describe('saveConfig error propagation', () => {
     await chmod(TEST_BASE_DIR, 0o700);
   });
 
-  test('saveToolConfig mutex does not deadlock after a failed write', async () => {
+  test.skipIf(isRoot)('saveToolConfig mutex does not deadlock after a failed write', async () => {
     await loadConfig();
     await chmod(TEST_BASE_DIR, 0o555);
 
