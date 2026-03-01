@@ -1246,6 +1246,12 @@ const handleBuild = async (options: { watch?: boolean }): Promise<void> => {
     process.exit(1);
   }
 
+  watcher.on('error', err => {
+    console.error(pc.red(`Watch error: ${toErrorMessage(err)}`));
+    console.error(pc.yellow('Watcher stopped. Restart with: opentabs-plugin build --watch'));
+    process.exit(1);
+  });
+
   console.log('');
   console.log(pc.cyan(`Watching ${pc.bold('dist/')} for changes... (Ctrl+C to stop)`));
 
