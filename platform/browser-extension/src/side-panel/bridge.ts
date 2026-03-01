@@ -11,13 +11,21 @@
  */
 
 import type { DisconnectReason } from '../extension-messages.js';
-import type { ConfigStateFailedPlugin, ConfigStatePlugin, ConfigStateResult } from '@opentabs-dev/shared';
+import type {
+  ConfigStateBrowserTool,
+  ConfigStateFailedPlugin,
+  ConfigStatePlugin,
+  ConfigStateResult,
+} from '@opentabs-dev/shared';
 
 /** Plugin state as displayed in the side panel (matches config.getState response) */
 type PluginState = ConfigStatePlugin;
 
 /** Failed plugin state as displayed in the side panel */
 type FailedPluginState = ConfigStateFailedPlugin;
+
+/** Browser tool state as displayed in the side panel (matches config.getState response) */
+type BrowserToolState = ConfigStateBrowserTool;
 
 /** npm registry search result for a plugin package */
 interface PluginSearchResult {
@@ -179,6 +187,10 @@ const setToolEnabled = (plugin: string, tool: string, enabled: boolean): Promise
 const setAllToolsEnabled = (plugin: string, enabled: boolean): Promise<unknown> =>
   sendRequest('config.setAllToolsEnabled', { plugin, enabled });
 
+/** Toggle a browser tool's enabled state */
+const setBrowserToolEnabled = (tool: string, enabled: boolean): Promise<unknown> =>
+  sendRequest('config.setBrowserToolEnabled', { tool, enabled });
+
 /** Search npm registry for plugins matching the given query */
 const searchPlugins = (query: string): Promise<{ results: PluginSearchResult[] }> =>
   sendRequest('plugin.search', { query }) as Promise<{ results: PluginSearchResult[] }>;
@@ -211,7 +223,7 @@ const sendConfirmationResponse = (
     });
 };
 
-export type { FailedPluginState, PluginInstallResult, PluginSearchResult, PluginState };
+export type { BrowserToolState, FailedPluginState, PluginInstallResult, PluginSearchResult, PluginState };
 export {
   getConnectionState,
   fetchConfigState,
@@ -220,6 +232,7 @@ export {
   matchesTool,
   setToolEnabled,
   setAllToolsEnabled,
+  setBrowserToolEnabled,
   searchPlugins,
   installPlugin,
   removePlugin,
