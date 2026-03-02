@@ -196,6 +196,8 @@ const PRETTIERRC_CONTENT =
       singleQuote: true,
       arrowParens: 'avoid',
       printWidth: 120,
+      bracketSameLine: true,
+      htmlWhitespaceSensitivity: 'strict',
     },
     null,
     2,
