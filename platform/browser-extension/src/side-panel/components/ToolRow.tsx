@@ -22,7 +22,7 @@ const ToolRow = ({
 }) => (
   <div
     className={`border-border hover:bg-muted/50 flex items-center gap-2 border-b px-3 py-2 transition-colors last:border-b-0 ${active ? 'bg-accent/20' : ''}`}>
-    <ToolIcon icon={icon} />
+    <ToolIcon icon={icon} enabled={enabled} />
     <Tooltip>
       <Tooltip.Trigger asChild>
         <div className="min-w-0 flex-1">
