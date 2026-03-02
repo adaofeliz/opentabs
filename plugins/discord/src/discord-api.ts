@@ -35,20 +35,39 @@ const readLocalStorage = (key: string): string | null => {
 };
 
 /**
- * Extract auth token from Discord's localStorage.
+ * Module-level token cache. The adapter is injected at `status: 'loading'`
+ * (before Discord's JavaScript runs), so localStorage still has the token.
+ * Once read, the token is cached here so subsequent tool calls work even
+ * after Discord deletes the localStorage entry during initialization.
+ */
+let cachedAuth: DiscordAuth | null = null;
+
+/**
+ * Extract auth token from Discord. Checks two sources:
+ * 1. Module-level cache (fastest, survives localStorage deletion)
+ * 2. localStorage via direct access or iframe fallback
+ *
  * Discord stores the token as a JSON-encoded string (double-quoted) under the key "token".
  */
 const getAuth = (): DiscordAuth | null => {
+  if (cachedAuth) return cachedAuth;
+
   const raw = readLocalStorage('token');
   if (!raw) return null;
 
   try {
     const token = JSON.parse(raw) as unknown;
     if (typeof token !== 'string' || token.length === 0) return null;
-    return { token };
+    cachedAuth = { token };
+    return cachedAuth;
   } catch {
     return null;
   }
+};
+
+/** Clear the cached auth token — called on 401 responses to handle token rotation. */
+const clearAuthCache = (): void => {
+  cachedAuth = null;
 };
 
 export const isDiscordAuthenticated = (): boolean => getAuth() !== null;
@@ -218,6 +237,7 @@ export const discordApi = async <T extends Record<string, unknown>>(
     }
 
     if (response.status === 401 || response.status === 403) {
+      clearAuthCache();
       throw ToolError.auth(`Discord API auth error (${String(response.status)}): ${errorBody}`);
     }
     if (response.status === 404) {
