@@ -82,12 +82,12 @@ const generatePackageJson = async (args: ScaffoldArgs, urlPattern: string): Prom
 
   const pkg = {
     name: `opentabs-plugin-${args.name}`,
+    description: desc,
     version: '0.0.1',
     type: 'module',
     main: 'dist/adapter.iife.js',
     keywords: ['opentabs-plugin'],
     opentabs: {
-      '//': 'Optional: place icon.svg (and icon-inactive.svg) next to package.json for a custom side-panel icon',
       displayName,
       description: desc,
       urlPatterns: [urlPattern],
@@ -102,12 +102,13 @@ const generatePackageJson = async (args: ScaffoldArgs, urlPattern: string): Prom
     files: ['dist'],
     scripts: {
       build: 'tsc && opentabs-plugin build',
-      dev: 'concurrently --names tsc,build --prefix-colors blue,green "tsc --watch --preserveWatchOutput" "opentabs-plugin build --watch"',
+      dev: 'tsc --watch --preserveWatchOutput & opentabs-plugin build --watch',
       'type-check': 'tsc --noEmit',
       lint: 'eslint src/',
       'lint:fix': 'eslint src/ --fix',
       'format:check': 'prettier --check "src/**/*.ts"',
       format: 'prettier --write "src/**/*.ts"',
+      check: 'npm run build && npm run type-check && npm run lint && npm run format:check',
     },
     peerDependencies: {
       zod: '^4.0.0',
@@ -117,7 +118,6 @@ const generatePackageJson = async (args: ScaffoldArgs, urlPattern: string): Prom
     },
     devDependencies: {
       '@opentabs-dev/plugin-tools': openTabsVersion,
-      concurrently: '^9.1.2',
       eslint: '^9.39.2',
       'eslint-config-prettier': '^10.1.8',
       'eslint-plugin-prettier': '^5.5.5',
