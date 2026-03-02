@@ -360,7 +360,7 @@ const App = () => {
           />
         )}
         {showSearchBar && (
-          <div className="shrink-0 pt-4 pr-5 pb-2 pl-4">
+          <div className="shrink-0 px-4 pt-4 pb-2">
             <div className="relative">
               <Search className="text-muted-foreground pointer-events-none absolute top-1/2 left-2 h-4 w-4 -translate-y-1/2" />
               <Input
@@ -387,7 +387,7 @@ const App = () => {
             scrollbars: { theme: 'os-theme-retro', autoHide: 'scroll', autoHideDelay: 600 },
           }}>
           <main
-            className={`pr-5 pb-2 pl-4 ${showSearchBar ? 'pt-2' : 'pt-4'} ${showPlugins ? '' : 'flex min-h-full items-center justify-center'}`}>
+            className={`px-4 pb-4 ${showSearchBar ? 'pt-2' : 'pt-4'} ${showPlugins ? '' : 'flex min-h-full items-center justify-center'}`}>
             {loading ? (
               <LoadingState />
             ) : !connected ? (
