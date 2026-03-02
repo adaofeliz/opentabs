@@ -1,5 +1,5 @@
 /**
- * Dev proxy for hot reload.
+ * Dev proxy for hot reload with MCP session persistence.
  *
  * Listens on the configured port. Forks the MCP server (dist/index.js) on
  * an ephemeral port (PORT=0). The worker reports its actual port to the proxy
@@ -7,11 +7,19 @@
  * current worker. Restarts the worker when .js files in the dist/ directory
  * change (debounced). Incoming HTTP requests are buffered during restarts and
  * drained once the new worker is ready (up to 5 seconds, then 503).
+ *
+ * MCP session bridging: The proxy assigns its own stable session ID to each
+ * MCP client. When a worker restarts, the proxy re-initializes the MCP session
+ * with the new worker on behalf of connected clients, mapping the stable proxy
+ * session ID to the new worker session ID. SSE GET streams are held open across
+ * worker restarts — the proxy reconnects the upstream SSE stream to the new
+ * worker and resumes forwarding events to the client.
  */
 
 import { DEFAULT_HOST, DEFAULT_PORT } from '@opentabs-dev/shared';
 import { WebSocket, WebSocketServer } from 'ws';
 import { fork } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { watch } from 'node:fs';
 import { createServer, request as httpRequest } from 'node:http';
 import { resolve } from 'node:path';
@@ -31,9 +39,136 @@ let debounceTimer: ReturnType<typeof setTimeout> | null = null;
 const pending: Array<() => void> = [];
 let workerStartCount = 0;
 
+// --- MCP Session State ---
+
+/** Tracked state for each MCP client session that the proxy manages. */
+interface ProxySession {
+  /** Stable session ID exposed to the client (never changes). */
+  proxySessionId: string;
+  /** Current worker's session ID (changes on each worker restart). */
+  workerSessionId: string;
+  /** The JSON body of the client's initialize request (replayed to new workers). */
+  initializeBody: unknown;
+  /** Active SSE response streams for this session (GET /mcp). */
+  sseStreams: Set<ServerResponse>;
+  /** Authorization header value from the client (forwarded to the worker). */
+  authHeader: string | null;
+}
+
+/** Map from proxy session ID → session state. */
+const sessions = new Map<string, ProxySession>();
+
+/** Reverse map from worker session ID → proxy session ID for fast lookup. */
+const workerToProxySession = new Map<string, string>();
+
 /** Drain all buffered requests now that the worker is ready. */
 const drainPending = (): void => {
   for (const fn of pending.splice(0)) fn();
+};
+
+/**
+ * Re-initialize all tracked MCP sessions with the new worker.
+ * Sends the original initialize request + notifications/initialized to the
+ * new worker for each session, capturing the new worker session IDs.
+ * Then reconnects SSE streams.
+ */
+const reinitializeSessions = async (port: number): Promise<void> => {
+  const sessionsToReinit = [...sessions.values()];
+  if (sessionsToReinit.length === 0) return;
+
+  console.log(`[proxy] Re-initializing ${sessionsToReinit.length} MCP session(s) with new worker`);
+
+  for (const session of sessionsToReinit) {
+    try {
+      // Remove old worker session mapping
+      workerToProxySession.delete(session.workerSessionId);
+
+      // Send the original initialize request to the new worker
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+      };
+      if (session.authHeader) {
+        headers['Authorization'] = session.authHeader;
+      }
+
+      const initRes = await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(session.initializeBody),
+        signal: AbortSignal.timeout(READY_TIMEOUT_MS),
+      });
+
+      if (!initRes.ok) {
+        const text = await initRes.text().catch(() => '');
+        console.error(`[proxy] Failed to re-initialize session ${session.proxySessionId}: ${initRes.status} ${text}`);
+        cleanupSession(session.proxySessionId);
+        continue;
+      }
+
+      const newWorkerSessionId = initRes.headers.get('mcp-session-id');
+      if (!newWorkerSessionId) {
+        console.error(`[proxy] Re-initialize did not return session ID for ${session.proxySessionId}`);
+        cleanupSession(session.proxySessionId);
+        continue;
+      }
+
+      // Update session mapping
+      session.workerSessionId = newWorkerSessionId;
+      workerToProxySession.set(newWorkerSessionId, session.proxySessionId);
+
+      // Consume the initialize response body
+      await initRes.text().catch(() => {});
+
+      // Send notifications/initialized
+      const notifHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+        Accept: 'application/json, text/event-stream',
+        'mcp-session-id': newWorkerSessionId,
+      };
+      if (session.authHeader) {
+        notifHeaders['Authorization'] = session.authHeader;
+      }
+
+      await fetch(`http://127.0.0.1:${port}/mcp`, {
+        method: 'POST',
+        headers: notifHeaders,
+        body: JSON.stringify({ jsonrpc: '2.0', method: 'notifications/initialized' }),
+        signal: AbortSignal.timeout(READY_TIMEOUT_MS),
+      }).catch(() => {});
+
+      console.log(`[proxy] Session ${session.proxySessionId} re-initialized (worker session: ${newWorkerSessionId})`);
+
+      // Reconnect SSE streams for this session
+      for (const clientRes of session.sseStreams) {
+        if (!clientRes.destroyed && !clientRes.writableEnded) {
+          connectUpstreamSse(session, clientRes, port);
+        } else {
+          session.sseStreams.delete(clientRes);
+        }
+      }
+    } catch (err) {
+      console.error(
+        `[proxy] Error re-initializing session ${session.proxySessionId}:`,
+        err instanceof Error ? err.message : err,
+      );
+      cleanupSession(session.proxySessionId);
+    }
+  }
+};
+
+/** Remove a session and clean up its resources. */
+const cleanupSession = (proxySessionId: string): void => {
+  const session = sessions.get(proxySessionId);
+  if (!session) return;
+  workerToProxySession.delete(session.workerSessionId);
+  for (const res of session.sseStreams) {
+    if (!res.destroyed && !res.writableEnded) {
+      res.end();
+    }
+  }
+  session.sseStreams.clear();
+  sessions.delete(proxySessionId);
 };
 
 /**
@@ -65,8 +200,17 @@ const startWorker = (): void => {
     ) {
       workerPort = (msg as { type: string; port: number }).port;
       console.log(`[proxy] Worker ready on port ${workerPort}`);
-      if (isRestart) console.log('Hot reload complete');
-      drainPending();
+
+      if (isRestart) {
+        // Re-initialize existing MCP sessions with the new worker before
+        // draining pending requests, so session mappings are ready.
+        void reinitializeSessions(workerPort).then(() => {
+          console.log('Hot reload complete');
+          drainPending();
+        });
+      } else {
+        drainPending();
+      }
     }
   });
 
@@ -132,6 +276,319 @@ const proxyHttp = (req: IncomingMessage, res: ServerResponse, port: number): voi
   req.pipe(proxyReq);
 };
 
+// --- MCP-aware HTTP handling ---
+
+/** Read the full request body as a string. */
+const readBody = (req: IncomingMessage): Promise<string> =>
+  new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (chunk: Buffer) => chunks.push(chunk));
+    req.on('end', () => resolve(Buffer.concat(chunks).toString()));
+    req.on('error', reject);
+  });
+
+/**
+ * Connect an upstream SSE stream from the worker to a client response.
+ * Forwards SSE events from the worker to the client, rewriting the
+ * mcp-session-id in any headers to the proxy session ID.
+ */
+const connectUpstreamSse = (session: ProxySession, clientRes: ServerResponse, port: number): void => {
+  const headers: Record<string, string> = {
+    Accept: 'text/event-stream',
+    'mcp-session-id': session.workerSessionId,
+  };
+  if (session.authHeader) {
+    headers['Authorization'] = session.authHeader;
+  }
+
+  const upstreamReq = httpRequest(
+    {
+      hostname: '127.0.0.1',
+      port,
+      path: '/mcp',
+      method: 'GET',
+      headers,
+    },
+    upstreamRes => {
+      if (upstreamRes.statusCode !== 200) {
+        upstreamRes.resume();
+        return;
+      }
+
+      // Forward SSE data chunks to the client
+      upstreamRes.on('data', (chunk: Buffer) => {
+        if (!clientRes.destroyed && !clientRes.writableEnded) {
+          clientRes.write(chunk);
+        }
+      });
+
+      // When upstream closes (worker restart), the proxy keeps the client
+      // response open. The reinitializeSessions() function will reconnect
+      // the upstream SSE stream after the new worker is ready.
+      upstreamRes.on('end', () => {
+        // Upstream ended — do NOT close the client response.
+        // It will be reconnected after worker restart.
+      });
+
+      upstreamRes.on('error', () => {
+        // Upstream error — keep client response open for reconnection.
+      });
+    },
+  );
+
+  upstreamReq.on('error', () => {
+    // Worker is down — keep the client response open.
+    // reinitializeSessions() will reconnect after the worker restarts.
+  });
+
+  upstreamReq.end();
+};
+
+/**
+ * Handle an MCP POST request. Intercepts initialize requests to track sessions,
+ * rewrites session IDs for existing sessions, and forwards to the worker.
+ */
+const handleMcpPost = async (req: IncomingMessage, res: ServerResponse, port: number): Promise<void> => {
+  const bodyStr = await readBody(req);
+  let body: unknown;
+  try {
+    body = JSON.parse(bodyStr);
+  } catch {
+    res.writeHead(400);
+    res.end('Invalid JSON');
+    return;
+  }
+
+  const isInitialize =
+    typeof body === 'object' &&
+    body !== null &&
+    (body as Record<string, unknown>).method === 'initialize' &&
+    (body as Record<string, unknown>).jsonrpc === '2.0';
+
+  const clientSessionId = req.headers['mcp-session-id'] as string | undefined;
+
+  if (isInitialize) {
+    // Forward initialize to the worker (no session ID header)
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      Accept: req.headers.accept ?? 'application/json, text/event-stream',
+    };
+    const authHeader = req.headers.authorization;
+    if (authHeader) {
+      headers['Authorization'] = authHeader;
+    }
+    // Forward Host header for DNS rebinding protection
+    if (req.headers.host) {
+      headers['Host'] = req.headers.host;
+    }
+
+    const workerRes = await fetch(`http://127.0.0.1:${port}/mcp`, {
+      method: 'POST',
+      headers,
+      body: bodyStr,
+      signal: AbortSignal.timeout(READY_TIMEOUT_MS),
+    });
+
+    const workerSessionId = workerRes.headers.get('mcp-session-id');
+    const responseBody = await workerRes.text();
+
+    if (workerRes.ok && workerSessionId) {
+      // Create a proxy session
+      const proxySessionId = randomUUID();
+
+      const session: ProxySession = {
+        proxySessionId,
+        workerSessionId,
+        initializeBody: body,
+        sseStreams: new Set(),
+        authHeader: authHeader ?? null,
+      };
+      sessions.set(proxySessionId, session);
+      workerToProxySession.set(workerSessionId, proxySessionId);
+
+      // Forward the response with the proxy session ID
+      const resHeaders: Record<string, string> = {
+        'content-type': workerRes.headers.get('content-type') ?? 'application/json',
+        'mcp-session-id': proxySessionId,
+      };
+      res.writeHead(workerRes.status, resHeaders);
+      res.end(responseBody);
+    } else {
+      // Forward error response as-is
+      const resHeaders: Record<string, string> = {};
+      const ct = workerRes.headers.get('content-type');
+      if (ct) resHeaders['content-type'] = ct;
+      res.writeHead(workerRes.status, resHeaders);
+      res.end(responseBody);
+    }
+    return;
+  }
+
+  // Non-initialize POST — look up the session and rewrite the session ID
+  if (clientSessionId) {
+    const session = sessions.get(clientSessionId);
+    if (session) {
+      // Rewrite the session ID header to the current worker session ID
+      const forwardHeaders: Record<string, string | string[] | undefined> = {};
+      for (const [key, value] of Object.entries(req.headers)) {
+        if (key === 'mcp-session-id') {
+          forwardHeaders[key] = session.workerSessionId;
+        } else {
+          forwardHeaders[key] = value;
+        }
+      }
+
+      const proxyReq = httpRequest(
+        { hostname: '127.0.0.1', port, path: '/mcp', method: 'POST', headers: forwardHeaders },
+        proxyRes => {
+          // Rewrite the session ID in the response back to the proxy session ID
+          const outHeaders: Record<string, string | string[] | undefined> = {};
+          for (const [key, value] of Object.entries(proxyRes.headers)) {
+            if (key === 'mcp-session-id') {
+              outHeaders[key] = session.proxySessionId;
+            } else {
+              outHeaders[key] = value;
+            }
+          }
+          res.writeHead(proxyRes.statusCode ?? 200, outHeaders);
+          proxyRes.pipe(res);
+          res.on('close', () => proxyRes.destroy());
+        },
+      );
+      proxyReq.on('error', () => {
+        if (!res.headersSent) {
+          res.writeHead(502);
+          res.end('Bad Gateway');
+        }
+      });
+      proxyReq.write(bodyStr);
+      proxyReq.end();
+      return;
+    }
+  }
+
+  // Unknown session or no session header — forward as-is
+  const proxyReq = httpRequest(
+    { hostname: '127.0.0.1', port, path: '/mcp', method: 'POST', headers: req.headers },
+    proxyRes => {
+      res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+      proxyRes.pipe(res);
+      res.on('close', () => proxyRes.destroy());
+    },
+  );
+  proxyReq.on('error', () => {
+    if (!res.headersSent) {
+      res.writeHead(502);
+      res.end('Bad Gateway');
+    }
+  });
+  proxyReq.write(bodyStr);
+  proxyReq.end();
+};
+
+/**
+ * Handle an MCP GET request (SSE stream). The proxy keeps the client-facing
+ * SSE response alive across worker restarts by reconnecting the upstream
+ * SSE stream to the new worker.
+ */
+const handleMcpGet = (req: IncomingMessage, res: ServerResponse, port: number): void => {
+  const clientSessionId = req.headers['mcp-session-id'] as string | undefined;
+  if (!clientSessionId) {
+    proxyHttp(req, res, port);
+    return;
+  }
+
+  const session = sessions.get(clientSessionId);
+  if (!session) {
+    proxyHttp(req, res, port);
+    return;
+  }
+
+  // Write SSE headers to the client — the proxy owns this response
+  res.writeHead(200, {
+    'Content-Type': 'text/event-stream',
+    'Cache-Control': 'no-cache, no-transform',
+    Connection: 'keep-alive',
+    'mcp-session-id': session.proxySessionId,
+  });
+
+  // Track this SSE stream for reconnection after worker restart
+  session.sseStreams.add(res);
+
+  res.on('close', () => {
+    session.sseStreams.delete(res);
+    // If the client disconnected and there are no more SSE streams, clean up
+    if (session.sseStreams.size === 0) {
+      cleanupSession(session.proxySessionId);
+    }
+  });
+
+  // Connect the upstream SSE stream from the current worker
+  connectUpstreamSse(session, res, port);
+};
+
+/**
+ * Handle an MCP DELETE request. Rewrites session ID and cleans up.
+ */
+const handleMcpDelete = (req: IncomingMessage, res: ServerResponse, port: number): void => {
+  const clientSessionId = req.headers['mcp-session-id'] as string | undefined;
+  if (!clientSessionId) {
+    proxyHttp(req, res, port);
+    return;
+  }
+
+  const session = sessions.get(clientSessionId);
+  if (!session) {
+    proxyHttp(req, res, port);
+    return;
+  }
+
+  // Rewrite session ID and forward
+  const forwardHeaders: Record<string, string | string[] | undefined> = {};
+  for (const [key, value] of Object.entries(req.headers)) {
+    if (key === 'mcp-session-id') {
+      forwardHeaders[key] = session.workerSessionId;
+    } else {
+      forwardHeaders[key] = value;
+    }
+  }
+
+  const proxyReq = httpRequest(
+    { hostname: '127.0.0.1', port, path: '/mcp', method: 'DELETE', headers: forwardHeaders },
+    proxyRes => {
+      res.writeHead(proxyRes.statusCode ?? 200, proxyRes.headers);
+      proxyRes.pipe(res);
+      res.on('close', () => proxyRes.destroy());
+    },
+  );
+  proxyReq.on('error', () => {
+    if (!res.headersSent) {
+      res.writeHead(502);
+      res.end('Bad Gateway');
+    }
+  });
+  proxyReq.end();
+
+  // Clean up the session
+  cleanupSession(session.proxySessionId);
+};
+
+/**
+ * Route an MCP request to the appropriate handler based on HTTP method.
+ */
+const handleMcpRequest = (req: IncomingMessage, res: ServerResponse, port: number): void => {
+  if (req.method === 'GET') {
+    handleMcpGet(req, res, port);
+  } else if (req.method === 'POST') {
+    void handleMcpPost(req, res, port);
+  } else if (req.method === 'DELETE') {
+    handleMcpDelete(req, res, port);
+  } else {
+    res.writeHead(405);
+    res.end('Method not allowed');
+  }
+};
+
 // WebSocketServer in noServer mode — used only to complete client-side upgrades.
 // handleProtocols returns false to suppress ws's automatic protocol selection;
 // the 'headers' event injects the Sec-WebSocket-Protocol echo from the worker.
@@ -145,10 +602,16 @@ wss.on('headers', (headers: string[]) => {
 });
 
 const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+  const isMcpRequest = (req.url ?? '/').startsWith('/mcp');
+
   whenReady(
     () => {
       if (workerPort !== null) {
-        proxyHttp(req, res, workerPort);
+        if (isMcpRequest) {
+          handleMcpRequest(req, res, workerPort);
+        } else {
+          proxyHttp(req, res, workerPort);
+        }
       } else {
         res.writeHead(503);
         res.end('Service Unavailable');
