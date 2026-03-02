@@ -44,7 +44,13 @@ import { forwardToSidePanel, sendTabStateNotification, sendToServer } from './me
 import { getAllPluginMeta, removePlugin, removePluginsBatch, storePluginsBatch } from './plugin-storage.js';
 import { checkRateLimit } from './rate-limiter.js';
 import { handleResourceRead, handlePromptGet } from './resource-prompt-dispatch.js';
-import { clearPluginTabState, computePluginTabState, sendTabSyncAll, updateLastKnownState } from './tab-state.js';
+import {
+  clearPluginTabState,
+  computePluginTabState,
+  sendTabSyncAll,
+  startReadinessPoll,
+  updateLastKnownState,
+} from './tab-state.js';
 import { handleToolDispatch } from './tool-dispatch.js';
 import type { PluginMeta } from './extension-messages.js';
 import type { TrustTier, WireToolDef } from '@opentabs-dev/shared';
@@ -305,6 +311,10 @@ const handleSyncFull = async (params: Record<string, unknown>): Promise<void> =>
   // Send tab.syncAll AFTER all plugins are stored and injected to avoid the
   // race condition where tab.syncAll runs before plugins are in storage.
   await sendTabSyncAll();
+
+  // Start periodic re-evaluation of isReady() for non-closed tabs so the
+  // side panel state stays accurate when auth expires without a navigation.
+  startReadinessPoll();
 
   // Notify the side panel so it refreshes its plugin list without user interaction
   forwardToSidePanel({

@@ -1,4 +1,4 @@
-import { IS_READY_TIMEOUT_MS } from './constants.js';
+import { IS_READY_TIMEOUT_MS, READINESS_POLL_INTERVAL_MS } from './constants.js';
 import { forwardToSidePanel, sendTabStateNotification, sendToServer } from './messaging.js';
 import { getAllPluginMeta } from './plugin-storage.js';
 import { findAllMatchingTabs, urlMatchesPatterns } from './tab-matching.js';
@@ -344,6 +344,76 @@ const checkTabChanged = async (changedTabId: number, changeInfo: chrome.tabs.OnU
   await notifyAffectedPlugins(affectedPlugins);
 };
 
+// ---------------------------------------------------------------------------
+// Periodic readiness polling
+// ---------------------------------------------------------------------------
+
+/** Timer handle for the periodic readiness poll, undefined when not running. */
+let readinessPollTimer: ReturnType<typeof setInterval> | undefined;
+
+/**
+ * Guard flag that prevents overlapping poll cycles. Set to true when a poll
+ * is in progress and reset to false when it completes. If a new interval
+ * tick fires while a poll is still running, the tick is skipped.
+ */
+let readinessPollRunning = false;
+
+/**
+ * Run a single readiness poll: re-probe all plugins that have a non-closed
+ * aggregate state. Plugins in 'closed' state have no matching tabs, so
+ * probing them is pointless. Both 'ready' and 'unavailable' plugins are
+ * probed — 'ready' tabs may have lost auth, and 'unavailable' tabs may
+ * have gained it.
+ */
+const runReadinessPoll = async (): Promise<void> => {
+  if (readinessPollRunning) return;
+  readinessPollRunning = true;
+  try {
+    const index = await getAllPluginMeta();
+    const plugins = Object.values(index);
+    if (plugins.length === 0) return;
+
+    const activePlugins = plugins.filter(p => {
+      const cached = lastKnownState.get(p.name);
+      return cached !== undefined && getAggregateState(cached) !== 'closed';
+    });
+    if (activePlugins.length === 0) return;
+
+    await notifyAffectedPlugins(activePlugins);
+  } catch (err: unknown) {
+    console.warn('[opentabs] readiness poll failed:', err);
+  } finally {
+    readinessPollRunning = false;
+  }
+};
+
+/**
+ * Start periodic isReady() re-evaluation. Safe to call multiple times —
+ * subsequent calls are no-ops while a poll is already scheduled.
+ * Should be called after sendTabSyncAll completes (i.e., after sync.full)
+ * so the lastKnownState cache is populated before the first poll tick.
+ */
+const startReadinessPoll = (): void => {
+  if (readinessPollTimer !== undefined) return;
+  readinessPollTimer = setInterval(() => {
+    runReadinessPoll().catch((err: unknown) => {
+      console.warn('[opentabs] readiness poll tick failed:', err);
+    });
+  }, READINESS_POLL_INTERVAL_MS);
+};
+
+/**
+ * Stop periodic isReady() re-evaluation. Called on WebSocket disconnect
+ * since there is no server to notify about state changes.
+ */
+const stopReadinessPoll = (): void => {
+  if (readinessPollTimer !== undefined) {
+    clearInterval(readinessPollTimer);
+    readinessPollTimer = undefined;
+  }
+  readinessPollRunning = false;
+};
+
 export {
   checkTabChanged,
   checkTabRemoved,
@@ -353,5 +423,7 @@ export {
   getAggregateState,
   getLastKnownStates,
   sendTabSyncAll,
+  startReadinessPoll,
+  stopReadinessPoll,
   updateLastKnownState,
 };

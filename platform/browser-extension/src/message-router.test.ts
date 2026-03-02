@@ -209,6 +209,7 @@ vi.mock('./tab-state.js', () => ({
   getAggregateState: vi.fn(() => 'closed'),
   checkTabRemoved: vi.fn(() => Promise.resolve()),
   checkTabChanged: vi.fn(() => Promise.resolve()),
+  startReadinessPoll: vi.fn(),
 }));
 
 vi.mock('./browser-commands/index.js', () => ({

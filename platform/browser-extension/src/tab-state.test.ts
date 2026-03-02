@@ -1,4 +1,4 @@
-import { vi, describe, expect, test, beforeEach } from 'vitest';
+import { vi, describe, expect, test, beforeEach, afterEach } from 'vitest';
 import type { PluginMeta, PluginTabStateInfo } from './extension-messages.js';
 
 // ---------------------------------------------------------------------------
@@ -24,6 +24,7 @@ const {
 
 vi.mock('./constants.js', () => ({
   IS_READY_TIMEOUT_MS: 100,
+  READINESS_POLL_INTERVAL_MS: 50,
 }));
 
 vi.mock('./messaging.js', () => ({
@@ -71,6 +72,8 @@ const {
   checkTabRemoved,
   checkTabChanged,
   sendTabSyncAll,
+  startReadinessPoll,
+  stopReadinessPoll,
 } = await import('./tab-state.js');
 
 /** Helper to build a minimal PluginMeta for tests */
@@ -562,5 +565,165 @@ describe('sendTabSyncAll', () => {
 
     // Verify side panel was notified
     expect(mockForwardToSidePanel).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// startReadinessPoll / stopReadinessPoll
+// ---------------------------------------------------------------------------
+
+describe('readiness polling', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    stopReadinessPoll();
+    clearTabStateCache();
+    mockGetAllPluginMeta.mockReset();
+    mockFindAllMatchingTabs.mockReset();
+    mockExecuteScript.mockReset();
+    mockSendTabStateNotification.mockReset();
+  });
+
+  afterEach(() => {
+    stopReadinessPoll();
+    vi.useRealTimers();
+  });
+
+  test('polls active plugins on interval tick', async () => {
+    const plugin = makePlugin({ name: 'slack' });
+    mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
+
+    // Pre-populate cache with a ready state
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
+
+    // Plugin now returns unavailable
+    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com', title: 'Ex' } as chrome.tabs.Tab]);
+    mockExecuteScript.mockResolvedValue([{ result: false }]);
+
+    startReadinessPoll();
+
+    // Advance past one interval
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(mockGetAllPluginMeta).toHaveBeenCalled();
+    expect(mockSendTabStateNotification).toHaveBeenCalledWith('slack', {
+      state: 'unavailable',
+      tabs: [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: false }],
+    });
+  });
+
+  test('skips plugins in closed state', async () => {
+    const plugin = makePlugin({ name: 'slack' });
+    mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
+
+    // Pre-populate cache with a closed state
+    await updateLastKnownState('slack', makeStateInfo('closed'));
+
+    startReadinessPoll();
+
+    await vi.advanceTimersByTimeAsync(50);
+
+    // Should not call findAllMatchingTabs because the plugin is closed
+    expect(mockFindAllMatchingTabs).not.toHaveBeenCalled();
+    expect(mockSendTabStateNotification).not.toHaveBeenCalled();
+  });
+
+  test('polls unavailable plugins (may become ready)', async () => {
+    const plugin = makePlugin({ name: 'slack' });
+    mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
+
+    // Pre-populate cache with unavailable state
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('unavailable', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: false }]),
+    );
+
+    // Plugin now returns ready
+    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com', title: 'Ex' } as chrome.tabs.Tab]);
+    mockExecuteScript.mockResolvedValue([{ result: true }]);
+
+    startReadinessPoll();
+
+    await vi.advanceTimersByTimeAsync(50);
+
+    expect(mockSendTabStateNotification).toHaveBeenCalledWith('slack', {
+      state: 'ready',
+      tabs: [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }],
+    });
+  });
+
+  test('stopReadinessPoll stops the interval', async () => {
+    const plugin = makePlugin({ name: 'slack' });
+    mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
+
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
+
+    mockFindAllMatchingTabs.mockResolvedValue([{ id: 1, url: 'https://example.com', title: 'Ex' } as chrome.tabs.Tab]);
+    mockExecuteScript.mockResolvedValue([{ result: false }]);
+
+    startReadinessPoll();
+    stopReadinessPoll();
+
+    await vi.advanceTimersByTimeAsync(100);
+
+    // No poll should have run after stop
+    expect(mockGetAllPluginMeta).not.toHaveBeenCalled();
+  });
+
+  test('startReadinessPoll is idempotent', async () => {
+    mockGetAllPluginMeta.mockResolvedValue({});
+
+    startReadinessPoll();
+    startReadinessPoll();
+    startReadinessPoll();
+
+    await vi.advanceTimersByTimeAsync(50);
+
+    // Should only have been called once (one timer, not three)
+    expect(mockGetAllPluginMeta).toHaveBeenCalledTimes(1);
+  });
+
+  test('does not overlap concurrent poll cycles', async () => {
+    const plugin = makePlugin({ name: 'slack' });
+
+    await updateLastKnownState(
+      'slack',
+      makeStateInfo('ready', [{ tabId: 1, url: 'https://example.com', title: 'Ex', ready: true }]),
+    );
+
+    // Make getAllPluginMeta slow so the poll is still running when the next tick fires
+    let resolvePluginMeta: (value: Record<string, PluginMeta>) => void = () => {};
+    mockGetAllPluginMeta.mockImplementation(
+      () =>
+        new Promise<Record<string, PluginMeta>>(resolve => {
+          resolvePluginMeta = resolve;
+        }),
+    );
+
+    startReadinessPoll();
+
+    // First tick fires and starts a slow poll
+    await vi.advanceTimersByTimeAsync(50);
+    expect(mockGetAllPluginMeta).toHaveBeenCalledTimes(1);
+
+    // Second tick fires while the first is still running
+    await vi.advanceTimersByTimeAsync(50);
+    // Should still only be 1 call because the guard prevented overlap
+    expect(mockGetAllPluginMeta).toHaveBeenCalledTimes(1);
+
+    // Resolve the first poll
+    resolvePluginMeta({ slack: plugin });
+    mockFindAllMatchingTabs.mockResolvedValue([]);
+    await vi.advanceTimersByTimeAsync(0);
+
+    // Third tick should now run since the first poll completed
+    mockGetAllPluginMeta.mockResolvedValue({ slack: plugin });
+    await vi.advanceTimersByTimeAsync(50);
+    expect(mockGetAllPluginMeta).toHaveBeenCalledTimes(2);
   });
 });

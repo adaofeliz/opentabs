@@ -6,7 +6,7 @@ import {
 import { buildWsUrl, SERVER_PORT_KEY, WS_CONNECTED_KEY } from './constants.js';
 import { handleServerMessage } from './message-router.js';
 import { forwardToSidePanel, sendToServer } from './messaging.js';
-import { clearTabStateCache } from './tab-state.js';
+import { clearTabStateCache, stopReadinessPoll } from './tab-state.js';
 import { notifyDispatchProgress } from './tool-dispatch.js';
 import type { DisconnectReason, InternalMessage } from './extension-messages.js';
 
@@ -80,6 +80,7 @@ const handleWsState: MessageHandler = (message, sendResponse) => {
     },
   });
   if (!nowConnected) {
+    stopReadinessPoll();
     clearTabStateCache();
     clearAllConfirmationBadges();
   }

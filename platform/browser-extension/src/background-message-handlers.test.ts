@@ -9,6 +9,7 @@ const {
   mockSendToServer,
   mockForwardToSidePanel,
   mockClearTabStateCache,
+  mockStopReadinessPoll,
   mockClearAllConfirmationBadges,
   mockClearConfirmationBackgroundTimeout,
   mockClearConfirmationBadge,
@@ -18,6 +19,7 @@ const {
   mockSendToServer: vi.fn<(data: unknown) => void>(),
   mockForwardToSidePanel: vi.fn(),
   mockClearTabStateCache: vi.fn(),
+  mockStopReadinessPoll: vi.fn(),
   mockClearAllConfirmationBadges: vi.fn(),
   mockClearConfirmationBackgroundTimeout: vi.fn(),
   mockClearConfirmationBadge: vi.fn(),
@@ -32,6 +34,7 @@ vi.mock('./messaging.js', () => ({
 
 vi.mock('./tab-state.js', () => ({
   clearTabStateCache: mockClearTabStateCache,
+  stopReadinessPoll: mockStopReadinessPoll,
 }));
 
 vi.mock('./confirmation-badge.js', () => ({
@@ -115,10 +118,11 @@ describe('handleWsState', () => {
     });
   });
 
-  test('connect: does NOT call clearTabStateCache or clearAllConfirmationBadges', () => {
+  test('connect: does NOT call clearTabStateCache, stopReadinessPoll, or clearAllConfirmationBadges', () => {
     handleWsState({ connected: true }, () => {});
 
     expect(mockClearTabStateCache).not.toHaveBeenCalled();
+    expect(mockStopReadinessPoll).not.toHaveBeenCalled();
     expect(mockClearAllConfirmationBadges).not.toHaveBeenCalled();
   });
 
@@ -129,6 +133,15 @@ describe('handleWsState', () => {
     handleWsState({ connected: false }, () => {});
 
     expect(mockStorageSessionSet).toHaveBeenCalledWith({ wsConnected: false });
+  });
+
+  test('disconnect after connect: calls stopReadinessPoll', () => {
+    handleWsState({ connected: true }, () => {});
+    vi.clearAllMocks();
+
+    handleWsState({ connected: false }, () => {});
+
+    expect(mockStopReadinessPoll).toHaveBeenCalledOnce();
   });
 
   test('disconnect after connect: calls clearTabStateCache', () => {

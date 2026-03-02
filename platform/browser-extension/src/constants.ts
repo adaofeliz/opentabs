@@ -31,6 +31,14 @@ export const MAX_SCRIPT_TIMEOUT_MS = 295_000;
  * reported as "unavailable" rather than blocking state computation.
  */
 export const IS_READY_TIMEOUT_MS = 5_000;
+/**
+ * Interval for periodic isReady() re-evaluation (ms).
+ *
+ * While connected to the MCP server, the extension periodically re-probes
+ * all non-closed plugin tabs to detect auth token expiration, SPA logouts,
+ * or other readiness changes that occur without a page navigation.
+ */
+export const READINESS_POLL_INTERVAL_MS = 30_000;
 /** Delay before chrome.runtime.reload() to allow the WebSocket response to flush */
 export const RELOAD_FLUSH_DELAY_MS = 100;
 /** Delay (ms) before retrying adapter injection after a hash verification failure */
