@@ -7,6 +7,7 @@ import {
   getExtensionDir,
   getLocalPluginsFromConfig,
   getPidFilePath,
+  parsePidFile,
   readAuthSecret,
   readConfig,
   resolvePluginPath,
@@ -469,11 +470,14 @@ const handleDoctor = async (options: DoctorOptions): Promise<void> => {
   if (serverResult.ok) {
     const pidPath = getPidFilePath();
     try {
-      const pid = parseInt(await readFile(pidPath, 'utf-8'), 10);
-      if (!isNaN(pid)) {
+      const pidFileData = parsePidFile(await readFile(pidPath, 'utf-8'));
+      if (pidFileData !== null) {
         try {
-          process.kill(pid, 0);
-          augmentedServerResult = { ...serverResult, detail: `${serverResult.detail} (background, PID ${pid})` };
+          process.kill(pidFileData.pid, 0);
+          augmentedServerResult = {
+            ...serverResult,
+            detail: `${serverResult.detail} (background, PID ${pidFileData.pid})`,
+          };
         } catch {
           // Stale PID file — clean up silently
           await unlink(pidPath).catch(() => {});

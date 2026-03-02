@@ -6,7 +6,7 @@
  * to a health-check probe when no PID file exists.
  */
 
-import { isConnectionRefused, getPidFilePath, readAuthSecret } from '../config.js';
+import { isConnectionRefused, getPidFilePath, parsePidFile, readAuthSecret } from '../config.js';
 import { parsePort, resolvePort } from '../parse-port.js';
 import { DEFAULT_HOST } from '@opentabs-dev/shared';
 import pc from 'picocolors';
@@ -44,38 +44,6 @@ const waitForExit = (pid: number, timeoutMs: number): Promise<boolean> =>
     };
     check();
   });
-
-interface PidFileData {
-  pid: number;
-  port?: number;
-}
-
-/**
- * Parse the PID file content.
- *
- * Supports two formats:
- * - JSON: {"pid":1234,"port":8888} — written by current opentabs start
- * - Plain integer: "1234" — legacy format from older opentabs start versions
- *
- * Returns null if the content is invalid.
- */
-const parsePidFile = (content: string): PidFileData | null => {
-  const trimmed = content.trim();
-  try {
-    const parsed: unknown = JSON.parse(trimmed);
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const obj = parsed as Record<string, unknown>;
-      const pid = typeof obj['pid'] === 'number' ? obj['pid'] : NaN;
-      const port = typeof obj['port'] === 'number' ? obj['port'] : undefined;
-      if (!isNaN(pid)) return { pid, port };
-    }
-  } catch {
-    // Not JSON — try plain integer (backward compat with old format)
-  }
-  const pid = parseInt(trimmed, 10);
-  if (!isNaN(pid)) return { pid };
-  return null;
-};
 
 const handleStop = async (options: StopOptions): Promise<void> => {
   const pidPath = getPidFilePath();

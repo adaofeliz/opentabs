@@ -18,6 +18,38 @@ import { dirname, isAbsolute, join, resolve } from 'node:path';
 
 export { getConfigDir, getConfigPath, getExtensionDir, getLogFilePath, getPidFilePath };
 
+export interface PidFileData {
+  pid: number;
+  port?: number;
+}
+
+/**
+ * Parse the PID file content.
+ *
+ * Supports two formats:
+ * - JSON: {"pid":1234,"port":8888} — written by current opentabs start
+ * - Plain integer: "1234" — legacy format from older opentabs start versions
+ *
+ * Returns null if the content is invalid.
+ */
+export const parsePidFile = (content: string): PidFileData | null => {
+  const trimmed = content.trim();
+  try {
+    const parsed: unknown = JSON.parse(trimmed);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      const obj = parsed as Record<string, unknown>;
+      const pid = typeof obj['pid'] === 'number' ? obj['pid'] : NaN;
+      const port = typeof obj['port'] === 'number' ? obj['port'] : undefined;
+      if (!isNaN(pid)) return { pid, port };
+    }
+  } catch {
+    // Not JSON — try plain integer (backward compat with old format)
+  }
+  const pid = parseInt(trimmed, 10);
+  if (!isNaN(pid)) return { pid };
+  return null;
+};
+
 export type ConfigResult =
   | { config: Record<string, unknown>; error?: undefined }
   | { config: null; error: 'missing' }

@@ -2,6 +2,7 @@ import {
   ensureAuthSecret,
   getLocalPluginsFromConfig,
   isConnectionRefused,
+  parsePidFile,
   readConfig,
   resolvePluginPath,
 } from './config.js';
@@ -170,6 +171,61 @@ describe('resolvePluginPath', () => {
   test('expands tilde prefix to home directory', () => {
     const result = resolvePluginPath('~/projects/my-plugin', '/home/user/.opentabs/config.json');
     expect(result).toBe(resolve(homedir(), 'projects/my-plugin'));
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parsePidFile
+// ---------------------------------------------------------------------------
+
+describe('parsePidFile', () => {
+  test('parses JSON format with pid and port', () => {
+    const result = parsePidFile('{"pid":1234,"port":8888}');
+    expect(result).toEqual({ pid: 1234, port: 8888 });
+  });
+
+  test('parses JSON format with pid only', () => {
+    const result = parsePidFile('{"pid":5678}');
+    expect(result).toEqual({ pid: 5678 });
+  });
+
+  test('parses plain integer legacy format', () => {
+    const result = parsePidFile('1234');
+    expect(result).toEqual({ pid: 1234 });
+  });
+
+  test('parses plain integer with surrounding whitespace', () => {
+    const result = parsePidFile('  1234\n');
+    expect(result).toEqual({ pid: 1234 });
+  });
+
+  test('parses JSON with surrounding whitespace', () => {
+    const result = parsePidFile('  {"pid":42,"port":9515}\n');
+    expect(result).toEqual({ pid: 42, port: 9515 });
+  });
+
+  test('returns null for invalid JSON that is not an integer', () => {
+    expect(parsePidFile('{not valid}')).toBeNull();
+  });
+
+  test('returns null for JSON array', () => {
+    expect(parsePidFile('[1234]')).toBeNull();
+  });
+
+  test('returns null for JSON object missing pid field', () => {
+    expect(parsePidFile('{"port":8888}')).toBeNull();
+  });
+
+  test('returns null for JSON object with non-numeric pid', () => {
+    expect(parsePidFile('{"pid":"1234"}')).toBeNull();
+  });
+
+  test('returns null for empty string', () => {
+    expect(parsePidFile('')).toBeNull();
+  });
+
+  test('returns null for non-numeric string', () => {
+    expect(parsePidFile('not-a-pid')).toBeNull();
   });
 });
 

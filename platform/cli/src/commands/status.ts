@@ -2,7 +2,7 @@
  * `opentabs status` command — shows server status and connected plugins.
  */
 
-import { getPidFilePath, isConnectionRefused, readAuthSecret } from '../config.js';
+import { getPidFilePath, isConnectionRefused, parsePidFile, readAuthSecret } from '../config.js';
 import { parsePort, resolvePort } from '../parse-port.js';
 import { DEFAULT_HOST, toErrorMessage } from '@opentabs-dev/shared';
 import pc from 'picocolors';
@@ -145,11 +145,11 @@ const handleStatus = async (options: StatusOptions): Promise<void> => {
       console.log(`${pad('Port')}${String(port)}`);
       const pidPath = getPidFilePath();
       try {
-        const pid = parseInt(await readFile(pidPath, 'utf-8'), 10);
-        if (!isNaN(pid)) {
+        const pidFileData = parsePidFile(await readFile(pidPath, 'utf-8'));
+        if (pidFileData !== null) {
           try {
-            process.kill(pid, 0);
-            console.log(`${pad('PID')}${pid} ${pc.dim('(background)')}`);
+            process.kill(pidFileData.pid, 0);
+            console.log(`${pad('PID')}${pidFileData.pid} ${pc.dim('(background)')}`);
           } catch {
             // Stale PID file — clean up silently
             await unlink(pidPath).catch(() => {});

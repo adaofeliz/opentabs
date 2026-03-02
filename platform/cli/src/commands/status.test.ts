@@ -5,6 +5,7 @@ import type { MockInstance } from 'vitest';
 vi.mock('../config.js', () => ({
   readAuthSecret: vi.fn().mockResolvedValue(null),
   getPidFilePath: vi.fn().mockReturnValue('/tmp/opentabs-test.pid'),
+  parsePidFile: vi.fn().mockReturnValue(null),
   isConnectionRefused: (err: unknown): boolean => {
     if (!(err instanceof TypeError)) return false;
     const cause = (err as TypeError & { cause?: { code?: string } }).cause;
