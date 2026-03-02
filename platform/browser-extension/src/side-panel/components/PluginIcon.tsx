@@ -1,5 +1,7 @@
 import { sanitizeSvg } from '../../sanitize-svg.js';
+import { cn } from '../lib/cn.js';
 import { ArrowUp } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
 import type { TabState } from '@opentabs-dev/shared';
 
 const AVATAR_PALETTE_SIZE = 10;
@@ -30,13 +32,41 @@ interface PluginIconProps {
   className?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  active?: boolean;
 }
 
 /**
  * Priority-based status indicator positioned at the bottom-right of the icon.
  * Priority: closed = nothing, unavailable = yellow dot, ready+update = ArrowUp icon, ready = green dot.
+ * When active is true and state is ready (no update), the dot flashes with HDD-style activity animation.
+ * When active transitions to false, the dot soft-fades out over 500ms.
  */
-const StatusIndicator = ({ tabState, hasUpdate, size }: { tabState: TabState; hasUpdate: boolean; size: number }) => {
+const StatusIndicator = ({
+  tabState,
+  hasUpdate,
+  size,
+  active = false,
+}: {
+  tabState: TabState;
+  hasUpdate: boolean;
+  size: number;
+  active?: boolean;
+}) => {
+  const prevActiveRef = useRef(false);
+  const [fadingOut, setFadingOut] = useState(false);
+
+  useEffect(() => {
+    const wasActive = prevActiveRef.current;
+    prevActiveRef.current = active;
+    if (!wasActive || active) return;
+    const startTimer = setTimeout(() => setFadingOut(true), 0);
+    const endTimer = setTimeout(() => setFadingOut(false), 500);
+    return () => {
+      clearTimeout(startTimer);
+      clearTimeout(endTimer);
+    };
+  }, [active]);
+
   if (tabState === 'closed') return null;
 
   const dotSize = Math.max(8, Math.round(size * 0.3));
@@ -63,7 +93,11 @@ const StatusIndicator = ({ tabState, hasUpdate, size }: { tabState: TabState; ha
 
   return (
     <div
-      className="bg-success border-card absolute rounded-full border-2"
+      className={cn(
+        'bg-success border-card absolute rounded-full border-2',
+        active && 'animate-activity-flash',
+        fadingOut && !active && 'animate-activity-fade-out',
+      )}
       style={{ width: dotSize, height: dotSize, bottom: -2, right: -2 }}
     />
   );
@@ -92,6 +126,7 @@ const PluginIcon = ({
   className = '',
   iconSvg,
   iconInactiveSvg,
+  active = false,
 }: PluginIconProps) => {
   const isReady = tabState === 'ready';
   const hasSvg = !!iconSvg;
@@ -111,7 +146,7 @@ const PluginIcon = ({
             dangerouslySetInnerHTML={{ __html: svgToRender }}
           />
         </div>
-        <StatusIndicator tabState={tabState} hasUpdate={hasUpdate} size={size} />
+        <StatusIndicator tabState={tabState} hasUpdate={hasUpdate} size={size} active={active} />
       </div>
     );
   }
@@ -128,7 +163,7 @@ const PluginIcon = ({
           {letter}
         </span>
       </div>
-      <StatusIndicator tabState={tabState} hasUpdate={hasUpdate} size={size} />
+      <StatusIndicator tabState={tabState} hasUpdate={hasUpdate} size={size} active={active} />
     </div>
   );
 };

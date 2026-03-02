@@ -87,6 +87,7 @@ const PluginCard = ({
 
   const filterLower = toolFilter?.toLowerCase() ?? '';
   const visibleTools = filterLower ? pluginTools.filter(t => matchesTool(t, filterLower)) : pluginTools;
+  const hasActiveTool = pluginTools.some(t => activeTools.has(`${plugin.name}:${t.name}`));
 
   return (
     <Accordion.Item
@@ -105,6 +106,7 @@ const PluginCard = ({
                   size={32}
                   iconSvg={plugin.iconSvg}
                   iconInactiveSvg={plugin.iconInactiveSvg}
+                  active={hasActiveTool}
                 />
               </div>
             </Tooltip.Trigger>

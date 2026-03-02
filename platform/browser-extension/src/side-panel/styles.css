@@ -141,32 +141,31 @@ body {
   --os-handle-bg-active: var(--foreground);
 }
 
-@keyframes pulse-dot {
+@keyframes activity-flash {
   0%,
   100% {
     opacity: 1;
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.3;
   }
 }
 
-.animate-pulse-dot {
-  animation: pulse-dot 2s ease-in-out infinite;
+.animate-activity-flash {
+  animation: activity-flash 0.4s ease-in-out infinite;
 }
 
-@keyframes tool-pulse {
-  0%,
-  100% {
-    background-color: transparent;
+@keyframes activity-fade-out {
+  from {
+    opacity: 1;
   }
-  50% {
-    background-color: color-mix(in srgb, var(--primary) 5%, transparent);
+  to {
+    opacity: 0;
   }
 }
 
-.animate-tool-pulse {
-  animation: tool-pulse 1.5s ease-in-out infinite;
+.animate-activity-fade-out {
+  animation: activity-fade-out 0.5s ease-out forwards;
 }
 
 /* Hide native number input spinner — replaced by custom chevron buttons */
