@@ -1,4 +1,5 @@
 import { PluginIcon } from './PluginIcon';
+import { useEffect, useState } from 'react';
 import type { Meta, StoryObj } from '@storybook/react';
 
 const meta: Meta<typeof PluginIcon> = {
@@ -98,5 +99,36 @@ const Active: Story = {
   args: { pluginName: 'slack', displayName: 'Slack', tabState: 'ready', size: 32, active: true },
 };
 
+const ActiveFadeOutDemo = () => {
+  const [active, setActive] = useState(true);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setActive(false), 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  return (
+    <div className="flex items-center gap-3">
+      <PluginIcon pluginName="slack" displayName="Slack" tabState="ready" size={32} active={active} />
+      <span className="text-muted-foreground font-sans text-sm">{active ? 'Flashing…' : 'Fading out'}</span>
+    </div>
+  );
+};
+
+const ActiveFadeOut: Story = {
+  render: () => <ActiveFadeOutDemo />,
+};
+
 export default meta;
-export { Ready, Unavailable, Closed, ReadyWithUpdate, Palette, Sizes, WithIcon, WithIconInactive, Active };
+export {
+  Ready,
+  Unavailable,
+  Closed,
+  ReadyWithUpdate,
+  Palette,
+  Sizes,
+  WithIcon,
+  WithIconInactive,
+  Active,
+  ActiveFadeOut,
+};
