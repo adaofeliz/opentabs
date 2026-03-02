@@ -73,7 +73,7 @@ test.describe('Side panel port change', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await serverA.kill();
       if (serverB) await serverB.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });

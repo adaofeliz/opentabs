@@ -92,7 +92,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -135,7 +135,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -174,7 +174,7 @@ test.describe('Side panel auto-refresh — POST /reload', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -228,7 +228,7 @@ test.describe.serial('Side panel recovery after dev proxy hot reload', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);

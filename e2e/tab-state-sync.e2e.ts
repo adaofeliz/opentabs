@@ -414,7 +414,7 @@ test.describe('Tab state sync — server restart reconnect', () => {
 
       await appTab.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server1.kill();
       await testServer.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });

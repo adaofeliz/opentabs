@@ -69,7 +69,7 @@ test.describe('Empty states', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context?.close();
+      await context?.close().catch(() => {});
       await server?.kill();
       if (cleanupDir) fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -117,7 +117,7 @@ test.describe('Empty states', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context?.close();
+      await context?.close().catch(() => {});
       await server?.kill();
       if (cleanupDir) fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -153,7 +153,7 @@ test.describe('Empty states', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context?.close();
+      await context?.close().catch(() => {});
       await server?.kill();
       if (cleanupDir) fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -202,7 +202,7 @@ test.describe('Empty states', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context?.close();
+      await context?.close().catch(() => {});
       await server?.kill();
       if (cleanupDir) fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);

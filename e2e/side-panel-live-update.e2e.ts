@@ -93,7 +93,7 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -137,7 +137,7 @@ test.describe('Side panel live-update — plugins.changed notification', () => {
 
       await sidePanelPage.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);

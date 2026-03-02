@@ -432,7 +432,7 @@ export const setupIsolatedIifeTest = async (configDirPrefix: string): Promise<Is
 
     const cleanup = async () => {
       await client.close();
-      await finalContext.close();
+      await finalContext.close().catch(() => {});
       await finalServer.kill();
       await finalTestSrv.kill();
       fs.rmSync(tmpDir, { recursive: true, force: true });

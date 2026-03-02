@@ -110,7 +110,7 @@ test.describe('Side panel — plugin list rendering', () => {
       await sidePanelPage.close();
       await appTab.close();
     } finally {
-      await context.close();
+      await context.close().catch(() => {});
       await server.kill();
       await testServer.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
@@ -202,8 +202,8 @@ test.describe('Side panel — tool toggle', () => {
 
       await sidePanelPage.close();
     } finally {
-      await mcpClient.close();
-      await context.close();
+      await mcpClient.close().catch(() => {});
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
@@ -307,8 +307,8 @@ test.describe('Side panel — disabled tool dispatch rejection', () => {
       await sidePanelPage.close();
       await appTab.close();
     } finally {
-      await mcpClient.close();
-      await context.close();
+      await mcpClient.close().catch(() => {});
+      await context.close().catch(() => {});
       await server.kill();
       await testServer.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
@@ -431,8 +431,8 @@ test.describe('Side panel — toggle all tools', () => {
 
       await sidePanelPage.close();
     } finally {
-      await mcpClient.close();
-      await context.close();
+      await mcpClient.close().catch(() => {});
+      await context.close().catch(() => {});
       await server.kill();
       fs.rmSync(cleanupDir, { recursive: true, force: true });
       cleanupTestConfigDir(configDir);
