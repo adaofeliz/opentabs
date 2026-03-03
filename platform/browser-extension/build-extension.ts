@@ -55,7 +55,7 @@ const isDev = process.env.OPENTABS_DEV === '1';
 let devBgBanner = '';
 if (isDev) {
   const clientPath = join(base, 'src/dev/reload-background.js');
-  devBgBanner = readFileSync(clientPath, 'utf-8').replace('__DEV_RELOAD_PORT__', String(DEV_RELOAD_PORT));
+  devBgBanner = readFileSync(clientPath, 'utf-8').replaceAll('__DEV_RELOAD_PORT__', String(DEV_RELOAD_PORT));
 }
 
 /**

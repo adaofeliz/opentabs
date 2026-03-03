@@ -24,7 +24,7 @@ const isDev = process.env.OPENTABS_DEV === '1';
 let devBanner = '';
 if (isDev) {
   const clientPath = join(base, 'src/dev/reload-client.js');
-  devBanner = readFileSync(clientPath, 'utf-8').replace('__DEV_RELOAD_PORT__', String(DEV_RELOAD_PORT));
+  devBanner = readFileSync(clientPath, 'utf-8').replaceAll('__DEV_RELOAD_PORT__', String(DEV_RELOAD_PORT));
 }
 
 // Remove previous bundle to guarantee no stale output survives

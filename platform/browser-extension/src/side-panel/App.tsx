@@ -264,7 +264,10 @@ const App = () => {
             connected: connectedRef.current,
             loading: loadingRef.current,
             pluginCount: currentPlugins.length,
-            plugins: currentPlugins.map(p => ({ name: p.name, tabState: p.tabState })),
+            plugins: currentPlugins.map(p => ({
+              name: p.name,
+              tabState: p.tabState,
+            })),
           },
           html,
         });
@@ -384,7 +387,11 @@ const App = () => {
           className="flex-1"
           style={{ height: 0 }}
           options={{
-            scrollbars: { theme: 'os-theme-retro', autoHide: 'scroll', autoHideDelay: 600 },
+            scrollbars: {
+              theme: 'os-theme-retro',
+              autoHide: 'scroll',
+              autoHideDelay: 600,
+            },
           }}>
           <main
             className={`px-4 pb-4 ${showSearchBar ? 'pt-2' : 'pt-4'} ${showPlugins ? '' : 'flex min-h-full items-center justify-center'}`}>
