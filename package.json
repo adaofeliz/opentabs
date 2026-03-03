@@ -44,11 +44,12 @@
     "prepare": "husky"
   },
   "devDependencies": {
-    "@opentabs-dev/shared": "*",
     "@babel/core": "^7.29.0",
     "@babel/preset-react": "^7.28.5",
     "@babel/preset-typescript": "^7.28.5",
+    "@biomejs/biome": "2.4.5",
     "@eslint/js": "^9.39.2",
+    "@opentabs-dev/shared": "*",
     "@playwright/test": "^1.58.2",
     "@resvg/resvg-js": "^2.6.2",
     "@tailwindcss/cli": "^4.2.1",
