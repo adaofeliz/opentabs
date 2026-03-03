@@ -982,13 +982,14 @@ describe('handleServerMessage', () => {
       expect(mockSendToServer).not.toHaveBeenCalled();
     });
 
-    test('does not dispatch plugin.uninstall without an id', () => {
+    test('silently ignores plugin.uninstall without an id (wrapAsync guard)', () => {
       handleServerMessage({
         method: 'plugin.uninstall',
         params: { name: 'test-plugin' },
       });
 
-      // Without id, the handler guard prevents execution — no error sent
+      // The server always sends plugin.uninstall as a request (with id), but
+      // the wrapAsync guard still protects against malformed messages.
       expect(mockSendToServer).not.toHaveBeenCalled();
     });
 

@@ -87,6 +87,7 @@ const createMcpCallbacks = (
     }
   },
   onReload: () => performConfigReload(state, sessionServers, transports),
+  queryExtension: (method, params = {}, timeoutMs) => queryExtension(state, method, params, timeoutMs),
 });
 
 /**

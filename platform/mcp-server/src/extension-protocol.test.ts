@@ -32,6 +32,7 @@ const noopCallbacks = {
   onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+  queryExtension: () => Promise.resolve(undefined),
 };
 
 /** Type-safe JSON parse returning a typed record */
@@ -1467,6 +1468,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+      queryExtension: () => Promise.resolve(undefined),
     };
 
     handleExtensionMessage(
@@ -1629,6 +1631,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+      queryExtension: () => Promise.resolve(undefined),
     };
 
     handleExtensionMessage(
@@ -1744,6 +1747,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+      queryExtension: () => Promise.resolve(undefined),
     };
 
     handleExtensionMessage(
@@ -1963,6 +1967,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+      queryExtension: () => Promise.resolve(undefined),
     };
 
     handleExtensionMessage(
@@ -1997,6 +2002,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       onBrowserToolPolicyPersist: () => {},
       onPluginLog: () => {},
       onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+      queryExtension: () => Promise.resolve(undefined),
     };
 
     handleExtensionMessage(

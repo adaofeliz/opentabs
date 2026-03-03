@@ -28,6 +28,7 @@ const noopCallbacks = {
   onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+  queryExtension: () => Promise.resolve(undefined),
 };
 
 /**

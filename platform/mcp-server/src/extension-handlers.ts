@@ -47,6 +47,8 @@ interface McpCallbacks {
   onBrowserToolPolicyPersist: () => void;
   onPluginLog: (entry: PluginLogEntry) => void;
   onReload: () => Promise<{ plugins: number; durationMs: number }>;
+  /** Send a JSON-RPC request to the extension and return the response (with timeout). */
+  queryExtension: (method: string, params?: Record<string, unknown>, timeoutMs?: number) => Promise<unknown>;
 }
 
 /**
@@ -747,12 +749,9 @@ const handlePluginRemove = async (
     const pluginName = params.name;
     const result = await removePlugin(pluginName, state, callbacks.onReload);
 
-    // Send plugin.uninstall to extension to clean up adapters in matching tabs
-    sendToExtension(state, {
-      jsonrpc: '2.0',
-      method: 'plugin.uninstall',
-      params: { name: pluginName },
-    });
+    // Send plugin.uninstall as a request (with id) so the extension's wrapAsync
+    // handler processes it. Best-effort: ignore timeout/error so removal proceeds.
+    await callbacks.queryExtension('plugin.uninstall', { name: pluginName }, 5000).catch(() => {});
 
     // Notify the side panel so the UI refreshes
     sendToExtension(state, {

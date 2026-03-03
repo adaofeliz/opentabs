@@ -6,6 +6,7 @@ import {
   handleConfigSetAllToolsEnabled,
   handleConfirmationResponse,
   handlePluginLog,
+  handlePluginRemove,
   handleTabStateChanged,
   handleTabSyncAll,
   handleToolProgress,
@@ -16,6 +17,14 @@ import { createState, DISPATCH_TIMEOUT_MS, MAX_DISPATCH_TIMEOUT_MS, MAX_SESSION_
 import { afterEach, beforeEach, describe, expect, vi, test } from 'vitest';
 import type { McpCallbacks } from './extension-handlers.js';
 import type { PendingConfirmation, PendingDispatch, RegisteredPlugin, SessionPermissionRule } from './state.js';
+
+vi.mock('./plugin-management.js', () => ({
+  searchNpmPlugins: vi.fn().mockResolvedValue([]),
+  installPlugin: vi.fn().mockResolvedValue({ ok: true }),
+  updatePlugin: vi.fn().mockResolvedValue({ ok: true }),
+  removePlugin: vi.fn().mockResolvedValue({ ok: true }),
+  checkPluginUpdates: vi.fn().mockResolvedValue([]),
+}));
 
 /** Create a tracked PendingConfirmation that records resolve/reject calls */
 const createPendingConfirmation = (
@@ -45,6 +54,7 @@ const noopCallbacks: McpCallbacks = {
   onBrowserToolPolicyPersist: () => {},
   onPluginLog: () => {},
   onReload: () => Promise.resolve({ plugins: 0, durationMs: 0 }),
+  queryExtension: () => Promise.resolve(undefined),
 };
 
 describe('handleConfirmationResponse', () => {
@@ -1402,5 +1412,56 @@ describe('handleTabStateChanged — activeNetworkCaptures cleanup', () => {
     });
 
     expect(state.activeNetworkCaptures.has(7)).toBe(true);
+  });
+});
+
+describe('handlePluginRemove', () => {
+  /** Create a mock WsHandle that captures sent JSON messages */
+  const createMockWs = (): { ws: { send: (msg: string) => void; close: () => void }; messages: string[] } => {
+    const messages: string[] = [];
+    return { ws: { send: msg => messages.push(msg), close: () => {} }, messages };
+  };
+
+  test('sends plugin.uninstall as a request via queryExtension, not as a notification', async () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    const mockQueryExtension = vi.fn().mockResolvedValue({ success: true });
+    const callbacks: McpCallbacks = {
+      ...noopCallbacks,
+      queryExtension: mockQueryExtension,
+    };
+
+    await handlePluginRemove(state, { name: 'test-plugin' }, 'req-1', callbacks);
+
+    // queryExtension must be called with plugin.uninstall, the plugin name, and 5s timeout
+    expect(mockQueryExtension).toHaveBeenCalledTimes(1);
+    expect(mockQueryExtension).toHaveBeenCalledWith('plugin.uninstall', { name: 'test-plugin' }, 5000);
+
+    // The direct sendToExtension call should NOT contain a plugin.uninstall notification
+    const sentMessages = messages.map(m => JSON.parse(m) as Record<string, unknown>);
+    const uninstallNotification = sentMessages.find(m => m.method === 'plugin.uninstall' && m.id === undefined);
+    expect(uninstallNotification).toBeUndefined();
+  });
+
+  test('proceeds with plugins.changed and response even if queryExtension times out', async () => {
+    const state = createState();
+    const { ws, messages } = createMockWs();
+    state.extensionWs = ws;
+    const mockQueryExtension = vi.fn().mockRejectedValue(new Error('Timeout'));
+    const callbacks: McpCallbacks = {
+      ...noopCallbacks,
+      queryExtension: mockQueryExtension,
+    };
+
+    await handlePluginRemove(state, { name: 'test-plugin' }, 'req-2', callbacks);
+
+    // Despite timeout, plugins.changed and the success response must still be sent
+    const sentMessages = messages.map(m => JSON.parse(m) as Record<string, unknown>);
+    const pluginsChanged = sentMessages.find(m => m.method === 'plugins.changed');
+    expect(pluginsChanged).toBeDefined();
+
+    const successResponse = sentMessages.find(m => m.id === 'req-2' && m.result !== undefined);
+    expect(successResponse).toBeDefined();
   });
 });
