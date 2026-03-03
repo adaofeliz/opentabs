@@ -7,6 +7,7 @@
  * the actual update. Warns if a server is running.
  */
 
+import { getPidFilePath, parsePidFile } from '../config.js';
 import { resolvePort } from '../parse-port.js';
 import { DEFAULT_HOST, platformExec, toErrorMessage } from '@opentabs-dev/shared';
 import pc from 'picocolors';
@@ -42,15 +43,51 @@ const getLatestVersion = (): string => {
   return result.stdout.toString().trim();
 };
 
-/** Check if the MCP server is running on the given port. */
-const isServerRunning = async (port: number): Promise<boolean> => {
+interface ServerStatus {
+  running: boolean;
+  version?: string;
+  mode?: string;
+  serverType?: 'background' | 'dev' | 'foreground';
+}
+
+/** Returns true if a process with the given PID is alive. */
+const isProcessAlive = (pid: number): boolean => {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+/** Detect whether a background server (via PID file) is currently running. */
+const isBackgroundServerRunning = async (): Promise<boolean> => {
+  const pidPath = getPidFilePath();
+  let content: string;
+  try {
+    content = await readFile(pidPath, 'utf-8');
+  } catch {
+    return false;
+  }
+  const pidData = parsePidFile(content);
+  return pidData !== null && isProcessAlive(pidData.pid);
+};
+
+/** Check if the MCP server is running on the given port and return its status info. */
+const getServerStatus = async (port: number): Promise<ServerStatus> => {
   try {
     const res = await fetch(`http://${DEFAULT_HOST}:${port}/health`, {
       signal: AbortSignal.timeout(2_000),
     });
-    return res.ok;
+    if (!res.ok) return { running: false };
+    const version = res.headers.get('x-opentabs-version') ?? undefined;
+    const body = (await res.json()) as Record<string, unknown>;
+    const mode = typeof body['mode'] === 'string' ? body['mode'] : undefined;
+    const isBackground = await isBackgroundServerRunning();
+    const serverType = isBackground ? 'background' : mode === 'dev' ? 'dev' : 'foreground';
+    return { running: true, version, mode, serverType };
   } catch {
-    return false;
+    return { running: false };
   }
 };
 
@@ -97,9 +134,11 @@ const handleUpdate = async (options: UpdateOptions): Promise<void> => {
   console.log('');
 
   // 2. Check if server is running and warn
-  const serverRunning = await isServerRunning(port);
-  if (serverRunning) {
-    console.log(pc.yellow(`Warning: MCP server is running on port ${port}.`));
+  const serverStatus = await getServerStatus(port);
+  if (serverStatus.running) {
+    const versionLabel = serverStatus.version ? ` (v${serverStatus.version})` : '';
+    const typeLabel = serverStatus.serverType ? ` [${serverStatus.serverType}]` : '';
+    console.log(pc.yellow(`Warning: MCP server${versionLabel}${typeLabel} is running on port ${port}.`));
     console.log(pc.yellow('The server will need to be restarted after the update.'));
     console.log('');
   }
@@ -119,7 +158,7 @@ const handleUpdate = async (options: UpdateOptions): Promise<void> => {
   console.log('');
   console.log(pc.green(`Updated to v${latest}.`));
 
-  if (serverRunning) {
+  if (serverStatus.running) {
     console.log('');
     console.log('Restart the MCP server to use the new version:');
     console.log(pc.dim('  1. Stop the current server (Ctrl+C or kill the process)'));
