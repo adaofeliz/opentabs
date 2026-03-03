@@ -433,7 +433,7 @@ export default new ${toPascalCase(args.name)}Plugin();
 const generateExampleTool = (args: ScaffoldArgs): string => {
   const displayName = args.display ?? toTitleCase(args.name);
 
-  const escaped = singleQuote(displayName);
+  const escapedForTemplate = displayName.replace(/\\/g, '\\\\').replace(/`/g, '\\`').replace(/\$\{/g, '\\${');
 
   return `import { z } from 'zod';
 import { defineTool } from '@opentabs-dev/plugin-sdk';
@@ -441,7 +441,7 @@ import { defineTool } from '@opentabs-dev/plugin-sdk';
 export const exampleTool = defineTool({
   name: 'example',
   displayName: 'Example',
-  description: 'An example tool for ' + ${escaped} + ' — replace with your own implementation',
+  description: \`An example tool for ${escapedForTemplate} — replace with your own implementation\`,
   icon: 'sparkles',
   input: z.object({
     message: z.string().describe('A sample input message'),
@@ -450,7 +450,7 @@ export const exampleTool = defineTool({
     result: z.string().describe('The result of the example operation'),
   }),
   handle: async params => {
-    return { result: 'Hello from ' + ${escaped} + ': ' + params.message };
+    return { result: \`Hello from ${escapedForTemplate}: \${params.message}\` };
   },
 });
 `;
