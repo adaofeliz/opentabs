@@ -83,7 +83,12 @@ export interface SpConnectionStateMessage {
 export interface PluginLogsMessage {
   type: 'plugin:logs';
   plugin: string;
-  entries: Array<{ level: string; message: string; data: unknown[]; ts: string }>;
+  entries: Array<{
+    level: string;
+    message: string;
+    data: unknown[];
+    ts: string;
+  }>;
 }
 
 /** Background → Side panel: forwarded JSON-RPC message from the MCP server */
@@ -230,5 +235,7 @@ export interface PluginMeta {
   adapterFile?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
   tools: WireToolDef[];
 }

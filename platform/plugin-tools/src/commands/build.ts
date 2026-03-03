@@ -32,7 +32,12 @@ import type { Plugin as EsbuildPlugin } from 'esbuild';
 import { build as esbuild } from 'esbuild';
 import pc from 'picocolors';
 import { z } from 'zod';
-import { generateInactiveIcon, validateIconSvg, validateInactiveIconColors } from '../validate-icon.js';
+import {
+  generateDarkIcon,
+  generateInactiveIcon,
+  validateIconSvg,
+  validateInactiveIconColors,
+} from '../validate-icon.js';
 
 const DEBOUNCE_MS = 100;
 
@@ -405,28 +410,40 @@ const minifySvg = (svg: string): string =>
 interface IconResult {
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
 }
 
 /**
  * Read, validate, and optionally auto-generate icon files for a plugin.
  * Throws on validation failure or invalid file combinations.
  * Returns the minified SVG strings if icons are present.
+ *
+ * Icon file layout:
+ *   icon.svg               — required for any icon support
+ *   icon-inactive.svg      — optional manual grayscale override (auto-generated if absent)
+ *   icon-dark.svg          — optional dark mode variant (auto-generated if absent)
+ *   icon-dark-inactive.svg — optional dark mode inactive override (auto-generated if absent)
  */
 const readAndValidateIcons = async (projectDir: string): Promise<IconResult> => {
   const iconPath = join(projectDir, 'icon.svg');
   const inactivePath = join(projectDir, 'icon-inactive.svg');
+  const darkPath = join(projectDir, 'icon-dark.svg');
+  const darkInactivePath = join(projectDir, 'icon-dark-inactive.svg');
 
-  const hasIcon = await access(iconPath).then(
-    () => true,
-    () => false,
-  );
-  const hasInactive = await access(inactivePath).then(
-    () => true,
-    () => false,
-  );
+  const fileExists = (p: string) =>
+    access(p).then(
+      () => true,
+      () => false,
+    );
+
+  const hasIcon = await fileExists(iconPath);
+  const hasInactive = await fileExists(inactivePath);
+  const hasDark = await fileExists(darkPath);
+  const hasDarkInactive = await fileExists(darkInactivePath);
 
   // No icons — nothing to do
-  if (!hasIcon && !hasInactive) {
+  if (!hasIcon && !hasInactive && !hasDark && !hasDarkInactive) {
     console.log(pc.dim('Plugin icon: none (using letter avatar)'));
     return {};
   }
@@ -435,6 +452,18 @@ const readAndValidateIcons = async (projectDir: string): Promise<IconResult> => 
   if (!hasIcon && hasInactive) {
     throw new Error(
       'icon-inactive.svg requires icon.svg to also be present. Add an icon.svg or remove icon-inactive.svg.',
+    );
+  }
+
+  // icon-dark.svg or icon-dark-inactive.svg without icon.svg is an error
+  if (!hasIcon && (hasDark || hasDarkInactive)) {
+    throw new Error('icon-dark.svg and icon-dark-inactive.svg require icon.svg to also be present.');
+  }
+
+  // icon-dark-inactive.svg without icon-dark.svg is an error
+  if (!hasDark && hasDarkInactive) {
+    throw new Error(
+      'icon-dark-inactive.svg requires icon-dark.svg to also be present. Add an icon-dark.svg or remove icon-dark-inactive.svg.',
     );
   }
 
@@ -447,8 +476,9 @@ const readAndValidateIcons = async (projectDir: string): Promise<IconResult> => 
 
   const minifiedIcon = minifySvg(iconContent);
 
+  // --- Inactive variant (light mode) ---
+  let minifiedInactive: string;
   if (hasInactive) {
-    // Manual override: read and validate icon-inactive.svg
     const inactiveContent = await readFile(inactivePath, 'utf-8');
     const inactiveStructValidation = validateIconSvg(inactiveContent, 'icon-inactive.svg');
     if (!inactiveStructValidation.valid) {
@@ -462,14 +492,70 @@ const readAndValidateIcons = async (projectDir: string): Promise<IconResult> => 
         `icon-inactive.svg color validation failed:\n${inactiveColorValidation.errors.map(e => `  - ${e}`).join('\n')}`,
       );
     }
-    console.log(pc.dim('Plugin icon: icon.svg + icon-inactive.svg found (manual override)'));
-    return { iconSvg: minifiedIcon, iconInactiveSvg: minifySvg(inactiveContent) };
+    minifiedInactive = minifySvg(inactiveContent);
+  } else {
+    minifiedInactive = minifySvg(generateInactiveIcon(iconContent));
   }
 
-  // Auto-generate inactive variant
-  const inactiveGenerated = generateInactiveIcon(iconContent);
-  console.log(pc.dim('Plugin icon: icon.svg found, auto-generating inactive variant'));
-  return { iconSvg: minifiedIcon, iconInactiveSvg: minifySvg(inactiveGenerated) };
+  // --- Dark mode active variant ---
+  let minifiedDark: string;
+  if (hasDark) {
+    const darkContent = await readFile(darkPath, 'utf-8');
+    const darkValidation = validateIconSvg(darkContent, 'icon-dark.svg');
+    if (!darkValidation.valid) {
+      throw new Error(`icon-dark.svg validation failed:\n${darkValidation.errors.map(e => `  - ${e}`).join('\n')}`);
+    }
+    minifiedDark = minifySvg(darkContent);
+  } else {
+    minifiedDark = minifySvg(generateDarkIcon(iconContent));
+  }
+
+  // --- Dark mode inactive variant ---
+  let minifiedDarkInactive: string;
+  if (hasDarkInactive) {
+    const darkInactiveContent = await readFile(darkInactivePath, 'utf-8');
+    const darkInactiveStructValidation = validateIconSvg(darkInactiveContent, 'icon-dark-inactive.svg');
+    if (!darkInactiveStructValidation.valid) {
+      throw new Error(
+        `icon-dark-inactive.svg validation failed:\n${darkInactiveStructValidation.errors.map(e => `  - ${e}`).join('\n')}`,
+      );
+    }
+    const darkInactiveColorValidation = validateInactiveIconColors(darkInactiveContent);
+    if (!darkInactiveColorValidation.valid) {
+      throw new Error(
+        `icon-dark-inactive.svg color validation failed:\n${darkInactiveColorValidation.errors.map(e => `  - ${e}`).join('\n')}`,
+      );
+    }
+    minifiedDarkInactive = minifySvg(darkInactiveContent);
+  } else {
+    // Auto-generate: grayscale the dark variant (whether explicit or auto-generated)
+    const darkSource = hasDark ? await readFile(darkPath, 'utf-8') : generateDarkIcon(iconContent);
+    minifiedDarkInactive = minifySvg(generateInactiveIcon(darkSource));
+  }
+
+  const parts: string[] = [];
+  if (hasInactive) parts.push('icon-inactive.svg');
+  if (hasDark) parts.push('icon-dark.svg');
+  if (hasDarkInactive) parts.push('icon-dark-inactive.svg');
+  const autoGenerated: string[] = [];
+  if (!hasInactive) autoGenerated.push('inactive');
+  if (!hasDark) autoGenerated.push('dark');
+  if (!hasDarkInactive) autoGenerated.push('dark-inactive');
+  console.log(
+    pc.dim(
+      `Plugin icon: icon.svg${parts.length > 0 ? ` + ${parts.join(' + ')}` : ''} found` +
+        (autoGenerated.length > 0
+          ? `, auto-generating ${autoGenerated.join(', ')} variant${autoGenerated.length > 1 ? 's' : ''}`
+          : ''),
+    ),
+  );
+
+  return {
+    iconSvg: minifiedIcon,
+    iconInactiveSvg: minifiedInactive,
+    iconDarkSvg: minifiedDark,
+    iconDarkInactiveSvg: minifiedDarkInactive,
+  };
 };
 
 /** Full manifest shape written to dist/tools.json */
@@ -477,6 +563,8 @@ interface PluginManifestOutput {
   sdkVersion: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
   tools: ManifestTool[];
 }
 
@@ -544,6 +632,8 @@ const generateManifest = (plugin: OpenTabsPlugin, sdkVersion: string, icons?: Ic
   sdkVersion,
   ...(icons?.iconSvg ? { iconSvg: icons.iconSvg } : {}),
   ...(icons?.iconInactiveSvg ? { iconInactiveSvg: icons.iconInactiveSvg } : {}),
+  ...(icons?.iconDarkSvg ? { iconDarkSvg: icons.iconDarkSvg } : {}),
+  ...(icons?.iconDarkInactiveSvg ? { iconDarkInactiveSvg: icons.iconDarkInactiveSvg } : {}),
   tools: generateToolsManifest(plugin),
 });
 
@@ -886,8 +976,15 @@ const runBuild = async (projectDir: string): Promise<void> => {
     const binDir = join(projectDir, 'node_modules', '.bin');
     const pathSep = process.platform === 'win32' ? ';' : ':';
     const pathKey = process.platform === 'win32' ? 'Path' : 'PATH';
-    const envWithBin = { ...process.env, [pathKey]: `${binDir}${pathSep}${process.env[pathKey] ?? ''}` };
-    const tscResult = spawnSync('tsc', [], { cwd: projectDir, env: envWithBin, shell: true });
+    const envWithBin = {
+      ...process.env,
+      [pathKey]: `${binDir}${pathSep}${process.env[pathKey] ?? ''}`,
+    };
+    const tscResult = spawnSync('tsc', [], {
+      cwd: projectDir,
+      env: envWithBin,
+      shell: true,
+    });
     if (tscResult.error) {
       if ((tscResult.error as NodeJS.ErrnoException).code === 'ENOENT') {
         throw new Error('tsc not found — run npm install to install TypeScript');
@@ -914,7 +1011,9 @@ const runBuild = async (projectDir: string): Promise<void> => {
   // that Node.js has never seen before, ensuring it reads the rebuilt file from disk.
   pluginCacheKey++;
   console.log(pc.dim('Loading plugin module...'));
-  const mod = (await import(`${entryPoint}?t=${String(pluginCacheKey)}`)) as { default?: OpenTabsPlugin };
+  const mod = (await import(`${entryPoint}?t=${String(pluginCacheKey)}`)) as {
+    default?: OpenTabsPlugin;
+  };
   const defaultExport = mod.default;
   if (!defaultExport) {
     throw new Error('Plugin module must export a default instance of OpenTabsPlugin.');

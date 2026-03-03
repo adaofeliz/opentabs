@@ -132,6 +132,8 @@ interface ValidatedPluginPayload {
   adapterFile?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
   tools: WireToolDef[];
 }
 
@@ -147,6 +149,8 @@ const toPluginMeta = (p: ValidatedPluginPayload): PluginMeta => ({
   adapterFile: p.adapterFile,
   iconSvg: p.iconSvg,
   iconInactiveSvg: p.iconInactiveSvg,
+  iconDarkSvg: p.iconDarkSvg,
+  iconDarkInactiveSvg: p.iconDarkInactiveSvg,
   tools: p.tools,
 });
 
@@ -221,6 +225,8 @@ const validatePluginPayload = (raw: unknown): ValidatedPluginPayload | null => {
     adapterFile: typeof obj.adapterFile === 'string' ? obj.adapterFile : undefined,
     iconSvg: typeof obj.iconSvg === 'string' ? obj.iconSvg : undefined,
     iconInactiveSvg: typeof obj.iconInactiveSvg === 'string' ? obj.iconInactiveSvg : undefined,
+    iconDarkSvg: typeof obj.iconDarkSvg === 'string' ? obj.iconDarkSvg : undefined,
+    iconDarkInactiveSvg: typeof obj.iconDarkInactiveSvg === 'string' ? obj.iconDarkInactiveSvg : undefined,
     tools,
   };
 };
@@ -354,7 +360,12 @@ const handleSyncFull = async (params: Record<string, unknown>): Promise<void> =>
       iconInactiveSvg: p.iconInactiveSvg,
       ...(typeof raw?.sdkVersion === 'string' ? { sdkVersion: raw.sdkVersion } : {}),
       ...(raw?.update && typeof raw.update === 'object'
-        ? { update: raw.update as { latestVersion: string; updateCommand: string } }
+        ? {
+            update: raw.update as {
+              latestVersion: string;
+              updateCommand: string;
+            },
+          }
         : {}),
     };
   });
@@ -442,7 +453,12 @@ const handlePluginUpdate = async (params: Record<string, unknown>): Promise<void
     iconInactiveSvg: validated.iconInactiveSvg,
     ...(typeof params.sdkVersion === 'string' ? { sdkVersion: params.sdkVersion } : {}),
     ...(params.update && typeof params.update === 'object'
-      ? { update: params.update as { latestVersion: string; updateCommand: string } }
+      ? {
+          update: params.update as {
+            latestVersion: string;
+            updateCommand: string;
+          },
+        }
       : {}),
   };
   const otherPlugins = existingCache.plugins.filter(p => p.name !== validated.name);
@@ -469,7 +485,10 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
   if (!isValidPluginName(pluginName)) {
     sendToServer({
       jsonrpc: '2.0',
-      error: { code: JSONRPC_INVALID_PARAMS, message: `Invalid plugin name format: "${pluginName}"` },
+      error: {
+        code: JSONRPC_INVALID_PARAMS,
+        message: `Invalid plugin name format: "${pluginName}"`,
+      },
       id,
     });
     return;
@@ -495,7 +514,9 @@ const handlePluginUninstall = async (params: Record<string, unknown>, id: string
   // Remove the uninstalled plugin from the cache so bg:getFullState returns
   // fresh state immediately, without waiting for the server's plugins.changed.
   const existingCache = getServerStateCache();
-  updateServerStateCache({ plugins: existingCache.plugins.filter(p => p.name !== pluginName) });
+  updateServerStateCache({
+    plugins: existingCache.plugins.filter(p => p.name !== pluginName),
+  });
 
   // Notify the side panel so it removes the plugin card without waiting for
   // the server's own plugins.changed (which arrives after the success response).
@@ -525,7 +546,10 @@ const handleExtensionGetTabState = async (_params: Record<string, unknown>, id: 
   const tabStates: Record<string, { state: string; tabs: unknown[] }> = {};
   for (const [pluginName, serialized] of states) {
     try {
-      tabStates[pluginName] = JSON.parse(serialized) as { state: string; tabs: unknown[] };
+      tabStates[pluginName] = JSON.parse(serialized) as {
+        state: string;
+        tabs: unknown[];
+      };
     } catch {
       tabStates[pluginName] = { state: 'closed', tabs: [] };
     }
@@ -634,7 +658,10 @@ const handleServerMessage = (message: Record<string, unknown>): void => {
       if (id !== undefined) {
         sendToServer({
           jsonrpc: '2.0',
-          error: { code: JSONRPC_INTERNAL_ERROR, message: `Rate limited: ${method}` },
+          error: {
+            code: JSONRPC_INTERNAL_ERROR,
+            message: `Rate limited: ${method}`,
+          },
           id,
         });
       }
@@ -648,7 +675,10 @@ const handleServerMessage = (message: Record<string, unknown>): void => {
   if (id !== undefined) {
     sendToServer({
       jsonrpc: '2.0',
-      error: { code: JSONRPC_METHOD_NOT_FOUND, message: `Method not found: ${method}` },
+      error: {
+        code: JSONRPC_METHOD_NOT_FOUND,
+        message: `Method not found: ${method}`,
+      },
       id,
     });
   }

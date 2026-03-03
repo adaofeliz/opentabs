@@ -10,13 +10,21 @@
 // Browser tools catalog — static metadata generated at build time
 // ---------------------------------------------------------------------------
 
-export { BROWSER_TOOLS_CATALOG, type BrowserToolMeta } from './generated/browser-tools-catalog.js';
+export {
+  BROWSER_TOOLS_CATALOG,
+  type BrowserToolMeta,
+} from './generated/browser-tools-catalog.js';
 
 // ---------------------------------------------------------------------------
 // Cross-platform utilities
 // ---------------------------------------------------------------------------
 
-export { atomicWrite, isWindows, platformExec, safeChmod } from './cross-platform.js';
+export {
+  atomicWrite,
+  isWindows,
+  platformExec,
+  safeChmod,
+} from './cross-platform.js';
 
 // ---------------------------------------------------------------------------
 // Error utilities
@@ -50,14 +58,28 @@ export {
 // Result type — structured error handling
 // ---------------------------------------------------------------------------
 
-export { type Err, err, isErr, isOk, mapResult, type Ok, ok, type Result, unwrap, unwrapOr } from './result.js';
+export {
+  type Err,
+  err,
+  isErr,
+  isOk,
+  mapResult,
+  type Ok,
+  ok,
+  type Result,
+  unwrap,
+  unwrapOr,
+} from './result.js';
 
 // ---------------------------------------------------------------------------
 // Plugin package.json manifest — new plugin metadata format
 // ---------------------------------------------------------------------------
 
 export type { PluginOpentabsField, PluginPackageJson } from './manifest.js';
-export { isValidPluginPackageName, parsePluginPackageJson } from './manifest.js';
+export {
+  isValidPluginPackageName,
+  parsePluginPackageJson,
+} from './manifest.js';
 
 // ---------------------------------------------------------------------------
 // Domain types — shared between MCP server and Chrome extension
@@ -264,6 +286,10 @@ export interface ConfigStatePlugin {
   iconSvg?: string;
   /** Optional SVG icon for the inactive state */
   iconInactiveSvg?: string;
+  /** Optional SVG icon for dark mode */
+  iconDarkSvg?: string;
+  /** Optional SVG icon for dark mode inactive state */
+  iconDarkInactiveSvg?: string;
   /** Present when a newer version of this plugin is available on npm */
   update?: { latestVersion: string; updateCommand: string };
 }

@@ -1,5 +1,13 @@
 import { describe, expect, test } from 'vitest';
-import { generateInactiveIcon, MAX_ICON_SIZE, validateIconSvg, validateInactiveIconColors } from './validate-icon.js';
+import {
+  DARK_BG_LUMINANCE,
+  generateDarkIcon,
+  generateInactiveIcon,
+  MAX_ICON_SIZE,
+  MIN_ICON_CONTRAST,
+  validateIconSvg,
+  validateInactiveIconColors,
+} from './validate-icon.js';
 
 /** Wrap SVG content in a valid SVG tag with a square viewBox */
 const svgWrap = (inner: string, viewBox = '0 0 32 32'): string =>
@@ -946,5 +954,376 @@ describe('generateInactiveIcon', () => {
     );
     const inactive = generateInactiveIcon(svg);
     expect(validateInactiveIconColors(inactive)).toEqual({ valid: true });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// generateDarkIcon
+// ---------------------------------------------------------------------------
+
+describe('generateDarkIcon', () => {
+  // -- Exported constants sanity checks --
+
+  test('DARK_BG_LUMINANCE is a positive number', () => {
+    expect(DARK_BG_LUMINANCE).toBeGreaterThan(0);
+    expect(DARK_BG_LUMINANCE).toBeLessThan(1);
+  });
+
+  test('MIN_ICON_CONTRAST is 3 (WCAG AA for UI components)', () => {
+    expect(MIN_ICON_CONTRAST).toBe(3);
+  });
+
+  // -- Black / very dark colors should be inverted (invisible on #242424) --
+
+  test('fill="black" → inverted to a light color (visible on dark bg)', () => {
+    const svg = svgWrap('<rect fill="black"/>');
+    const result = generateDarkIcon(svg);
+    // black (L=0%) inverted → L=100% → white
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  test('fill="#000000" → inverted to #ffffff', () => {
+    const svg = svgWrap('<rect fill="#000000"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  test('fill="#000" (shorthand black) → inverted to a light color', () => {
+    const svg = svgWrap('<rect fill="#000"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  test('fill="#333333" (very dark gray) → inverted to a light gray', () => {
+    const svg = svgWrap('<rect fill="#333333"/>');
+    const result = generateDarkIcon(svg);
+    // #333333 has low contrast against #242424 → lightness inverted
+    // Should NOT still be #333333
+    expect(result).not.toContain('fill="#333333"');
+    // Result should be a lighter hex
+    const match = result.match(/fill="(#[0-9a-f]{6})"/i);
+    expect(match).not.toBeNull();
+    const hex = match?.[1] ?? '';
+    const r = parseInt(hex.slice(1, 3), 16);
+    expect(r).toBeGreaterThan(128); // light color
+  });
+
+  // -- Colorful brand icons with sufficient contrast should be unchanged --
+
+  test('fill="#E01E5A" (Slack pink) → unchanged (sufficient contrast)', () => {
+    const svg = svgWrap('<rect fill="#E01E5A"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#E01E5A"');
+  });
+
+  test('fill="#36C5F0" (Slack cyan) → unchanged', () => {
+    const svg = svgWrap('<rect fill="#36C5F0"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#36C5F0"');
+  });
+
+  test('fill="#2EB67D" (Slack green) → unchanged', () => {
+    const svg = svgWrap('<rect fill="#2EB67D"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#2EB67D"');
+  });
+
+  test('fill="#ECB22E" (Slack gold) → unchanged', () => {
+    const svg = svgWrap('<rect fill="#ECB22E"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ECB22E"');
+  });
+
+  test('fill="#5865F2" (Discord blurple) → unchanged', () => {
+    const svg = svgWrap('<rect fill="#5865F2"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#5865F2"');
+  });
+
+  // -- White and light colors should be unchanged --
+
+  test('fill="#ffffff" (white) → unchanged (high contrast against dark bg)', () => {
+    const svg = svgWrap('<rect fill="#ffffff"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ffffff"');
+  });
+
+  test('fill="white" → unchanged', () => {
+    const svg = svgWrap('<rect fill="white"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="white"');
+  });
+
+  test('fill="#cccccc" (light gray) → unchanged', () => {
+    const svg = svgWrap('<rect fill="#cccccc"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#cccccc"');
+  });
+
+  // -- Passthrough values should be unchanged --
+
+  test('fill="none" → unchanged', () => {
+    const svg = svgWrap('<rect fill="none"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="none"');
+  });
+
+  test('fill="currentColor" → unchanged', () => {
+    const svg = svgWrap('<rect fill="currentColor"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="currentColor"');
+  });
+
+  test('fill="transparent" → unchanged', () => {
+    const svg = svgWrap('<rect fill="transparent"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="transparent"');
+  });
+
+  test('fill="inherit" → unchanged', () => {
+    const svg = svgWrap('<rect fill="inherit"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="inherit"');
+  });
+
+  test('fill="url(#gradient)" → unchanged', () => {
+    const svg = svgWrap('<rect fill="url(#gradient)"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="url(#gradient)"');
+  });
+
+  // -- RGB function syntax --
+
+  test('fill="rgb(0, 0, 0)" → inverted (black via rgb)', () => {
+    const svg = svgWrap('<rect fill="rgb(0, 0, 0)"/>');
+    const result = generateDarkIcon(svg);
+    // Should become a light color, not remain rgb(0, 0, 0)
+    expect(result).not.toContain('rgb(0, 0, 0)');
+  });
+
+  test('fill="rgb(255, 0, 0)" (pure red) → unchanged (sufficient contrast)', () => {
+    // Pure red (#ff0000) has relative luminance ~0.2126 and contrast vs #242424 (~0.0186) is
+    // (0.2126 + 0.05) / (0.0186 + 0.05) ≈ 3.83 — above 3:1 threshold
+    const svg = svgWrap('<rect fill="rgb(255, 0, 0)"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="rgb(255, 0, 0)"');
+  });
+
+  // -- HSL syntax --
+
+  test('fill="hsl(0, 0%, 0%)" (black via HSL) → inverted', () => {
+    const svg = svgWrap('<rect fill="hsl(0, 0%, 0%)"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('hsl(0, 0%, 0%)');
+  });
+
+  // -- Named colors --
+
+  test('fill="red" → unchanged (sufficient contrast)', () => {
+    const svg = svgWrap('<rect fill="red"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="red"');
+  });
+
+  test('fill="navy" → inverted (too dark)', () => {
+    // navy = #000080, very dark blue, low contrast against #242424
+    const svg = svgWrap('<rect fill="navy"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill="navy"');
+  });
+
+  // -- Stroke attribute --
+
+  test('stroke="black" → inverted', () => {
+    const svg = svgWrap('<rect stroke="black"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('stroke="#ffffff"');
+  });
+
+  test('stroke="#5865F2" → unchanged', () => {
+    const svg = svgWrap('<rect stroke="#5865F2"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('stroke="#5865F2"');
+  });
+
+  // -- Inline styles --
+
+  test('inline style fill: black → inverted', () => {
+    const svg = svgWrap('<rect style="fill: black"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill: black');
+    expect(result).toContain('fill: #ffffff');
+  });
+
+  test('inline style fill: #E01E5A → unchanged', () => {
+    const svg = svgWrap('<rect style="fill: #E01E5A"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill: #E01E5A');
+  });
+
+  test('inline style with multiple properties → each handled independently', () => {
+    const svg = svgWrap('<rect style="fill: black; stroke: #5865F2"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill: #ffffff');
+    expect(result).toContain('stroke: #5865F2');
+  });
+
+  // -- <style> blocks --
+
+  test('<style> block fill: black → inverted', () => {
+    const svg = svgWrap('<style>rect { fill: black; }</style><rect/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill: black');
+  });
+
+  test('<style> block fill: #5865F2 → unchanged', () => {
+    const svg = svgWrap('<style>rect { fill: #5865F2; }</style><rect/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill: #5865F2');
+  });
+
+  test('<style> block with mixed colors → dark inverted, light unchanged', () => {
+    const svg = svgWrap('<style>rect { fill: black; stroke: #ECB22E; }</style><rect/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill: black');
+    expect(result).toContain('stroke: #ECB22E');
+  });
+
+  // -- stop-color and flood-color --
+
+  test('stop-color="black" → inverted', () => {
+    const svg = svgWrap('<stop stop-color="black"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('stop-color="#ffffff"');
+  });
+
+  test('flood-color="#000000" → inverted', () => {
+    const svg = svgWrap('<feFlood flood-color="#000000"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('flood-color="#ffffff"');
+  });
+
+  // -- Multi-element integration (GitHub-like icon) --
+
+  test('GitHub-like icon: single black fill → becomes white', () => {
+    const svg = svgWrap('<path d="M41 69C28 67 19 58..." fill="black"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ffffff"');
+    expect(result).not.toContain('fill="black"');
+  });
+
+  // -- Slack-like multi-color icon: all colors preserved --
+
+  test('Slack-like icon: all brand colors unchanged', () => {
+    const svg = svgWrap(
+      '<path fill="#E01E5A"/>' + '<path fill="#36C5F0"/>' + '<path fill="#2EB67D"/>' + '<path fill="#ECB22E"/>',
+    );
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#E01E5A"');
+    expect(result).toContain('fill="#36C5F0"');
+    expect(result).toContain('fill="#2EB67D"');
+    expect(result).toContain('fill="#ECB22E"');
+  });
+
+  // -- SVG with no color attributes → returned unchanged --
+
+  test('SVG with no color attributes → unchanged', () => {
+    const svg = svgWrap('<rect width="10" height="10"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toBe(svg);
+  });
+
+  test('empty SVG → unchanged', () => {
+    const svg = svgWrap('');
+    const result = generateDarkIcon(svg);
+    expect(result).toBe(svg);
+  });
+
+  // -- Structure preservation --
+
+  test('generateDarkIcon output passes validateIconSvg (structure preserved)', () => {
+    const svg = svgWrap('<rect fill="black" stroke="#333"/><circle fill="#5865F2"/>');
+    const dark = generateDarkIcon(svg);
+    expect(validateIconSvg(dark, 'icon-dark.svg')).toEqual({ valid: true });
+  });
+
+  // -- Grayscale of dark icon produces valid inactive icon --
+
+  test('generateInactiveIcon(generateDarkIcon(...)) passes color validation', () => {
+    const svg = svgWrap('<rect fill="black"/><circle fill="#5865F2"/><path stroke="#E01E5A"/>');
+    const dark = generateDarkIcon(svg);
+    const darkInactive = generateInactiveIcon(dark);
+    expect(validateInactiveIconColors(darkInactive)).toEqual({ valid: true });
+  });
+
+  // -- Mixed attribute and style colors --
+
+  test('mixed attribute fill="black" and style fill: #ECB22E → correct handling', () => {
+    const svg = svgWrap('<rect fill="black"/><circle style="fill: #ECB22E"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="#ffffff"');
+    expect(result).toContain('fill: #ECB22E');
+  });
+
+  // -- Dark blue / dark green (edge cases near contrast threshold) --
+
+  test('fill="#0000ff" (pure blue, L=50%) → lightness boosted until visible', () => {
+    // Pure blue at HSL(240, 100%, 50%): lightness inversion gives 50% again (same color).
+    // The algorithm detects insufficient contrast and boosts lightness further.
+    const svg = svgWrap('<rect fill="#0000ff"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill="#0000ff"');
+    // Result should be a lighter blue (hue preserved, lightness increased)
+    const match = result.match(/fill="(#[0-9a-f]{6})"/i);
+    expect(match).not.toBeNull();
+    const hex = match?.[1] ?? '';
+    const b = parseInt(hex.slice(5, 7), 16);
+    expect(b).toBe(255); // blue channel should stay maxed
+  });
+
+  test('fill="darkgreen" → inverted (too dark against #242424)', () => {
+    // darkgreen = #006400, very low luminance
+    const svg = svgWrap('<rect fill="darkgreen"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('fill="darkgreen"');
+  });
+
+  test('fill="gold" → unchanged (bright enough)', () => {
+    // gold = #ffd700, high luminance
+    const svg = svgWrap('<rect fill="gold"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="gold"');
+  });
+
+  // -- Lightness inversion preserves hue for chromatic colors --
+
+  test('dark red (#800000, maroon) → inverted to a light red, not gray', () => {
+    const svg = svgWrap('<rect fill="#800000"/>');
+    const result = generateDarkIcon(svg);
+    const match = result.match(/fill="(#[0-9a-f]{6})"/i);
+    expect(match).not.toBeNull();
+    const hex = match?.[1] ?? '';
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    // Red channel should be dominant (hue preserved)
+    expect(r).toBeGreaterThan(g);
+    expect(r).toBeGreaterThan(b);
+    // And it should be light enough to be visible
+    expect(r).toBeGreaterThan(128);
+  });
+
+  // -- Modern CSS4 space-separated syntax --
+
+  test('fill="rgb(0 0 0)" (modern syntax black) → inverted', () => {
+    const svg = svgWrap('<rect fill="rgb(0 0 0)"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).not.toContain('rgb(0 0 0)');
+  });
+
+  test('fill="rgb(255 0 0)" (modern syntax red) → unchanged (sufficient contrast)', () => {
+    const svg = svgWrap('<rect fill="rgb(255 0 0)"/>');
+    const result = generateDarkIcon(svg);
+    expect(result).toContain('fill="rgb(255 0 0)"');
   });
 });

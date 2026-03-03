@@ -92,7 +92,10 @@ const sendPluginManagementError = (state: ServerState, id: string | number, err:
     typeof (err as Record<string, unknown>).retryAfterMs === 'number'
       ? (err as { retryAfterMs: number }).retryAfterMs
       : undefined;
-  const errorData = { ...(data ?? {}), ...(retryAfterMs !== undefined ? { retryAfterMs } : {}) };
+  const errorData = {
+    ...(data ?? {}),
+    ...(retryAfterMs !== undefined ? { retryAfterMs } : {}),
+  };
   const hasData = Object.keys(errorData).length > 0;
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -118,6 +121,8 @@ const serializePluginForExtension = (
   trustTier: TrustTier;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
   tools: {
     name: string;
     displayName: string;
@@ -136,6 +141,8 @@ const serializePluginForExtension = (
   trustTier: plugin.trustTier,
   ...(plugin.iconSvg ? { iconSvg: plugin.iconSvg } : {}),
   ...(plugin.iconInactiveSvg ? { iconInactiveSvg: plugin.iconInactiveSvg } : {}),
+  ...(plugin.iconDarkSvg ? { iconDarkSvg: plugin.iconDarkSvg } : {}),
+  ...(plugin.iconDarkInactiveSvg ? { iconDarkInactiveSvg: plugin.iconDarkInactiveSvg } : {}),
   tools: plugin.tools.map(t => ({
     name: t.name,
     displayName: t.displayName,
@@ -312,7 +319,10 @@ const buildConfigStatePayload = (state: ServerState): ConfigStateResult => {
 
   return {
     plugins,
-    failedPlugins: state.discoveryErrors.map(e => ({ specifier: e.specifier, error: e.error })),
+    failedPlugins: state.discoveryErrors.map(e => ({
+      specifier: e.specifier,
+      error: e.error,
+    })),
     browserTools,
     serverVersion: version,
   };
@@ -363,7 +373,11 @@ const handleConfigSetToolEnabled = (
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
 
-  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: { ...buildConfigStatePayload(state) } });
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    method: 'plugins.changed',
+    params: { ...buildConfigStatePayload(state) },
+  });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -405,7 +419,11 @@ const handleConfigSetAllToolsEnabled = (
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
 
-  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: { ...buildConfigStatePayload(state) } });
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    method: 'plugins.changed',
+    params: { ...buildConfigStatePayload(state) },
+  });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -461,7 +479,11 @@ const handleConfigSetToolsEnabled = (
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
 
-  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: { ...buildConfigStatePayload(state) } });
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    method: 'plugins.changed',
+    params: { ...buildConfigStatePayload(state) },
+  });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -499,7 +521,11 @@ const handleConfigSetBrowserToolEnabled = (
   callbacks.onToolConfigChanged();
   callbacks.onBrowserToolPolicyPersist();
 
-  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: { ...buildConfigStatePayload(state) } });
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    method: 'plugins.changed',
+    params: { ...buildConfigStatePayload(state) },
+  });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -533,7 +559,11 @@ const handleConfigSetAllBrowserToolsEnabled = (
   callbacks.onToolConfigChanged();
   callbacks.onBrowserToolPolicyPersist();
 
-  sendToExtension(state, { jsonrpc: '2.0', method: 'plugins.changed', params: { ...buildConfigStatePayload(state) } });
+  sendToExtension(state, {
+    jsonrpc: '2.0',
+    method: 'plugins.changed',
+    params: { ...buildConfigStatePayload(state) },
+  });
 
   sendToExtension(state, {
     jsonrpc: '2.0',
@@ -666,7 +696,11 @@ const handleConfirmationResponse = (state: ServerState, params: Record<string, u
     const scope: ConfirmationScope = VALID_CONFIRMATION_SCOPES.has(rawScope as ConfirmationScope)
       ? (rawScope as ConfirmationScope)
       : 'tool_domain';
-    const rule: SessionPermissionRule = { tool: pending.tool, domain: pending.domain, scope };
+    const rule: SessionPermissionRule = {
+      tool: pending.tool,
+      domain: pending.domain,
+      scope,
+    };
 
     // Adjust rule fields based on scope
     if (scope === 'tool_all') {

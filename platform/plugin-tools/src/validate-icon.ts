@@ -201,6 +201,60 @@ const hslToRgb = (hue: number, saturation: number, lightness: number): [number, 
 const toLuminanceGray = (red: number, green: number, blue: number): number =>
   Math.round(0.2126 * red + 0.7152 * green + 0.0722 * blue);
 
+// ---------------------------------------------------------------------------
+// Dark mode icon generation helpers
+// ---------------------------------------------------------------------------
+
+/** Convert RGB (0-255) to HSL. Returns [hue: 0-360, saturation: 0-100, lightness: 0-100]. */
+const rgbToHsl = (red: number, green: number, blue: number): [number, number, number] => {
+  const r = red / 255;
+  const g = green / 255;
+  const b = blue / 255;
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const lightness = (max + min) / 2;
+  if (max === min) return [0, 0, lightness * 100];
+  const delta = max - min;
+  const saturation = lightness > 0.5 ? delta / (2 - max - min) : delta / (max + min);
+  let hue: number;
+  if (max === r) {
+    hue = ((g - b) / delta + (g < b ? 6 : 0)) * 60;
+  } else if (max === g) {
+    hue = ((b - r) / delta + 2) * 60;
+  } else {
+    hue = ((r - g) / delta + 4) * 60;
+  }
+  return [hue, saturation * 100, lightness * 100];
+};
+
+/**
+ * WCAG 2.x relative luminance (0-1 scale).
+ * Uses the sRGB linearization formula from WCAG 2.0 §1.4.3.
+ */
+const wcagRelativeLuminance = (red: number, green: number, blue: number): number => {
+  const linearize = (c: number): number => {
+    const srgb = c / 255;
+    return srgb <= 0.04045 ? srgb / 12.92 : ((srgb + 0.055) / 1.055) ** 2.4;
+  };
+  return 0.2126 * linearize(red) + 0.7152 * linearize(green) + 0.0722 * linearize(blue);
+};
+
+/** WCAG contrast ratio between two relative luminance values (each 0-1). */
+const contrastRatio = (lum1: number, lum2: number): number => {
+  const lighter = Math.max(lum1, lum2);
+  const darker = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+};
+
+/** Dark card background color (#242424) relative luminance, precomputed. */
+const DARK_BG_LUMINANCE = wcagRelativeLuminance(36, 36, 36);
+
+/**
+ * Minimum contrast ratio required for an icon color to be considered visible
+ * against the dark card background. WCAG AA for large text / UI components is 3:1.
+ */
+const MIN_ICON_CONTRAST = 3;
+
 /** Convert a gray value (0-255) to a two-digit hex string */
 const grayToHex = (gray: number): string => {
   const hexPair = Math.max(0, Math.min(255, gray)).toString(16).padStart(2, '0');
@@ -552,4 +606,120 @@ const generateInactiveIcon = (svgContent: string): string => {
   return result;
 };
 
-export { generateInactiveIcon, MAX_ICON_SIZE, validateIconSvg, validateInactiveIconColors };
+// ---------------------------------------------------------------------------
+// generateDarkIcon
+// ---------------------------------------------------------------------------
+
+/**
+ * Adapt a single color value for dark mode by inverting its lightness when the
+ * color has insufficient contrast against the dark card background (#242424).
+ *
+ * Colors with a WCAG contrast ratio >= 3:1 against #242424 are left unchanged
+ * (they are already visible on dark backgrounds — e.g. Slack's brand colors,
+ * Discord's blurple). Colors below that threshold (e.g. black, dark grays) have
+ * their HSL lightness inverted (L → 100% - L) so they become light enough to see.
+ *
+ * Passthrough values (none, currentColor, url(), etc.) are returned as-is.
+ */
+const convertColorForDark = (value: string): string => {
+  const trimmedValue = value.trim();
+  const lowerValue = trimmedValue.toLowerCase();
+
+  if (PASSTHROUGH_VALUES.has(lowerValue)) return trimmedValue;
+  if (lowerValue.startsWith('url(')) return trimmedValue;
+
+  const rgb = parseColor(trimmedValue);
+  if (!rgb) return trimmedValue;
+
+  const lum = wcagRelativeLuminance(rgb[0], rgb[1], rgb[2]);
+  const ratio = contrastRatio(lum, DARK_BG_LUMINANCE);
+
+  // Color already has sufficient contrast against the dark background — keep it
+  if (ratio >= MIN_ICON_CONTRAST) return trimmedValue;
+
+  // Invert lightness in HSL space to make the color visible on dark backgrounds.
+  // For colors near L=50% (e.g. pure blue #0000ff at HSL 240,100%,50%), inversion
+  // produces the same lightness. If the inverted color still lacks contrast, boost
+  // lightness until the minimum contrast threshold is met.
+  const [h, s, l] = rgbToHsl(rgb[0], rgb[1], rgb[2]);
+  let newL = 100 - l;
+
+  const checkContrast = (lightness: number): boolean => {
+    const testRgb = hslToRgb(h, s, lightness);
+    const testLum = wcagRelativeLuminance(testRgb[0], testRgb[1], testRgb[2]);
+    return contrastRatio(testLum, DARK_BG_LUMINANCE) >= MIN_ICON_CONTRAST;
+  };
+
+  if (!checkContrast(newL)) {
+    while (newL < 100) {
+      newL = Math.min(newL + 5, 100);
+      if (checkContrast(newL)) break;
+    }
+  }
+
+  const [newR, newG, newB] = hslToRgb(h, s, newL);
+  return `#${newR.toString(16).padStart(2, '0')}${newG.toString(16).padStart(2, '0')}${newB.toString(16).padStart(2, '0')}`;
+};
+
+/**
+ * Generate a dark-mode variant of an SVG icon by selectively adapting colors
+ * that would be invisible or hard to see against a dark background (#242424).
+ *
+ * Colors with sufficient contrast (>= 3:1 WCAG) against the dark card background
+ * are left unchanged — colorful brand icons (Slack, Discord) pass through untouched.
+ * Dark colors (black, dark grays) have their lightness inverted in HSL space so they
+ * become visible on dark backgrounds.
+ *
+ * Uses the same SVG color processing pipeline as generateInactiveIcon: attributes,
+ * inline styles, and <style> blocks are all handled.
+ */
+const generateDarkIcon = (svgContent: string): string => {
+  let result = svgContent;
+
+  // Convert attribute values: (fill|stroke|stop-color|flood-color)="value" or ='value'
+  const attrPattern = new RegExp(`((?:${COLOR_ATTRS.join('|')})\\s*=\\s*)(["'])([^"']*)(\\2)`, 'gi');
+  result = result.replace(attrPattern, (_match, prefix: string, quote: string, value: string) => {
+    const converted = convertColorForDark(value);
+    return `${prefix}${quote}${converted}${quote}`;
+  });
+
+  // Convert inline style property values: style="..." or style='...'
+  const stylePattern = /style\s*=\s*["']([^"']*)["']/gi;
+  result = result.replace(stylePattern, (fullMatch, styleValue: string) => {
+    let newStyle = styleValue;
+    for (const attr of COLOR_ATTRS) {
+      const propPattern = new RegExp(`(${attr.replace('-', '\\-')}\\s*:\\s*)([^;"']+)`, 'gi');
+      newStyle = newStyle.replace(propPattern, (_m, propPrefix: string, propValue: string) => {
+        const converted = convertColorForDark(propValue);
+        return `${propPrefix}${converted}`;
+      });
+    }
+    return fullMatch.replace(styleValue, () => newStyle);
+  });
+
+  // Convert colors in <style> blocks
+  const styleBlockPattern = /(<style[^>]*>)([\s\S]*?)(<\/style>)/gi;
+  result = result.replace(styleBlockPattern, (_fullMatch, openTag: string, cssContent: string, closeTag: string) => {
+    let newCss = cssContent;
+    for (const attr of COLOR_ATTRS) {
+      const cssPropPattern = new RegExp(`(${attr.replace('-', '\\-')}\\s*:\\s*)([^;}"']+)`, 'gi');
+      newCss = newCss.replace(cssPropPattern, (_m, propPrefix: string, propValue: string) => {
+        const converted = convertColorForDark(propValue);
+        return `${propPrefix}${converted}`;
+      });
+    }
+    return `${openTag}${newCss}${closeTag}`;
+  });
+
+  return result;
+};
+
+export {
+  DARK_BG_LUMINANCE,
+  generateDarkIcon,
+  generateInactiveIcon,
+  MAX_ICON_SIZE,
+  MIN_ICON_CONTRAST,
+  validateIconSvg,
+  validateInactiveIconColors,
+};

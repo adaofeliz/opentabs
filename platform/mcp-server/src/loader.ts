@@ -57,6 +57,10 @@ interface LoadedPlugin {
   readonly iconSvg: string | undefined;
   /** Optional SVG icon for the inactive state (from tools.json) */
   readonly iconInactiveSvg: string | undefined;
+  /** Optional SVG icon for dark mode (from tools.json) */
+  readonly iconDarkSvg: string | undefined;
+  /** Optional SVG icon for dark mode inactive state (from tools.json) */
+  readonly iconDarkInactiveSvg: string | undefined;
 }
 
 /**
@@ -401,6 +405,9 @@ const loadPlugin = async (
   const iconSvg = manifestObj && typeof manifestObj.iconSvg === 'string' ? manifestObj.iconSvg : undefined;
   const iconInactiveSvg =
     manifestObj && typeof manifestObj.iconInactiveSvg === 'string' ? manifestObj.iconInactiveSvg : undefined;
+  const iconDarkSvg = manifestObj && typeof manifestObj.iconDarkSvg === 'string' ? manifestObj.iconDarkSvg : undefined;
+  const iconDarkInactiveSvg =
+    manifestObj && typeof manifestObj.iconDarkInactiveSvg === 'string' ? manifestObj.iconDarkInactiveSvg : undefined;
 
   return ok({
     name: pluginName,
@@ -419,6 +426,8 @@ const loadPlugin = async (
     iifeSourceMap,
     iconSvg,
     iconInactiveSvg,
+    iconDarkSvg,
+    iconDarkInactiveSvg,
   });
 };
 

@@ -22,9 +22,21 @@ export const freezeRegistryMap = <K, V>(map: Map<K, V>): ReadonlyMap<K, V> => {
   const throwFn = (): never => {
     throw new TypeError('Cannot mutate a frozen registry map');
   };
-  Object.defineProperty(map, 'set', { value: throwFn, writable: false, configurable: false });
-  Object.defineProperty(map, 'delete', { value: throwFn, writable: false, configurable: false });
-  Object.defineProperty(map, 'clear', { value: throwFn, writable: false, configurable: false });
+  Object.defineProperty(map, 'set', {
+    value: throwFn,
+    writable: false,
+    configurable: false,
+  });
+  Object.defineProperty(map, 'delete', {
+    value: throwFn,
+    writable: false,
+    configurable: false,
+  });
+  Object.defineProperty(map, 'clear', {
+    value: throwFn,
+    writable: false,
+    configurable: false,
+  });
   return Object.freeze(map) as ReadonlyMap<K, V>;
 };
 
@@ -96,6 +108,10 @@ export interface RegisteredPlugin {
   iconSvg?: string;
   /** Optional SVG icon for the inactive state */
   iconInactiveSvg?: string;
+  /** Optional SVG icon for dark mode */
+  iconDarkSvg?: string;
+  /** Optional SVG icon for dark mode inactive state */
+  iconDarkInactiveSvg?: string;
 }
 
 /** Tab mapping entry for a plugin — tracks aggregate state and all matching tabs */

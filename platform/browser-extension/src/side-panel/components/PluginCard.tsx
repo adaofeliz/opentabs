@@ -150,6 +150,8 @@ const PluginCard = ({
                   size={32}
                   iconSvg={plugin.iconSvg}
                   iconInactiveSvg={plugin.iconInactiveSvg}
+                  iconDarkSvg={plugin.iconDarkSvg}
+                  iconDarkInactiveSvg={plugin.iconDarkInactiveSvg}
                   active={hasActiveTool}
                 />
               </div>

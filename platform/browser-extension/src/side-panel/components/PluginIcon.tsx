@@ -32,6 +32,8 @@ interface PluginIconProps {
   className?: string;
   iconSvg?: string;
   iconInactiveSvg?: string;
+  iconDarkSvg?: string;
+  iconDarkInactiveSvg?: string;
   active?: boolean;
 }
 
@@ -126,11 +128,16 @@ const PluginIcon = ({
   className = '',
   iconSvg,
   iconInactiveSvg,
+  iconDarkSvg,
+  iconDarkInactiveSvg,
   active = false,
 }: PluginIconProps) => {
   const isReady = tabState === 'ready';
   const hasSvg = !!iconSvg;
-  const rawSvg = isReady ? iconSvg : iconInactiveSvg;
+  const isDark = document.documentElement.classList.contains('dark');
+  const activeSvg = isDark && iconDarkSvg ? iconDarkSvg : iconSvg;
+  const inactiveSvg = isDark && iconDarkInactiveSvg ? iconDarkInactiveSvg : iconInactiveSvg;
+  const rawSvg = isReady ? activeSvg : inactiveSvg;
   const svgToRender = tryGetSanitizedSvg(rawSvg, pluginName);
   const innerSize = Math.round(size * 0.6);
 
@@ -158,7 +165,11 @@ const PluginIcon = ({
     <div className={`relative shrink-0 ${className}`} style={{ width: size, height: size }}>
       <div
         className="flex h-full w-full items-center justify-center rounded border-2 border-border"
-        style={{ width: size, height: size, backgroundColor: getAvatarVar(pluginName) }}>
+        style={{
+          width: size,
+          height: size,
+          backgroundColor: getAvatarVar(pluginName),
+        }}>
         <span className="select-none font-head text-white leading-none" style={{ fontSize, letterSpacing: '-0.02em' }}>
           {letter}
         </span>
