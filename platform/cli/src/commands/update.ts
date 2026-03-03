@@ -8,7 +8,7 @@
  */
 
 import { resolvePort } from '../parse-port.js';
-import { DEFAULT_HOST, toErrorMessage } from '@opentabs-dev/shared';
+import { DEFAULT_HOST, platformExec, toErrorMessage } from '@opentabs-dev/shared';
 import pc from 'picocolors';
 import { spawnSync } from 'node:child_process';
 import { readFile } from 'node:fs/promises';
@@ -31,7 +31,9 @@ const getInstalledVersion = async (): Promise<string> => {
 
 /** Query the latest published version via `npm view`. */
 const getLatestVersion = (): string => {
-  const result = spawnSync('npm', ['view', CLI_PACKAGE_NAME, 'version'], { stdio: ['ignore', 'pipe', 'pipe'] });
+  const result = spawnSync(platformExec('npm'), ['view', CLI_PACKAGE_NAME, 'version'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
   const exitCode = result.status ?? 1;
   if (exitCode !== 0) {
     const stderr = result.stderr.toString().trim();
@@ -55,7 +57,7 @@ const isServerRunning = async (port: number): Promise<boolean> => {
 /** Run `npm install -g` to update the CLI package. */
 const performUpdate = (version: string): boolean => {
   const target = `${CLI_PACKAGE_NAME}@${version}`;
-  const result = spawnSync('npm', ['install', '-g', target], { stdio: 'inherit' });
+  const result = spawnSync(platformExec('npm'), ['install', '-g', target], { stdio: 'inherit' });
   return (result.status ?? 1) === 0;
 };
 
