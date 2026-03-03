@@ -38,9 +38,16 @@ let wsConnected = false;
 /** Tracks the reason for the last WebSocket disconnection */
 let lastDisconnectReason: DisconnectReason | undefined;
 
-/** Restore wsConnected from chrome.storage.session on service worker wake */
+/** Promise tracking the in-flight or completed wsConnected restore from session storage */
+let wsConnectedRestorePromise: Promise<void> | undefined;
+
+/**
+ * Restore wsConnected from chrome.storage.session on service worker wake.
+ * Idempotent: only reads from storage once per service worker lifecycle.
+ */
 const restoreWsConnectedState = (): void => {
-  chrome.storage.session
+  if (wsConnectedRestorePromise !== undefined) return;
+  wsConnectedRestorePromise = chrome.storage.session
     .get(WS_CONNECTED_KEY)
     .then(data => {
       if (typeof data[WS_CONNECTED_KEY] === 'boolean') {
@@ -51,6 +58,12 @@ const restoreWsConnectedState = (): void => {
       // storage.session may not be available in all contexts
     });
 };
+
+/**
+ * Await the wsConnected restore from session storage.
+ * Returns immediately if restoreWsConnectedState has not been called yet.
+ */
+const waitForWsConnectedRestore = (): Promise<void> => wsConnectedRestorePromise ?? Promise.resolve();
 
 /** Persist wsConnected to chrome.storage.session */
 const persistWsConnected = (connected: boolean): void => {
@@ -122,6 +135,12 @@ const handleWsMessage: MessageHandler = (message, sendResponse) => {
  */
 const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
   (async () => {
+    // Await wsConnected restoration before reading it. On service worker wake,
+    // restoreWsConnectedState() may still be pending when the first bg:getFullState
+    // arrives. Without this await, wsConnected would be false even though session
+    // storage has true, causing the side panel to show a false disconnected state.
+    await waitForWsConnectedRestore();
+
     // Read caches once for the wake detection check
     let tabStates = getLastKnownStates();
     let serverCache = getServerStateCache();
@@ -541,4 +560,5 @@ export {
   handleWsState,
   initBackgroundMessageHandlers,
   restoreWsConnectedState,
+  waitForWsConnectedRestore,
 };

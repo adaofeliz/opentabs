@@ -158,6 +158,7 @@ const {
   handleBgRemovePlugin,
   handleBgUpdatePlugin,
   initBackgroundMessageHandlers,
+  restoreWsConnectedState,
 } = await import('./background-message-handlers.js');
 
 // ---------------------------------------------------------------------------
@@ -892,6 +893,28 @@ describe('handleBgGetFullState', () => {
     expect(result.serverVersion).toBe('5.0.0');
     expect(result.plugins).toHaveLength(1);
     expect(result.plugins[0]).toMatchObject({ name: 'wake-plugin', tabState: 'ready' });
+  });
+
+  test('returns connected=true when session storage has wsConnected=true but in-memory flag not yet restored', async () => {
+    // Simulate the wake race: service worker woke up, restoreWsConnectedState() was
+    // called but the async session read hasn't resolved yet when bg:getFullState arrives.
+    // handleBgGetFullState must await waitForWsConnectedRestore() so the in-memory
+    // wsConnected is updated before it is read.
+    //
+    // Set up session storage to return wsConnected=true, then call
+    // restoreWsConnectedState() to start the async restore. At this point,
+    // wsConnected (in-memory) is still false. handleBgGetFullState must see true.
+    mockStorageSessionGet.mockResolvedValueOnce({ wsConnected: true });
+    restoreWsConnectedState();
+
+    mockGetAllPluginMeta.mockResolvedValueOnce({});
+
+    const sendResponse = vi.fn();
+    handleBgGetFullState({}, sendResponse);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+
+    const result = sendResponse.mock.calls.at(0)?.at(0) as FullStateResponse;
+    expect(result.connected).toBe(true);
   });
 });
 
