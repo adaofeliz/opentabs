@@ -9,7 +9,7 @@ import { buildWsUrl, SERVER_PORT_KEY, WS_CONNECTED_KEY } from './constants.js';
 import type { DisconnectReason, InternalMessage, PluginTabStateInfo } from './extension-messages.js';
 import { handleServerMessage } from './message-router.js';
 import { forwardToSidePanel, sendToServer } from './messaging.js';
-import { getAllPluginMeta, getPluginMeta } from './plugin-storage.js';
+import { getAllPluginMeta } from './plugin-storage.js';
 import { rejectAllPendingServerRequests, sendServerRequest } from './server-request.js';
 import {
   addPendingAllBrowserToolsUpdate,
@@ -87,11 +87,7 @@ const persistWsConnected = (connected: boolean): void => {
 // ---------------------------------------------------------------------------
 
 /** Handler signature for background message dispatch */
-type MessageHandler = (
-  message: Record<string, unknown>,
-  sendResponse: (response: unknown) => void,
-  senderTabId?: number,
-) => void;
+type MessageHandler = (message: Record<string, unknown>, sendResponse: (response: unknown) => void) => void;
 
 /** Handle offscreen:getUrl — return the WebSocket URL derived from user-configured port */
 const handleOffscreenGetUrl: MessageHandler = (_message, sendResponse) => {
@@ -298,124 +294,6 @@ const handleToolProgress: MessageHandler = (message, sendResponse) => {
     notifyDispatchProgress(dispatchId);
   }
   sendResponse({ ok: true });
-};
-
-/**
- * Extract the registrable domain (last two segments) from a hostname.
- * e.g., 'client-api.linear.app' → 'linear.app', 'linear.app' → 'linear.app'
- */
-const getRegistrableDomain = (hostname: string): string => {
-  const parts = hostname.split('.');
-  if (parts.length <= 2) return hostname;
-  return parts.slice(-2).join('.');
-};
-
-/**
- * Extract the hostname from a URL pattern string.
- * Patterns look like '*://linear.app/*' or 'https://*.slack.com/*'
- */
-const hostnameFromPattern = (pattern: string): string | undefined => {
-  try {
-    // Replace the wildcard scheme with https for URL parsing
-    const normalized = pattern.replace(/^\*:\/\//, 'https://');
-    const url = new URL(normalized);
-    // Strip leading wildcard subdomain (e.g., '*.slack.com' → 'slack.com')
-    return url.hostname.replace(/^\*\./, '');
-  } catch {
-    return undefined;
-  }
-};
-
-/**
- * Handle fetch:proxy — make an authenticated cross-origin fetch on behalf of a plugin tool handler.
- * Reads cookies via chrome.cookies.getAll() and attaches them as a Cookie header.
- * Validates the request URL's registrable domain matches at least one of the plugin's urlPatterns.
- */
-const handleFetchProxy: MessageHandler = (message, _sendResponse, senderTabId) => {
-  const requestId = message.requestId as string;
-  const url = message.url as string;
-  const method = message.method as string;
-  const headers = message.headers as Record<string, string>;
-  const body = message.body as string | undefined;
-  const pluginName = message.pluginName as string;
-
-  const sendResult = (result: Record<string, unknown>) => {
-    if (senderTabId === undefined) return;
-    chrome.tabs
-      .sendMessage(senderTabId, {
-        type: 'fetch:proxy:response',
-        requestId,
-        ...result,
-      })
-      .catch(() => {
-        // Tab may have been closed
-      });
-  };
-
-  (async () => {
-    // Look up plugin metadata for URL validation
-    const meta = await getPluginMeta(pluginName);
-    if (!meta) {
-      sendResult({ status: 0, statusText: '', headers: {}, body: '', error: `Unknown plugin: ${pluginName}` });
-      return;
-    }
-
-    // Security: validate request URL's registrable domain matches at least one urlPattern
-    let requestHostname: string;
-    try {
-      requestHostname = new URL(url).hostname;
-    } catch {
-      sendResult({ status: 0, statusText: '', headers: {}, body: '', error: `Invalid URL: ${url}` });
-      return;
-    }
-    const requestDomain = getRegistrableDomain(requestHostname);
-
-    const domainAllowed = meta.urlPatterns.some(pattern => {
-      const patternHostname = hostnameFromPattern(pattern);
-      if (!patternHostname) return false;
-      return getRegistrableDomain(patternHostname) === requestDomain;
-    });
-
-    if (!domainAllowed) {
-      sendResult({
-        status: 0,
-        statusText: '',
-        headers: {},
-        body: '',
-        error: `Fetch proxy denied: ${requestHostname} does not match any urlPattern for plugin ${pluginName}`,
-      });
-      return;
-    }
-
-    // Read cookies for the target URL and build a Cookie header
-    const cookies = await chrome.cookies.getAll({ url });
-    const cookieHeader = cookies.map(c => `${c.name}=${c.value}`).join('; ');
-
-    const fetchHeaders: Record<string, string> = { ...headers };
-    if (cookieHeader) {
-      fetchHeaders.Cookie = cookieHeader;
-    }
-
-    const response = await fetch(url, {
-      method,
-      headers: fetchHeaders,
-      body: body ?? undefined,
-      signal: AbortSignal.timeout(30_000),
-    });
-
-    const responseHeaders = Object.fromEntries(response.headers.entries());
-    const responseBody = await response.text();
-
-    sendResult({
-      status: response.status,
-      statusText: response.statusText,
-      headers: responseHeaders,
-      body: responseBody,
-    });
-  })().catch((err: unknown) => {
-    const errorMessage = err instanceof Error ? err.message : String(err);
-    sendResult({ status: 0, statusText: '', headers: {}, body: '', error: errorMessage });
-  });
 };
 
 /** Handle sp:confirmationResponse — forward confirmation response to the MCP server */
@@ -685,7 +563,6 @@ const backgroundHandlers = new Map<InternalMessage['type'], MessageHandler>([
   ['bg:updatePlugin', handleBgUpdatePlugin],
   ['plugin:logs', handlePluginLogs],
   ['tool:progress', handleToolProgress],
-  ['fetch:proxy', handleFetchProxy],
   ['sp:confirmationResponse', handleSpConfirmationResponse],
   ['sp:confirmationTimeout', handleSpConfirmationTimeout],
   ['port-changed', handlePortChanged],
@@ -727,7 +604,7 @@ const initBackgroundMessageHandlers = (): void => {
 
       const handler = backgroundHandlers.get(message.type);
       if (handler) {
-        handler(message as unknown as Record<string, unknown>, sendResponse, sender.tab?.id);
+        handler(message as unknown as Record<string, unknown>, sendResponse);
         return true;
       }
 
@@ -752,7 +629,6 @@ export {
   handleBgSetBrowserToolEnabled,
   handleBgSetToolEnabled,
   handleBgUpdatePlugin,
-  handleFetchProxy,
   handleOffscreenGetUrl,
   handlePluginLogs,
   handlePortChanged,

@@ -31,7 +31,6 @@ const {
   mockHandleServerMessage,
   mockNotifyDispatchProgress,
   mockGetAllPluginMeta,
-  mockGetPluginMeta,
   mockGetCachesInitialized,
   mockGetServerStateCache,
   mockClearServerStateCache,
@@ -61,7 +60,6 @@ const {
   mockHandleServerMessage: vi.fn(),
   mockNotifyDispatchProgress: vi.fn(),
   mockGetAllPluginMeta: vi.fn<() => Promise<Record<string, unknown>>>(() => Promise.resolve({})),
-  mockGetPluginMeta: vi.fn<() => Promise<unknown>>(() => Promise.resolve(undefined)),
   mockGetCachesInitialized: vi.fn<() => boolean>(() => false),
   mockGetServerStateCache: vi.fn<
     () => {
@@ -123,7 +121,6 @@ vi.mock('./tool-dispatch.js', () => ({
 
 vi.mock('./plugin-storage.js', () => ({
   getAllPluginMeta: mockGetAllPluginMeta,
-  getPluginMeta: mockGetPluginMeta,
 }));
 
 vi.mock('./server-state-cache.js', () => ({
@@ -155,8 +152,6 @@ const mockStorageSessionGet = vi.fn<() => Promise<Record<string, unknown>>>().mo
 const mockStorageSessionSet = vi.fn<() => Promise<void>>().mockResolvedValue(undefined);
 const mockStorageLocalGet = vi.fn<() => Promise<Record<string, unknown>>>().mockResolvedValue({});
 const mockRuntimeSendMessage = vi.fn(() => Promise.resolve());
-const mockCookiesGetAll = vi.fn<() => Promise<Array<{ name: string; value: string }>>>().mockResolvedValue([]);
-const mockTabsSendMessage = vi.fn(() => Promise.resolve());
 
 (globalThis as Record<string, unknown>).chrome = {
   storage: {
@@ -172,12 +167,6 @@ const mockTabsSendMessage = vi.fn(() => Promise.resolve());
     sendMessage: mockRuntimeSendMessage,
     id: 'test-extension-id',
   },
-  cookies: {
-    getAll: mockCookiesGetAll,
-  },
-  tabs: {
-    sendMessage: mockTabsSendMessage,
-  },
 };
 
 const {
@@ -185,7 +174,6 @@ const {
   handleWsMessage,
   handlePluginLogs,
   handleToolProgress,
-  handleFetchProxy,
   handleSpConfirmationResponse,
   handleSpConfirmationTimeout,
   handleBgGetFullState,
@@ -1851,277 +1839,5 @@ describe('EXTENSION_ONLY_TYPES security guard', () => {
 
     // Should return true (accepted and handled asynchronously)
     expect(result).toBe(true);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleFetchProxy
-// ---------------------------------------------------------------------------
-
-describe('handleFetchProxy', () => {
-  const mockFetch = vi.fn<(url: string, init?: RequestInit) => Promise<Response>>();
-
-  beforeEach(() => {
-    mockFetch.mockReset();
-    mockCookiesGetAll.mockReset().mockResolvedValue([]);
-    mockTabsSendMessage.mockReset().mockResolvedValue(undefined);
-    mockGetPluginMeta.mockReset().mockResolvedValue(undefined);
-    globalThis.fetch = mockFetch as unknown as typeof fetch;
-  });
-
-  const linearMeta = {
-    name: 'linear',
-    displayName: 'Linear',
-    version: '1.0.0',
-    trustTier: 'community',
-    urlPatterns: ['*://linear.app/*'],
-    tools: [],
-  };
-
-  test('makes a fetch with cookies and sends response back to the sender tab', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-    mockCookiesGetAll.mockResolvedValueOnce([
-      { name: 'session', value: 'abc123' },
-      { name: 'csrf', value: 'xyz' },
-    ]);
-
-    const responseHeaders = new Headers({ 'content-type': 'application/json' });
-    mockFetch.mockResolvedValueOnce(
-      new Response('{"data": "ok"}', { status: 200, statusText: 'OK', headers: responseHeaders }),
-    );
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-1',
-        url: 'https://client-api.linear.app/graphql',
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: '{"query": "{}"}',
-        pluginName: 'linear',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    // Verify cookies were read for the target URL
-    expect(mockCookiesGetAll).toHaveBeenCalledWith({ url: 'https://client-api.linear.app/graphql' });
-
-    // Verify fetch was called with cookies attached
-    const fetchCall = mockFetch.mock.calls[0];
-    expect(fetchCall?.[0]).toBe('https://client-api.linear.app/graphql');
-    const fetchInit = fetchCall?.[1] as RequestInit;
-    expect(fetchInit.method).toBe('POST');
-    expect((fetchInit.headers as Record<string, string>).Cookie).toBe('session=abc123; csrf=xyz');
-    expect((fetchInit.headers as Record<string, string>)['content-type']).toBe('application/json');
-
-    // Verify response sent back to tab
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, {
-      type: 'fetch:proxy:response',
-      requestId: 'req-1',
-      status: 200,
-      statusText: 'OK',
-      headers: expect.objectContaining({ 'content-type': 'application/json' }),
-      body: '{"data": "ok"}',
-    });
-  });
-
-  test('rejects request when URL domain does not match plugin urlPatterns', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-2',
-        url: 'https://evil.com/steal',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'linear',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, {
-      type: 'fetch:proxy:response',
-      requestId: 'req-2',
-      status: 0,
-      statusText: '',
-      headers: {},
-      body: '',
-      error: expect.stringContaining('does not match any urlPattern'),
-    });
-  });
-
-  test('rejects request when plugin is not found', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(undefined);
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-3',
-        url: 'https://linear.app/api',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'nonexistent',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    expect(mockFetch).not.toHaveBeenCalled();
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, {
-      type: 'fetch:proxy:response',
-      requestId: 'req-3',
-      status: 0,
-      statusText: '',
-      headers: {},
-      body: '',
-      error: 'Unknown plugin: nonexistent',
-    });
-  });
-
-  test('allows subdomain requests matching the plugin registrable domain', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-    mockFetch.mockResolvedValueOnce(new Response('ok', { status: 200, statusText: 'OK' }));
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-4',
-        url: 'https://api.linear.app/v2/issues',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'linear',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    expect(mockFetch).toHaveBeenCalled();
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, expect.objectContaining({ status: 200 }));
-  });
-
-  test('sends error response on network failure', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-    mockFetch.mockRejectedValueOnce(new Error('Network error'));
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-5',
-        url: 'https://linear.app/api',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'linear',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, {
-      type: 'fetch:proxy:response',
-      requestId: 'req-5',
-      status: 0,
-      statusText: '',
-      headers: {},
-      body: '',
-      error: 'Network error',
-    });
-  });
-
-  test('does not send Cookie header when no cookies exist', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-    mockCookiesGetAll.mockResolvedValueOnce([]);
-    mockFetch.mockResolvedValueOnce(new Response('ok', { status: 200, statusText: 'OK' }));
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-6',
-        url: 'https://linear.app/api',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'linear',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    const fetchInit = mockFetch.mock.calls[0]?.[1] as RequestInit;
-    expect((fetchInit.headers as Record<string, string>).Cookie).toBeUndefined();
-  });
-
-  test('does not send response when senderTabId is undefined', async () => {
-    mockGetPluginMeta.mockResolvedValueOnce(linearMeta);
-    mockFetch.mockResolvedValueOnce(new Response('ok', { status: 200, statusText: 'OK' }));
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-7',
-        url: 'https://linear.app/api',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'linear',
-      },
-      sendResponse,
-      undefined,
-    );
-
-    // Give async operations time to complete
-    await new Promise(resolve => setTimeout(resolve, 50));
-    expect(mockTabsSendMessage).not.toHaveBeenCalled();
-  });
-
-  test('supports wildcard subdomain patterns', async () => {
-    const slackMeta = {
-      name: 'slack',
-      displayName: 'Slack',
-      version: '1.0.0',
-      trustTier: 'community',
-      urlPatterns: ['*://*.slack.com/*'],
-      tools: [],
-    };
-    mockGetPluginMeta.mockResolvedValueOnce(slackMeta);
-    mockFetch.mockResolvedValueOnce(new Response('ok', { status: 200, statusText: 'OK' }));
-
-    const sendResponse = vi.fn();
-    handleFetchProxy(
-      {
-        requestId: 'req-8',
-        url: 'https://api.slack.com/methods',
-        method: 'GET',
-        headers: {},
-        body: undefined,
-        pluginName: 'slack',
-      },
-      sendResponse,
-      42,
-    );
-
-    await vi.waitFor(() => expect(mockTabsSendMessage).toHaveBeenCalled());
-
-    expect(mockFetch).toHaveBeenCalled();
-    expect(mockTabsSendMessage).toHaveBeenCalledWith(42, expect.objectContaining({ status: 200 }));
   });
 });

@@ -101,28 +101,6 @@ export interface ToolProgressMessage {
   message?: string;
 }
 
-/** Content script relay → Background: proxied fetch request from MAIN world tool handler */
-export interface FetchProxyRequestMessage {
-  type: 'fetch:proxy';
-  requestId: string;
-  url: string;
-  method: string;
-  headers: Record<string, string>;
-  body: string | undefined;
-  pluginName: string;
-}
-
-/** Background → Content script: response to a proxied fetch request */
-export interface FetchProxyResponseMessage {
-  type: 'fetch:proxy:response';
-  requestId: string;
-  status: number;
-  statusText: string;
-  headers: Record<string, string>;
-  body: string;
-  error?: string;
-}
-
 /** Side panel → Background: confirmation response from user */
 export interface SpConfirmationResponseMessage {
   type: 'sp:confirmationResponse';
@@ -218,8 +196,6 @@ export type InternalMessage =
   | BgForceReconnectMessage
   | PluginLogsMessage
   | ToolProgressMessage
-  | FetchProxyRequestMessage
-  | FetchProxyResponseMessage
   | SpGetStateMessage
   | SpConnectionStateMessage
   | SpRelayMessage
