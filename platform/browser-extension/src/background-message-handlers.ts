@@ -155,13 +155,17 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
 
     // Wake detection: if the service worker was suspended, in-memory caches
     // are empty but wsConnected may still be true (restored from session storage).
-    // Reload caches from session storage before merging.
-    // The cachesInitialized check distinguishes "woke from suspension" (true)
-    // from "connected but sync.full has not arrived yet" (false). Without it,
-    // stale session data would be restored during the connect-to-sync.full gap.
-    if (wsConnected && getCachesInitialized() && tabStates.size === 0 && serverCache.plugins.length === 0) {
-      await Promise.all([loadLastKnownStateFromSession(), loadServerStateCacheFromSession()]);
-      tabStates = getLastKnownStates();
+    // Restore server state from session first — this also restores cachesInitialized,
+    // which distinguishes "woke from suspension after sync.full" (true) from
+    // "connected but sync.full has not arrived yet" (false). Tab state is only
+    // restored when cachesInitialized is true, preventing stale session data
+    // from being used during the connect-to-sync.full gap.
+    if (wsConnected && tabStates.size === 0 && serverCache.plugins.length === 0) {
+      await loadServerStateCacheFromSession();
+      if (getCachesInitialized()) {
+        await loadLastKnownStateFromSession();
+        tabStates = getLastKnownStates();
+      }
       serverCache = getServerStateCache();
     }
 

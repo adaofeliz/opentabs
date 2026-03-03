@@ -677,8 +677,9 @@ describe('handleBgGetFullState', () => {
 
   test('loads from session storage on service worker wake (connected but empty caches)', async () => {
     // Simulate service worker wake: wsConnected=true but in-memory caches are empty.
-    // cachesInitialized=true indicates sync.full ran before suspension, so the
-    // empty caches mean data was lost during suspension, not that sync.full hasn't arrived.
+    // After suspension, cachesInitialized resets to false in memory but is true in
+    // session storage (sync.full ran before suspension). loadServerStateCacheFromSession
+    // restores both the cache data AND cachesInitialized, then tab state is loaded.
     handleWsState({ connected: true }, () => {});
     vi.clearAllMocks();
 
@@ -690,27 +691,12 @@ describe('handleBgGetFullState', () => {
       browserTools: [],
       serverVersion: undefined,
     });
-    mockGetCachesInitialized.mockReturnValue(true);
+    // In-memory cachesInitialized starts false (reset by suspension)
+    mockGetCachesInitialized.mockReturnValue(false);
 
-    // After session load, caches will be populated
-    mockLoadLastKnownStateFromSession.mockImplementationOnce(() => {
-      // Simulate session storage populating the lastKnownState cache
-      mockGetLastKnownStates.mockReturnValue(
-        new Map([
-          [
-            'restored-plugin',
-            JSON.stringify({
-              state: 'ready',
-              tabs: [{ tabId: 5, url: 'https://restored.com', title: 'Restored', ready: true }],
-            }),
-          ],
-        ]),
-      );
-      return Promise.resolve();
-    });
-
+    // loadServerStateCacheFromSession restores both cache data and cachesInitialized
     mockLoadServerStateCacheFromSession.mockImplementationOnce(() => {
-      // Simulate session storage populating the server state cache
+      mockGetCachesInitialized.mockReturnValue(true);
       mockGetServerStateCache.mockReturnValue({
         plugins: [
           {
@@ -732,6 +718,22 @@ describe('handleBgGetFullState', () => {
       return Promise.resolve();
     });
 
+    // After cachesInitialized is restored to true, tab state is loaded
+    mockLoadLastKnownStateFromSession.mockImplementationOnce(() => {
+      mockGetLastKnownStates.mockReturnValue(
+        new Map([
+          [
+            'restored-plugin',
+            JSON.stringify({
+              state: 'ready',
+              tabs: [{ tabId: 5, url: 'https://restored.com', title: 'Restored', ready: true }],
+            }),
+          ],
+        ]),
+      );
+      return Promise.resolve();
+    });
+
     mockGetAllPluginMeta.mockResolvedValueOnce({
       'restored-plugin': {
         name: 'restored-plugin',
@@ -747,9 +749,9 @@ describe('handleBgGetFullState', () => {
     handleBgGetFullState({}, sendResponse);
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
-    // Session storage loaders should have been called
-    expect(mockLoadLastKnownStateFromSession).toHaveBeenCalledOnce();
+    // Server state cache loaded first (restores cachesInitialized), then tab state
     expect(mockLoadServerStateCacheFromSession).toHaveBeenCalledOnce();
+    expect(mockLoadLastKnownStateFromSession).toHaveBeenCalledOnce();
 
     const result = sendResponse.mock.calls.at(0)?.at(0) as FullStateResponse;
     expect(result.connected).toBe(true);
@@ -820,10 +822,11 @@ describe('handleBgGetFullState', () => {
     expect(mockLoadServerStateCacheFromSession).not.toHaveBeenCalled();
   });
 
-  test('does NOT load from session storage during connect-to-sync.full gap (cachesInitialized=false)', async () => {
+  test('does NOT restore tab state during connect-to-sync.full gap (cachesInitialized=false after session load)', async () => {
     // Simulate the false positive: WebSocket just connected (wsConnected=true) but
-    // sync.full has not arrived yet (cachesInitialized=false, caches empty).
-    // Without the cachesInitialized guard, stale session data would be restored.
+    // sync.full has not arrived yet (cachesInitialized=false in session, caches empty).
+    // The server state cache is loaded from session (to restore cachesInitialized),
+    // but since cachesInitialized remains false, tab state is NOT restored.
     handleWsState({ connected: true }, () => {});
     vi.clearAllMocks();
 
@@ -834,6 +837,7 @@ describe('handleBgGetFullState', () => {
       browserTools: [],
       serverVersion: undefined,
     });
+    // cachesInitialized stays false even after session load (sync.full never ran)
     mockGetCachesInitialized.mockReturnValue(false);
     mockGetAllPluginMeta.mockResolvedValueOnce({});
 
@@ -841,9 +845,10 @@ describe('handleBgGetFullState', () => {
     handleBgGetFullState({}, sendResponse);
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
-    // Session storage loaders must NOT be called — this is the connect-to-sync.full gap
+    // Server state cache IS loaded from session (to restore cachesInitialized flag)
+    expect(mockLoadServerStateCacheFromSession).toHaveBeenCalledOnce();
+    // Tab state must NOT be loaded — cachesInitialized is false after session load
     expect(mockLoadLastKnownStateFromSession).not.toHaveBeenCalled();
-    expect(mockLoadServerStateCacheFromSession).not.toHaveBeenCalled();
 
     // Response should return empty plugins (no stale data restored)
     const result = sendResponse.mock.calls.at(0)?.at(0) as FullStateResponse;
@@ -851,10 +856,11 @@ describe('handleBgGetFullState', () => {
     expect(result.plugins).toEqual([]);
   });
 
-  test('loads from session storage after sync.full + suspension (cachesInitialized=true)', async () => {
-    // Simulate real wake: sync.full already ran (cachesInitialized=true), then service
-    // worker was suspended. On wake, in-memory caches are empty but session storage
-    // has the data. This should trigger session restoration.
+  test('loads from session storage after sync.full + suspension (cachesInitialized restored from session)', async () => {
+    // Simulate real wake: sync.full already ran (cachesInitialized=true in session),
+    // then service worker was suspended. On wake, in-memory caches are empty AND
+    // cachesInitialized is false (module default). loadServerStateCacheFromSession
+    // restores cachesInitialized=true from session, enabling tab state restoration.
     handleWsState({ connected: true }, () => {});
     vi.clearAllMocks();
 
@@ -865,14 +871,12 @@ describe('handleBgGetFullState', () => {
       browserTools: [],
       serverVersion: undefined,
     });
-    mockGetCachesInitialized.mockReturnValue(true);
+    // In-memory cachesInitialized starts false (reset by suspension)
+    mockGetCachesInitialized.mockReturnValue(false);
 
-    mockLoadLastKnownStateFromSession.mockImplementationOnce(() => {
-      mockGetLastKnownStates.mockReturnValue(new Map([['wake-plugin', JSON.stringify({ state: 'ready', tabs: [] })]]));
-      return Promise.resolve();
-    });
-
+    // loadServerStateCacheFromSession restores cachesInitialized=true from session
     mockLoadServerStateCacheFromSession.mockImplementationOnce(() => {
+      mockGetCachesInitialized.mockReturnValue(true);
       mockGetServerStateCache.mockReturnValue({
         plugins: [
           {
@@ -893,6 +897,11 @@ describe('handleBgGetFullState', () => {
       return Promise.resolve();
     });
 
+    mockLoadLastKnownStateFromSession.mockImplementationOnce(() => {
+      mockGetLastKnownStates.mockReturnValue(new Map([['wake-plugin', JSON.stringify({ state: 'ready', tabs: [] })]]));
+      return Promise.resolve();
+    });
+
     mockGetAllPluginMeta.mockResolvedValueOnce({
       'wake-plugin': {
         name: 'wake-plugin',
@@ -908,9 +917,9 @@ describe('handleBgGetFullState', () => {
     handleBgGetFullState({}, sendResponse);
     await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
 
-    // Session storage loaders SHOULD be called — this is a real wake
-    expect(mockLoadLastKnownStateFromSession).toHaveBeenCalledOnce();
+    // Server state loaded first (restores cachesInitialized), then tab state
     expect(mockLoadServerStateCacheFromSession).toHaveBeenCalledOnce();
+    expect(mockLoadLastKnownStateFromSession).toHaveBeenCalledOnce();
 
     const result = sendResponse.mock.calls.at(0)?.at(0) as FullStateResponse;
     expect(result.connected).toBe(true);
