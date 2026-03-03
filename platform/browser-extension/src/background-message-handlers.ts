@@ -110,14 +110,6 @@ const handleWsMessage: MessageHandler = (message, sendResponse) => {
   sendResponse({ ok: true });
 };
 
-/** Handle bg:getConnectionState — query WebSocket connection state */
-const handleBgGetConnectionState: MessageHandler = (_message, sendResponse) => {
-  sendResponse({
-    connected: wsConnected,
-    disconnectReason: wsConnected ? undefined : lastDisconnectReason,
-  });
-};
-
 /**
  * Handle bg:getFullState — return merged state from all local caches.
  * Combines plugin metadata (chrome.storage.local), server state cache
@@ -458,7 +450,6 @@ const backgroundHandlers = new Map<InternalMessage['type'], MessageHandler>([
   ['offscreen:getUrl', handleOffscreenGetUrl],
   ['ws:state', handleWsState],
   ['ws:message', handleWsMessage],
-  ['bg:getConnectionState', handleBgGetConnectionState],
   ['bg:getFullState', handleBgGetFullState],
   ['bg:setToolEnabled', handleBgSetToolEnabled],
   ['bg:setAllToolsEnabled', handleBgSetAllToolsEnabled],
@@ -481,7 +472,6 @@ const EXTENSION_ONLY_TYPES: ReadonlySet<InternalMessage['type']> = new Set([
   'offscreen:getUrl',
   'ws:state',
   'ws:message',
-  'bg:getConnectionState',
   'bg:getFullState',
   'bg:setToolEnabled',
   'bg:setAllToolsEnabled',
@@ -528,7 +518,6 @@ const backgroundHandlerNames: readonly string[] = [...backgroundHandlers.keys()]
 
 export {
   backgroundHandlerNames,
-  handleBgGetConnectionState,
   handleBgGetFullState,
   handleBgInstallPlugin,
   handleBgRemovePlugin,

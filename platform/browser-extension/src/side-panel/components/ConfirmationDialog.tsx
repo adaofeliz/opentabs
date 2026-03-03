@@ -5,9 +5,14 @@ import { Text } from './retro/Text.js';
 import { COUNTDOWN_POLL_INTERVAL_MS } from '../constants.js';
 import { ShieldAlert, ChevronDown } from 'lucide-react';
 import { useState, useEffect } from 'react';
-import type { SpConfirmationRequestMessage } from '../../extension-messages.js';
 
-type ConfirmationData = SpConfirmationRequestMessage['data'] & {
+type ConfirmationData = {
+  id: string;
+  tool: string;
+  domain: string | null;
+  tabId?: number;
+  paramsPreview: string;
+  timeoutMs: number;
   /** Timestamp when the confirmation was received in the side panel */
   receivedAt: number;
 };

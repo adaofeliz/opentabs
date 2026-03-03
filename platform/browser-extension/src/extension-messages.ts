@@ -47,11 +47,6 @@ export interface WsSetUrlMessage {
   url: string;
 }
 
-/** Side panel → Background: query WebSocket connection state */
-export interface BgGetConnectionStateMessage {
-  type: 'bg:getConnectionState';
-}
-
 /** Side panel → Background: request full merged state for initial render */
 export interface BgGetFullStateMessage {
   type: 'bg:getFullState';
@@ -104,19 +99,6 @@ export interface ToolProgressMessage {
   progress: number;
   total: number;
   message?: string;
-}
-
-/** Background → Side panel: confirmation request from MCP server */
-export interface SpConfirmationRequestMessage {
-  type: 'sp:confirmationRequest';
-  data: {
-    id: string;
-    tool: string;
-    domain: string | null;
-    tabId?: number;
-    paramsPreview: string;
-    timeoutMs: number;
-  };
 }
 
 /** Side panel → Background: confirmation response from user */
@@ -201,7 +183,6 @@ export type InternalMessage =
   | WsSendMessage
   | WsGetStateMessage
   | WsSetUrlMessage
-  | BgGetConnectionStateMessage
   | BgGetFullStateMessage
   | BgSetToolEnabledMessage
   | BgSetAllToolsEnabledMessage
@@ -218,7 +199,6 @@ export type InternalMessage =
   | SpGetStateMessage
   | SpConnectionStateMessage
   | SpRelayMessage
-  | SpConfirmationRequestMessage
   | SpConfirmationResponseMessage
   | SpConfirmationTimeoutMessage
   | PortChangedMessage;

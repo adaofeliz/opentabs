@@ -1588,7 +1588,7 @@ describe('handleServerMessage', () => {
   });
 
   describe('side panel forwarding', () => {
-    test('forwards tab.stateChanged to side panel', () => {
+    test('does not forward tab.stateChanged via handleServerMessage (server never sends this method; the extension sends it directly via sendTabStateNotification)', () => {
       const message = {
         method: 'tab.stateChanged',
         params: {
@@ -1600,11 +1600,7 @@ describe('handleServerMessage', () => {
 
       handleServerMessage(message);
 
-      expect(mockForwardToSidePanel).toHaveBeenCalledTimes(1);
-      expect(mockForwardToSidePanel).toHaveBeenCalledWith({
-        type: 'sp:serverMessage',
-        data: message,
-      });
+      expect(mockForwardToSidePanel).not.toHaveBeenCalled();
     });
 
     test('forwards tool.invocationStart to side panel', () => {

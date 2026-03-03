@@ -484,7 +484,6 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
     case 'offscreen:getUrl':
     case 'ws:state':
     case 'ws:message':
-    case 'bg:getConnectionState':
     case 'bg:getFullState':
     case 'bg:setToolEnabled':
     case 'bg:setAllToolsEnabled':
@@ -499,7 +498,6 @@ chrome.runtime.onMessage.addListener((message: InternalMessage, sender, sendResp
     case 'sp:getState':
     case 'sp:connectionState':
     case 'sp:serverMessage':
-    case 'sp:confirmationRequest':
     case 'sp:confirmationResponse':
     case 'sp:confirmationTimeout':
       break;

@@ -147,7 +147,6 @@ const {
   handleToolProgress,
   handleSpConfirmationResponse,
   handleSpConfirmationTimeout,
-  handleBgGetConnectionState,
   handleBgGetFullState,
   handleBgSetToolEnabled,
   handleBgSetAllToolsEnabled,
@@ -528,27 +527,6 @@ describe('handleSpConfirmationTimeout', () => {
     const sendResponse = vi.fn();
     handleSpConfirmationTimeout({}, sendResponse);
     expect(sendResponse).toHaveBeenCalledWith({ ok: true });
-  });
-});
-
-// ---------------------------------------------------------------------------
-// handleBgGetConnectionState
-// ---------------------------------------------------------------------------
-
-describe('handleBgGetConnectionState', () => {
-  test('returns connected=false when not connected', () => {
-    const sendResponse = vi.fn();
-    handleBgGetConnectionState({}, sendResponse);
-    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ connected: false }));
-  });
-
-  test('returns connected=true after connect', () => {
-    handleWsState({ connected: true }, () => {});
-    vi.clearAllMocks();
-
-    const sendResponse = vi.fn();
-    handleBgGetConnectionState({}, sendResponse);
-    expect(sendResponse).toHaveBeenCalledWith(expect.objectContaining({ connected: true }));
   });
 });
 

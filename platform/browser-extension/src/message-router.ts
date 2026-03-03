@@ -109,7 +109,6 @@ const wrapNotification =
  * the side panel, which only needs tab state changes and invocation animations.
  */
 const SIDE_PANEL_METHODS = new Set([
-  'tab.stateChanged',
   'tool.invocationStart',
   'tool.invocationEnd',
   'plugins.changed',
