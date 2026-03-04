@@ -1,4 +1,4 @@
-import { ToolError } from '@opentabs-dev/plugin-sdk';
+import { parseRetryAfterMs, ToolError } from '@opentabs-dev/plugin-sdk';
 
 interface DiscordAuth {
   token: string;
@@ -229,7 +229,7 @@ export const discordApi = async <T extends Record<string, unknown>>(
   // Handle HTTP-level errors
   if (!response.ok) {
     const retryAfterHeader = response.headers.get('Retry-After');
-    const retryMs = retryAfterHeader ? Number(retryAfterHeader) * 1000 : undefined;
+    const retryMs = retryAfterHeader !== null ? parseRetryAfterMs(retryAfterHeader) : undefined;
     const errorText = await response.text().catch(() => '');
     const errorBody = errorText.substring(0, 512);
 
