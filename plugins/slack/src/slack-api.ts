@@ -1,4 +1,4 @@
-import { ToolError } from '@opentabs-dev/plugin-sdk';
+import { ToolError, parseRetryAfterMs } from '@opentabs-dev/plugin-sdk';
 
 /**
  * Slack authentication extracted from the web client's runtime state.
@@ -413,11 +413,7 @@ const slackApi = async <T extends Record<string, unknown>>(
 
   if (response.status === 429) {
     const retryAfterHeader = response.headers.get('Retry-After');
-    let retryMs: number | undefined;
-    if (retryAfterHeader !== null) {
-      const parsed = parseInt(retryAfterHeader, 10);
-      retryMs = Number.isNaN(parsed) ? undefined : parsed * 1000;
-    }
+    const retryMs = retryAfterHeader !== null ? parseRetryAfterMs(retryAfterHeader) : undefined;
     throw ToolError.rateLimited(
       `Slack API rate limited (429)${retryAfterHeader ? `. Retry after ${retryAfterHeader} seconds` : ''}`,
       retryMs,
