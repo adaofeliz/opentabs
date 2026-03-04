@@ -7,6 +7,7 @@ export const getRepo = defineTool({
   name: 'get_repo',
   displayName: 'Get Repository',
   description: 'Get detailed information about a specific repository.',
+  summary: 'Get details of a specific repository',
   icon: 'book-open',
   group: 'Repositories',
   input: z.object({

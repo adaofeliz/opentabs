@@ -7,6 +7,7 @@ export const listNotifications = defineTool({
   name: 'list_notifications',
   displayName: 'List Notifications',
   description: 'List notifications for the authenticated user. Includes issue, PR, and release notifications.',
+  summary: 'List notifications for the authenticated user',
   icon: 'bell',
   group: 'Users',
   input: z.object({

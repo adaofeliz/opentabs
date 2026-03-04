@@ -7,6 +7,7 @@ export const createComment = defineTool({
   name: 'create_comment',
   displayName: 'Create Comment',
   description: 'Add a comment to an issue or pull request.',
+  summary: 'Add a comment to an issue or pull request',
   icon: 'message-square-plus',
   group: 'Comments',
   input: z.object({

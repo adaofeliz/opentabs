@@ -7,6 +7,7 @@ export const getPullRequest = defineTool({
   name: 'get_pull_request',
   displayName: 'Get Pull Request',
   description: 'Get detailed information about a specific pull request, including merge status and diff stats.',
+  summary: 'Get details of a specific pull request',
   icon: 'git-pull-request',
   group: 'Pull Requests',
   input: z.object({

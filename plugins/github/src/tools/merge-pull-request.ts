@@ -6,6 +6,7 @@ export const mergePullRequest = defineTool({
   name: 'merge_pull_request',
   displayName: 'Merge Pull Request',
   description: 'Merge a pull request. Supports merge commit, squash, and rebase strategies.',
+  summary: 'Merge a pull request',
   icon: 'git-merge',
   group: 'Pull Requests',
   input: z.object({

@@ -8,6 +8,7 @@ export const listIssues = defineTool({
   displayName: 'List Issues',
   description:
     'List issues for a repository. By default returns open issues sorted by creation date. Can filter by state, labels, assignee, and more.',
+  summary: 'List issues for a repository',
   icon: 'circle-dot',
   group: 'Issues',
   input: z.object({

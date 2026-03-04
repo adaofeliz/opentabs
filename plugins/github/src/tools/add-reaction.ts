@@ -6,6 +6,7 @@ export const addReaction = defineTool({
   name: 'add_reaction',
   displayName: 'Add Reaction',
   description: 'Add a reaction to an issue, pull request, or comment.',
+  summary: 'Add a reaction to an issue or comment',
   icon: 'smile-plus',
   group: 'Reactions',
   input: z.object({

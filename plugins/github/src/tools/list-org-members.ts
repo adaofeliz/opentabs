@@ -6,6 +6,7 @@ export const listOrgMembers = defineTool({
   name: 'list_org_members',
   displayName: 'List Organization Members',
   description: 'List public members of a GitHub organization.',
+  summary: 'List members of an organization',
   icon: 'users',
   group: 'Users',
   input: z.object({

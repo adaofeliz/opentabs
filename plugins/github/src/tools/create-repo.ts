@@ -7,6 +7,7 @@ export const createRepo = defineTool({
   name: 'create_repo',
   displayName: 'Create Repository',
   description: 'Create a new repository for the authenticated user.',
+  summary: 'Create a new repository',
   icon: 'plus-circle',
   group: 'Repositories',
   input: z.object({

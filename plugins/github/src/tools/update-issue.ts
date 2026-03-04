@@ -7,6 +7,7 @@ export const updateIssue = defineTool({
   name: 'update_issue',
   displayName: 'Update Issue',
   description: 'Update an existing issue — change title, body, state, labels, or assignees.',
+  summary: 'Update an existing issue',
   icon: 'pencil',
   group: 'Issues',
   input: z.object({

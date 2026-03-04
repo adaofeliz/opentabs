@@ -7,6 +7,7 @@ export const getUserProfile = defineTool({
   name: 'get_user_profile',
   displayName: 'Get User Profile',
   description: "Get a GitHub user's profile. Defaults to the authenticated user if no username is provided.",
+  summary: "Get a user's profile information",
   icon: 'user',
   group: 'Users',
   input: z.object({

@@ -8,6 +8,7 @@ export const listRepos = defineTool({
   displayName: 'List Repositories',
   description:
     'List repositories for the authenticated user or a specified user/organization. Returns repos sorted by last updated.',
+  summary: 'List repositories for a user or organization',
   icon: 'book-marked',
   group: 'Repositories',
   input: z.object({

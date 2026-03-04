@@ -7,6 +7,7 @@ export const listPullRequests = defineTool({
   name: 'list_pull_requests',
   displayName: 'List Pull Requests',
   description: 'List pull requests for a repository with optional state and sort filters.',
+  summary: 'List pull requests for a repository',
   icon: 'git-pull-request',
   group: 'Pull Requests',
   input: z.object({

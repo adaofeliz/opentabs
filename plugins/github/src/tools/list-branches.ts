@@ -7,6 +7,7 @@ export const listBranches = defineTool({
   name: 'list_branches',
   displayName: 'List Branches',
   description: 'List branches for a repository.',
+  summary: 'List branches for a repository',
   icon: 'git-branch',
   group: 'Repositories',
   input: z.object({

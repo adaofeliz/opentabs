@@ -7,6 +7,7 @@ export const getIssue = defineTool({
   name: 'get_issue',
   displayName: 'Get Issue',
   description: 'Get detailed information about a specific issue, including its full body.',
+  summary: 'Get details of a specific issue',
   icon: 'circle-dot',
   group: 'Issues',
   input: z.object({
