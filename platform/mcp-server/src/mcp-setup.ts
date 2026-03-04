@@ -26,7 +26,6 @@ import { z } from 'zod';
 import { log } from './logger.js';
 import type { RequestHandlerExtra } from './mcp-tool-dispatch.js';
 import { handleBrowserToolCall, handlePluginToolCall } from './mcp-tool-dispatch.js';
-import { trustTierPrefix } from './registry.js';
 import type { CachedBrowserTool, ServerState, ToolLookupEntry } from './state.js';
 import { isBrowserToolEnabled, isToolEnabled, prefixedToolName } from './state.js';
 import { version } from './version.js';
@@ -204,7 +203,7 @@ export const getEnabledToolsList = (
       clonedSchema.properties = properties;
       tools.push({
         name: prefixed,
-        description: trustTierPrefix(plugin.trustTier) + toolDef.description,
+        description: toolDef.description,
         inputSchema: clonedSchema,
       });
     }

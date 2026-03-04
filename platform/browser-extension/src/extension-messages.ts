@@ -1,4 +1,4 @@
-import type { PluginTabInfo, TabState, TrustTier, WireToolDef } from '@opentabs-dev/shared';
+import type { PluginTabInfo, TabState, ToolPermission, WireToolDef } from '@opentabs-dev/shared';
 
 // ---------------------------------------------------------------------------
 // Internal Chrome extension message types — discriminated union
@@ -122,40 +122,40 @@ export interface SpConfirmationTimeoutMessage {
   id: string;
 }
 
-/** Side panel → Background: toggle a single tool's enabled state */
-export interface BgSetToolEnabledMessage {
-  type: 'bg:setToolEnabled';
+/** Side panel → Background: set a single tool's permission */
+export interface BgSetToolPermissionMessage {
+  type: 'bg:setToolPermission';
   plugin: string;
   tool: string;
-  enabled: boolean;
+  permission: ToolPermission;
 }
 
-/** Side panel → Background: toggle all tools for a plugin */
-export interface BgSetAllToolsEnabledMessage {
-  type: 'bg:setAllToolsEnabled';
+/** Side panel → Background: set all tools' permission for a plugin */
+export interface BgSetAllToolsPermissionMessage {
+  type: 'bg:setAllToolsPermission';
   plugin: string;
-  enabled: boolean;
+  permission: ToolPermission;
 }
 
-/** Side panel → Background: toggle a subset of tools for a plugin */
-export interface BgSetToolsEnabledMessage {
-  type: 'bg:setToolsEnabled';
+/** Side panel → Background: set a subset of tools' permission for a plugin */
+export interface BgSetToolsPermissionMessage {
+  type: 'bg:setToolsPermission';
   plugin: string;
   tools: string[];
-  enabled: boolean;
+  permission: ToolPermission;
 }
 
-/** Side panel → Background: toggle a browser tool's enabled state */
-export interface BgSetBrowserToolEnabledMessage {
-  type: 'bg:setBrowserToolEnabled';
+/** Side panel → Background: set a browser tool's permission */
+export interface BgSetBrowserToolPermissionMessage {
+  type: 'bg:setBrowserToolPermission';
   tool: string;
-  enabled: boolean;
+  permission: ToolPermission;
 }
 
-/** Side panel → Background: toggle all browser tools' enabled state */
-export interface BgSetAllBrowserToolsEnabledMessage {
-  type: 'bg:setAllBrowserToolsEnabled';
-  enabled: boolean;
+/** Side panel → Background: set all browser tools' permission */
+export interface BgSetAllBrowserToolsPermissionMessage {
+  type: 'bg:setAllBrowserToolsPermission';
+  permission: ToolPermission;
 }
 
 /** Side panel → Background: search npm registry for plugins */
@@ -197,11 +197,11 @@ export type InternalMessage =
   | WsGetStateMessage
   | WsSetUrlMessage
   | BgGetFullStateMessage
-  | BgSetToolEnabledMessage
-  | BgSetAllToolsEnabledMessage
-  | BgSetToolsEnabledMessage
-  | BgSetBrowserToolEnabledMessage
-  | BgSetAllBrowserToolsEnabledMessage
+  | BgSetToolPermissionMessage
+  | BgSetAllToolsPermissionMessage
+  | BgSetToolsPermissionMessage
+  | BgSetBrowserToolPermissionMessage
+  | BgSetAllBrowserToolsPermissionMessage
   | BgSearchPluginsMessage
   | BgInstallPluginMessage
   | BgRemovePluginMessage
@@ -229,7 +229,7 @@ export interface PluginMeta {
   version: string;
   displayName: string;
   urlPatterns: string[];
-  trustTier: TrustTier;
+  permission: ToolPermission;
   sourcePath?: string;
   adapterHash?: string;
   adapterFile?: string;

@@ -16,7 +16,6 @@ import {
   getConfigPath,
   isValidPluginPackageName,
   normalizePluginName,
-  OFFICIAL_SCOPE,
   platformExec,
   resolvePluginPackageCandidates,
 } from '@opentabs-dev/shared';
@@ -203,7 +202,7 @@ const searchNpmPlugins = async (query?: string): Promise<PluginSearchResult[]> =
       description: entry.description ?? '',
       version: entry.version,
       author: entry.publisher?.username ?? entry.author?.name ?? 'unknown',
-      isOfficial: entry.name.startsWith(`${OFFICIAL_SCOPE}/`),
+      isOfficial: entry.name.startsWith('@opentabs-dev/'),
     }));
   } catch {
     const error = new Error('Failed to parse npm search output') as Error & { code: number };

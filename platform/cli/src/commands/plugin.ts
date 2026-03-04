@@ -8,7 +8,6 @@ import { join } from 'node:path';
 import {
   DEFAULT_HOST,
   normalizePluginName,
-  OFFICIAL_SCOPE,
   PLUGIN_PREFIX,
   platformExec,
   resolvePluginPackageCandidates,
@@ -331,11 +330,11 @@ const KNOWN_OFFICIAL_PLUGIN_SLUGS = ['slack'] as const;
  */
 const buildDirectLookupCandidates = (query?: string): string[] => {
   if (!query) {
-    return KNOWN_OFFICIAL_PLUGIN_SLUGS.map(slug => `${OFFICIAL_SCOPE}/${PLUGIN_PREFIX}${slug}`);
+    return KNOWN_OFFICIAL_PLUGIN_SLUGS.map(slug => `@opentabs-dev/${PLUGIN_PREFIX}${slug}`);
   }
   // If the query is already a fully qualified name, probe it directly
   if (query.startsWith('@') || query.startsWith(PLUGIN_PREFIX)) return [query];
-  return [`${OFFICIAL_SCOPE}/${PLUGIN_PREFIX}${query}`, `${PLUGIN_PREFIX}${query}`];
+  return [`@opentabs-dev/${PLUGIN_PREFIX}${query}`, `${PLUGIN_PREFIX}${query}`];
 };
 
 /** npm search --json result shape */
@@ -422,7 +421,7 @@ const handlePluginSearch = (query?: string): void => {
 
   console.log();
   for (const pkg of results) {
-    const label = pkg.name.startsWith(`${OFFICIAL_SCOPE}/`) ? pc.blue('[official]') : pc.dim('[community]');
+    const label = pkg.name.startsWith('@opentabs-dev/') ? pc.blue('[official]') : pc.dim('[community]');
     const desc = pkg.description
       ? pkg.description.length > descWidth
         ? `${pkg.description.slice(0, descWidth - 3)}...`

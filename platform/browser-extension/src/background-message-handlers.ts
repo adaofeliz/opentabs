@@ -1,4 +1,4 @@
-import type { ConfigStatePlugin, TabState } from '@opentabs-dev/shared';
+import type { ConfigStatePlugin, TabState, ToolPermission } from '@opentabs-dev/shared';
 import {
   clearAllConfirmationBadges,
   clearConfirmationBackgroundTimeout,
@@ -139,7 +139,7 @@ const handleWsMessage: MessageHandler = (message, sendResponse) => {
 /**
  * Handle bg:getFullState — return merged state from all local caches.
  * Combines plugin metadata (chrome.storage.local), server state cache
- * (tool enabled states, browserTools, failedPlugins, serverVersion),
+ * (tool permission states, browserTools, failedPlugins, serverVersion),
  * and tab state cache (per-plugin tab state) into a single response.
  */
 const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
@@ -194,20 +194,20 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
         }
       }
 
-      // Tool enabled states: prefer server cache, default to enabled=true
+      // Tool permission states: prefer server cache, default to permission='auto'
       const tools = meta.tools.map(metaTool => {
         const serverTool = serverPlugin?.tools.find(st => st.name === metaTool.name);
         return {
           ...metaTool,
-          enabled: serverTool?.enabled ?? true,
+          permission: serverTool?.permission ?? metaTool.permission,
         };
       });
 
       // Spread meta to inherit all display-relevant fields (name, displayName,
-      // version, trustTier, urlPatterns, icon variants, etc.) so new fields
+      // version, permission, urlPatterns, icon variants, etc.) so new fields
       // added to PluginMeta flow through automatically without manual
       // enumeration. Exclude internal-only fields and override tools (merged
-      // with enabled state), tabState (from live tab cache), and server-only
+      // with permission state), tabState (from live tab cache), and server-only
       // fields (source, sdkVersion, update).
       const {
         tools: _metaTools,
@@ -331,29 +331,29 @@ const handleSpConfirmationTimeout: MessageHandler = (message, sendResponse) => {
   sendResponse({ ok: true });
 };
 
-/** Handle bg:setToolEnabled — toggle a single tool's enabled state via the MCP server */
-const handleBgSetToolEnabled: MessageHandler = (message, sendResponse) => {
+/** Handle bg:setToolPermission — set a single tool's permission via the MCP server */
+const handleBgSetToolPermission: MessageHandler = (message, sendResponse) => {
   const plugin = message.plugin as string;
   const tool = message.tool as string;
-  const enabled = message.enabled as boolean;
+  const permission = message.permission as ToolPermission;
 
-  // Capture the original enabled value for surgical rollback
+  // Capture the original permission value for surgical rollback
   const cache = getServerStateCache();
   const pluginEntry = cache.plugins.find(p => p.name === plugin);
-  const originalEnabled = pluginEntry?.tools.find(t => t.name === tool)?.enabled ?? !enabled;
+  const originalPermission = pluginEntry?.tools.find(t => t.name === tool)?.permission ?? 'auto';
 
   // Optimistically update the local server state cache
   const updatedPlugins = cache.plugins.map(p => {
     if (p.name !== plugin) return p;
     return {
       ...p,
-      tools: p.tools.map(t => (t.name === tool ? { ...t, enabled } : t)),
+      tools: p.tools.map(t => (t.name === tool ? { ...t, permission } : t)),
     };
   });
-  addPendingPluginToolUpdate(plugin, tool, enabled);
+  addPendingPluginToolUpdate(plugin, tool, permission);
   updateServerStateCache({ plugins: updatedPlugins });
 
-  sendServerRequest('config.setToolEnabled', { plugin, tool, enabled })
+  sendServerRequest('config.setToolPermission', { plugin, tool, permission })
     .then((result: unknown) => {
       removePendingPluginToolUpdate(plugin, tool);
       sendResponse(result);
@@ -367,7 +367,7 @@ const handleBgSetToolEnabled: MessageHandler = (message, sendResponse) => {
         if (p.name !== plugin) return p;
         return {
           ...p,
-          tools: p.tools.map(t => (t.name === tool ? { ...t, enabled: originalEnabled } : t)),
+          tools: p.tools.map(t => (t.name === tool ? { ...t, permission: originalPermission } : t)),
         };
       });
       updateServerStateCache({ plugins: revertedPlugins });
@@ -375,19 +375,19 @@ const handleBgSetToolEnabled: MessageHandler = (message, sendResponse) => {
     });
 };
 
-/** Handle bg:setAllToolsEnabled — toggle all tools for a plugin via the MCP server */
-const handleBgSetAllToolsEnabled: MessageHandler = (message, sendResponse) => {
+/** Handle bg:setAllToolsPermission — set all tools' permission for a plugin via the MCP server */
+const handleBgSetAllToolsPermission: MessageHandler = (message, sendResponse) => {
   const plugin = message.plugin as string;
-  const enabled = message.enabled as boolean;
+  const permission = message.permission as ToolPermission;
 
-  // Capture original enabled values for surgical rollback
+  // Capture original permission values for surgical rollback
   const cache = getServerStateCache();
   const pluginEntry = cache.plugins.find(p => p.name === plugin);
   const toolNames = pluginEntry ? pluginEntry.tools.map(t => t.name) : [];
-  const originalToolStates = new Map<string, boolean>();
+  const originalToolStates = new Map<string, ToolPermission>();
   if (pluginEntry) {
     for (const t of pluginEntry.tools) {
-      originalToolStates.set(t.name, t.enabled);
+      originalToolStates.set(t.name, t.permission);
     }
   }
 
@@ -396,13 +396,13 @@ const handleBgSetAllToolsEnabled: MessageHandler = (message, sendResponse) => {
     if (p.name !== plugin) return p;
     return {
       ...p,
-      tools: p.tools.map(t => ({ ...t, enabled })),
+      tools: p.tools.map(t => ({ ...t, permission })),
     };
   });
-  addPendingPluginAllToolsUpdate(plugin, toolNames, enabled);
+  addPendingPluginAllToolsUpdate(plugin, toolNames, permission);
   updateServerStateCache({ plugins: updatedPlugins });
 
-  sendServerRequest('config.setAllToolsEnabled', { plugin, enabled })
+  sendServerRequest('config.setAllToolsPermission', { plugin, permission })
     .then((result: unknown) => {
       removePendingPluginAllToolsUpdate(plugin, toolNames);
       sendResponse(result);
@@ -418,7 +418,7 @@ const handleBgSetAllToolsEnabled: MessageHandler = (message, sendResponse) => {
           ...p,
           tools: p.tools.map(t => ({
             ...t,
-            enabled: originalToolStates.get(t.name) ?? t.enabled,
+            permission: originalToolStates.get(t.name) ?? t.permission,
           })),
         };
       });
@@ -427,21 +427,21 @@ const handleBgSetAllToolsEnabled: MessageHandler = (message, sendResponse) => {
     });
 };
 
-/** Handle bg:setToolsEnabled — toggle a subset of tools for a plugin via the MCP server */
-const handleBgSetToolsEnabled: MessageHandler = (message, sendResponse) => {
+/** Handle bg:setToolsPermission — set a subset of tools' permission for a plugin via the MCP server */
+const handleBgSetToolsPermission: MessageHandler = (message, sendResponse) => {
   const plugin = message.plugin as string;
   const toolNames = message.tools as string[];
-  const enabled = message.enabled as boolean;
+  const permission = message.permission as ToolPermission;
 
-  // Capture original enabled values for surgical rollback
+  // Capture original permission values for surgical rollback
   const cache = getServerStateCache();
   const pluginEntry = cache.plugins.find(p => p.name === plugin);
-  const originalToolStates = new Map<string, boolean>();
+  const originalToolStates = new Map<string, ToolPermission>();
   if (pluginEntry) {
     const toolNameSet = new Set(toolNames);
     for (const t of pluginEntry.tools) {
       if (toolNameSet.has(t.name)) {
-        originalToolStates.set(t.name, t.enabled);
+        originalToolStates.set(t.name, t.permission);
       }
     }
   }
@@ -452,16 +452,16 @@ const handleBgSetToolsEnabled: MessageHandler = (message, sendResponse) => {
     if (p.name !== plugin) return p;
     return {
       ...p,
-      tools: p.tools.map(t => (toolNameSet.has(t.name) ? { ...t, enabled } : t)),
+      tools: p.tools.map(t => (toolNameSet.has(t.name) ? { ...t, permission } : t)),
     };
   });
-  addPendingPluginAllToolsUpdate(plugin, toolNames, enabled);
+  addPendingPluginAllToolsUpdate(plugin, toolNames, permission);
   updateServerStateCache({ plugins: updatedPlugins });
 
-  sendServerRequest('config.setToolsEnabled', {
+  sendServerRequest('config.setToolsPermission', {
     plugin,
     tools: toolNames,
-    enabled,
+    permission,
   })
     .then((result: unknown) => {
       removePendingPluginAllToolsUpdate(plugin, toolNames);
@@ -478,7 +478,7 @@ const handleBgSetToolsEnabled: MessageHandler = (message, sendResponse) => {
           ...p,
           tools: p.tools.map(t => ({
             ...t,
-            enabled: originalToolStates.get(t.name) ?? t.enabled,
+            permission: originalToolStates.get(t.name) ?? t.permission,
           })),
         };
       });
@@ -487,21 +487,21 @@ const handleBgSetToolsEnabled: MessageHandler = (message, sendResponse) => {
     });
 };
 
-/** Handle bg:setBrowserToolEnabled — toggle a browser tool's enabled state via the MCP server */
-const handleBgSetBrowserToolEnabled: MessageHandler = (message, sendResponse) => {
+/** Handle bg:setBrowserToolPermission — set a browser tool's permission via the MCP server */
+const handleBgSetBrowserToolPermission: MessageHandler = (message, sendResponse) => {
   const tool = message.tool as string;
-  const enabled = message.enabled as boolean;
+  const permission = message.permission as ToolPermission;
 
-  // Capture the original enabled value for surgical rollback
+  // Capture the original permission value for surgical rollback
   const cache = getServerStateCache();
-  const originalEnabled = cache.browserTools.find(bt => bt.name === tool)?.enabled ?? !enabled;
+  const originalPermission = cache.browserTools.find(bt => bt.name === tool)?.permission ?? 'auto';
 
   // Optimistically update the local server state cache
-  const updatedBrowserTools = cache.browserTools.map(bt => (bt.name === tool ? { ...bt, enabled } : bt));
-  addPendingBrowserToolUpdate(tool, enabled);
+  const updatedBrowserTools = cache.browserTools.map(bt => (bt.name === tool ? { ...bt, permission } : bt));
+  addPendingBrowserToolUpdate(tool, permission);
   updateServerStateCache({ browserTools: updatedBrowserTools });
 
-  sendServerRequest('config.setBrowserToolEnabled', { tool, enabled })
+  sendServerRequest('config.setBrowserToolPermission', { tool, permission })
     .then((result: unknown) => {
       removePendingBrowserToolUpdate(tool);
       sendResponse(result);
@@ -512,46 +512,46 @@ const handleBgSetBrowserToolEnabled: MessageHandler = (message, sendResponse) =>
       // preserving any concurrent plugins.changed updates that arrived during the request.
       const currentCache = getServerStateCache();
       const revertedBrowserTools = currentCache.browserTools.map(bt =>
-        bt.name === tool ? { ...bt, enabled: originalEnabled } : bt,
+        bt.name === tool ? { ...bt, permission: originalPermission } : bt,
       );
       updateServerStateCache({ browserTools: revertedBrowserTools });
       sendResponse({ error: err instanceof Error ? err.message : String(err) });
     });
 };
 
-/** Handle bg:setAllBrowserToolsEnabled — toggle all browser tools via the MCP server */
-const handleBgSetAllBrowserToolsEnabled: MessageHandler = (message, sendResponse) => {
-  const enabled = message.enabled as boolean;
+/** Handle bg:setAllBrowserToolsPermission — set all browser tools' permission via the MCP server */
+const handleBgSetAllBrowserToolsPermission: MessageHandler = (message, sendResponse) => {
+  const permission = message.permission as ToolPermission;
 
-  // Capture original enabled values for surgical rollback
+  // Capture original permission values for surgical rollback
   const cache = getServerStateCache();
   const toolNames = cache.browserTools.map(bt => bt.name);
-  const originalToolStates = new Map<string, boolean>();
+  const originalToolStates = new Map<string, ToolPermission>();
   for (const bt of cache.browserTools) {
-    originalToolStates.set(bt.name, bt.enabled);
+    originalToolStates.set(bt.name, bt.permission);
   }
 
   // Optimistically update the local server state cache
   const updatedBrowserTools = cache.browserTools.map(bt => ({
     ...bt,
-    enabled,
+    permission,
   }));
-  addPendingAllBrowserToolsUpdate(toolNames, enabled);
+  addPendingAllBrowserToolsUpdate(toolNames, permission);
   updateServerStateCache({ browserTools: updatedBrowserTools });
 
-  sendServerRequest('config.setAllBrowserToolsEnabled', { enabled })
+  sendServerRequest('config.setAllBrowserToolsPermission', { permission })
     .then((result: unknown) => {
       removePendingAllBrowserToolsUpdate(toolNames);
       sendResponse(result);
     })
     .catch((err: unknown) => {
       removePendingAllBrowserToolsUpdate(toolNames);
-      // Surgically revert only the browser tools' enabled states in the current cache,
+      // Surgically revert only the browser tools' permission states in the current cache,
       // preserving any concurrent plugins.changed updates that arrived during the request.
       const currentCache = getServerStateCache();
       const revertedBrowserTools = currentCache.browserTools.map(bt => ({
         ...bt,
-        enabled: originalToolStates.get(bt.name) ?? bt.enabled,
+        permission: originalToolStates.get(bt.name) ?? bt.permission,
       }));
       updateServerStateCache({ browserTools: revertedBrowserTools });
       sendResponse({ error: err instanceof Error ? err.message : String(err) });
@@ -623,11 +623,11 @@ const backgroundHandlers = new Map<InternalMessage['type'], MessageHandler>([
   ['ws:state', handleWsState],
   ['ws:message', handleWsMessage],
   ['bg:getFullState', handleBgGetFullState],
-  ['bg:setToolEnabled', handleBgSetToolEnabled],
-  ['bg:setAllToolsEnabled', handleBgSetAllToolsEnabled],
-  ['bg:setToolsEnabled', handleBgSetToolsEnabled],
-  ['bg:setBrowserToolEnabled', handleBgSetBrowserToolEnabled],
-  ['bg:setAllBrowserToolsEnabled', handleBgSetAllBrowserToolsEnabled],
+  ['bg:setToolPermission', handleBgSetToolPermission],
+  ['bg:setAllToolsPermission', handleBgSetAllToolsPermission],
+  ['bg:setToolsPermission', handleBgSetToolsPermission],
+  ['bg:setBrowserToolPermission', handleBgSetBrowserToolPermission],
+  ['bg:setAllBrowserToolsPermission', handleBgSetAllBrowserToolsPermission],
   ['bg:searchPlugins', handleBgSearchPlugins],
   ['bg:installPlugin', handleBgInstallPlugin],
   ['bg:removePlugin', handleBgRemovePlugin],
@@ -646,11 +646,11 @@ const EXTENSION_ONLY_TYPES: ReadonlySet<InternalMessage['type']> = new Set([
   'ws:state',
   'ws:message',
   'bg:getFullState',
-  'bg:setToolEnabled',
-  'bg:setAllToolsEnabled',
-  'bg:setToolsEnabled',
-  'bg:setBrowserToolEnabled',
-  'bg:setAllBrowserToolsEnabled',
+  'bg:setToolPermission',
+  'bg:setAllToolsPermission',
+  'bg:setToolsPermission',
+  'bg:setBrowserToolPermission',
+  'bg:setAllBrowserToolsPermission',
   'bg:searchPlugins',
   'bg:installPlugin',
   'bg:removePlugin',
@@ -696,11 +696,11 @@ export {
   handleBgInstallPlugin,
   handleBgRemovePlugin,
   handleBgSearchPlugins,
-  handleBgSetAllBrowserToolsEnabled,
-  handleBgSetAllToolsEnabled,
-  handleBgSetBrowserToolEnabled,
-  handleBgSetToolEnabled,
-  handleBgSetToolsEnabled,
+  handleBgSetAllBrowserToolsPermission,
+  handleBgSetAllToolsPermission,
+  handleBgSetBrowserToolPermission,
+  handleBgSetToolPermission,
+  handleBgSetToolsPermission,
   handleBgUpdatePlugin,
   handleOffscreenGetUrl,
   handlePluginLogs,

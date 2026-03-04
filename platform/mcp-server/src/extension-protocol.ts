@@ -95,7 +95,7 @@ const sendSyncFull = async (state: ServerState): Promise<void> => {
   const plugins = pluginList.map(p => {
     const configPlugin = configPluginMap.get(p.name);
     return {
-      ...serializePluginForExtension(p, state),
+      ...serializePluginForExtension(p),
       sourcePath: p.sourcePath,
       adapterHash: p.adapterHash,
       adapterFile: adapterFileMap.get(p.name),
@@ -307,7 +307,7 @@ const sendPluginUpdate = async (
     jsonrpc: '2.0',
     method: 'plugin.update',
     params: {
-      ...serializePluginForExtension(plugin, state),
+      ...serializePluginForExtension(plugin),
       sourcePath: plugin.sourcePath,
       adapterHash: plugin.adapterHash,
       adapterFile,

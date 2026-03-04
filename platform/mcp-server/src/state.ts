@@ -8,7 +8,7 @@
  */
 
 import type { FSWatcher } from 'node:fs';
-import type { ManifestTool, PluginTabInfo, TabState, TrustTier, WsHandle } from '@opentabs-dev/shared';
+import type { ManifestTool, PluginTabInfo, TabState, WsHandle } from '@opentabs-dev/shared';
 import { appendAuditEntryToDisk } from './audit-disk.js';
 import type { BrowserToolDefinition } from './browser-tools/definition.js';
 import type { PermissionsConfig } from './config.js';
@@ -89,7 +89,6 @@ export interface RegisteredPlugin {
   version: string;
   displayName: string;
   urlPatterns: string[];
-  trustTier: TrustTier;
   iife: string;
   tools: ManifestTool[];
   /** How this plugin was discovered: 'npm' (global auto-discovery) or 'local' (config localPlugins) */

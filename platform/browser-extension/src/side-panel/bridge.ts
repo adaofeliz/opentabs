@@ -11,6 +11,7 @@ import type {
   ConfigStateBrowserTool,
   ConfigStateFailedPlugin,
   ConfigStatePlugin,
+  ToolPermission,
   WireToolDef,
 } from '@opentabs-dev/shared';
 import type { DisconnectReason } from '../extension-messages.js';
@@ -113,25 +114,25 @@ const sendBgMessage = <T>(message: Record<string, unknown>): Promise<T> =>
 /** Fetch full merged state from the background script's local caches */
 const getFullState = (): Promise<FullStateResult> => sendBgMessage<FullStateResult>({ type: 'bg:getFullState' });
 
-/** Toggle a single tool's enabled state */
-const setToolEnabled = (plugin: string, tool: string, enabled: boolean): Promise<unknown> =>
-  sendBgMessage({ type: 'bg:setToolEnabled', plugin, tool, enabled });
+/** Set a single tool's permission */
+const setToolPermission = (plugin: string, tool: string, permission: ToolPermission): Promise<unknown> =>
+  sendBgMessage({ type: 'bg:setToolPermission', plugin, tool, permission });
 
-/** Toggle all tools for a plugin */
-const setAllToolsEnabled = (plugin: string, enabled: boolean): Promise<unknown> =>
-  sendBgMessage({ type: 'bg:setAllToolsEnabled', plugin, enabled });
+/** Set all tools' permission for a plugin */
+const setAllToolsPermission = (plugin: string, permission: ToolPermission): Promise<unknown> =>
+  sendBgMessage({ type: 'bg:setAllToolsPermission', plugin, permission });
 
-/** Toggle a subset of tools for a plugin */
-const setToolsEnabled = (plugin: string, tools: string[], enabled: boolean): Promise<unknown> =>
-  sendBgMessage({ type: 'bg:setToolsEnabled', plugin, tools, enabled });
+/** Set a subset of tools' permission for a plugin */
+const setToolsPermission = (plugin: string, tools: string[], permission: ToolPermission): Promise<unknown> =>
+  sendBgMessage({ type: 'bg:setToolsPermission', plugin, tools, permission });
 
-/** Toggle a browser tool's enabled state */
-const setBrowserToolEnabled = (tool: string, enabled: boolean): Promise<unknown> =>
-  sendBgMessage({ type: 'bg:setBrowserToolEnabled', tool, enabled });
+/** Set a browser tool's permission */
+const setBrowserToolPermission = (tool: string, permission: ToolPermission): Promise<unknown> =>
+  sendBgMessage({ type: 'bg:setBrowserToolPermission', tool, permission });
 
-/** Toggle all browser tools' enabled state in a single batch request */
-const setAllBrowserToolsEnabled = (enabled: boolean): Promise<unknown> =>
-  sendBgMessage({ type: 'bg:setAllBrowserToolsEnabled', enabled });
+/** Set all browser tools' permission in a single batch request */
+const setAllBrowserToolsPermission = (permission: ToolPermission): Promise<unknown> =>
+  sendBgMessage({ type: 'bg:setAllBrowserToolsPermission', permission });
 
 /** Search npm registry for plugins matching the given query */
 const searchPlugins = (query: string): Promise<{ results: PluginSearchResult[] }> =>
@@ -183,10 +184,10 @@ export {
   removePlugin,
   searchPlugins,
   sendConfirmationResponse,
-  setAllBrowserToolsEnabled,
-  setAllToolsEnabled,
-  setBrowserToolEnabled,
-  setToolEnabled,
-  setToolsEnabled,
+  setAllBrowserToolsPermission,
+  setAllToolsPermission,
+  setBrowserToolPermission,
+  setToolPermission,
+  setToolsPermission,
   updatePlugin,
 };

@@ -1,4 +1,9 @@
-import type { ConfigStateBrowserTool, ConfigStateFailedPlugin, ConfigStatePlugin } from '@opentabs-dev/shared';
+import type {
+  ConfigStateBrowserTool,
+  ConfigStateFailedPlugin,
+  ConfigStatePlugin,
+  ToolPermission,
+} from '@opentabs-dev/shared';
 
 /**
  * In-memory cache of server-owned state. This mirrors the shape of
@@ -31,14 +36,14 @@ const EMPTY_CACHE: ServerStateCache = {
 let cache: ServerStateCache = { ...EMPTY_CACHE };
 
 // ---------------------------------------------------------------------------
-// Pending optimistic updates — protect in-flight toggle states from being
+// Pending optimistic updates — protect in-flight permission changes from being
 // overwritten by incoming plugins.changed notifications. Outer map key is
-// plugin name, inner map key is tool name, value is the optimistic enabled
+// plugin name, inner map key is tool name, value is the optimistic permission
 // state. Browser tools use a flat map keyed by tool name.
 // ---------------------------------------------------------------------------
 
-const pendingPluginToolUpdates = new Map<string, Map<string, boolean>>();
-const pendingBrowserToolUpdates = new Map<string, boolean>();
+const pendingPluginToolUpdates = new Map<string, Map<string, ToolPermission>>();
+const pendingBrowserToolUpdates = new Map<string, ToolPermission>();
 
 /** Re-apply pending optimistic updates on top of the current cache. */
 const reapplyPendingOptimisticUpdates = (): void => {
@@ -52,7 +57,7 @@ const reapplyPendingOptimisticUpdates = (): void => {
           ...plugin,
           tools: plugin.tools.map(tool => {
             const override = toolOverrides.get(tool.name);
-            return override !== undefined ? { ...tool, enabled: override } : tool;
+            return override !== undefined ? { ...tool, permission: override } : tool;
           }),
         };
       }),
@@ -63,20 +68,20 @@ const reapplyPendingOptimisticUpdates = (): void => {
       ...cache,
       browserTools: cache.browserTools.map(bt => {
         const override = pendingBrowserToolUpdates.get(bt.name);
-        return override !== undefined ? { ...bt, enabled: override } : bt;
+        return override !== undefined ? { ...bt, permission: override } : bt;
       }),
     };
   }
 };
 
 /** Register a pending optimistic update for a single plugin tool. */
-const addPendingPluginToolUpdate = (plugin: string, tool: string, enabled: boolean): void => {
+const addPendingPluginToolUpdate = (plugin: string, tool: string, permission: ToolPermission): void => {
   let toolMap = pendingPluginToolUpdates.get(plugin);
   if (!toolMap) {
     toolMap = new Map();
     pendingPluginToolUpdates.set(plugin, toolMap);
   }
-  toolMap.set(tool, enabled);
+  toolMap.set(tool, permission);
 };
 
 /** Clear the pending optimistic update for a single plugin tool. */
@@ -88,14 +93,14 @@ const removePendingPluginToolUpdate = (plugin: string, tool: string): void => {
 };
 
 /** Register pending optimistic updates for all tools of a plugin. */
-const addPendingPluginAllToolsUpdate = (plugin: string, toolNames: string[], enabled: boolean): void => {
+const addPendingPluginAllToolsUpdate = (plugin: string, toolNames: string[], permission: ToolPermission): void => {
   let toolMap = pendingPluginToolUpdates.get(plugin);
   if (!toolMap) {
     toolMap = new Map();
     pendingPluginToolUpdates.set(plugin, toolMap);
   }
   for (const name of toolNames) {
-    toolMap.set(name, enabled);
+    toolMap.set(name, permission);
   }
 };
 
@@ -110,8 +115,8 @@ const removePendingPluginAllToolsUpdate = (plugin: string, toolNames: string[]):
 };
 
 /** Register a pending optimistic update for a single browser tool. */
-const addPendingBrowserToolUpdate = (tool: string, enabled: boolean): void => {
-  pendingBrowserToolUpdates.set(tool, enabled);
+const addPendingBrowserToolUpdate = (tool: string, permission: ToolPermission): void => {
+  pendingBrowserToolUpdates.set(tool, permission);
 };
 
 /** Clear the pending optimistic update for a single browser tool. */
@@ -120,9 +125,9 @@ const removePendingBrowserToolUpdate = (tool: string): void => {
 };
 
 /** Register pending optimistic updates for all browser tools. */
-const addPendingAllBrowserToolsUpdate = (toolNames: string[], enabled: boolean): void => {
+const addPendingAllBrowserToolsUpdate = (toolNames: string[], permission: ToolPermission): void => {
   for (const name of toolNames) {
-    pendingBrowserToolUpdates.set(name, enabled);
+    pendingBrowserToolUpdates.set(name, permission);
   }
 };
 

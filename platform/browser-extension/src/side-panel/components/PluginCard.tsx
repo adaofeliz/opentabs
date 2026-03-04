@@ -1,10 +1,12 @@
 // PluginCard needs a custom header layout (icon + name + switch outside the trigger) that the retro Accordion wrapper does not support.
+
+import type { ToolPermission } from '@opentabs-dev/shared';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronDown } from 'lucide-react';
 import type { Dispatch, SetStateAction } from 'react';
 import { useEffect, useRef, useState } from 'react';
 import type { PluginState, WireToolDef } from '../bridge.js';
-import { matchesTool, setAllToolsEnabled, setToolEnabled, setToolsEnabled } from '../bridge.js';
+import { matchesTool, setAllToolsPermission, setToolPermission, setToolsPermission } from '../bridge.js';
 import { ERROR_DISPLAY_DURATION_MS } from '../constants.js';
 import { PluginIcon } from './PluginIcon.js';
 import { PluginMenu } from './PluginMenu.js';
@@ -54,15 +56,16 @@ const PluginCard = ({
   const updatePluginTools = (updater: (tools: WireToolDef[]) => WireToolDef[]) =>
     setPlugins(prev => prev.map(p => (p.name === plugin.name ? { ...p, tools: updater(p.tools ?? []) } : p)));
 
-  const allEnabled = pluginTools.length > 0 && pluginTools.every(t => t.enabled);
+  const allEnabled = pluginTools.length > 0 && pluginTools.every(t => t.permission !== 'off');
 
   const handleToggleAll = (checked: boolean) => {
     const myVersion = ++toggleCounter.current;
+    const permission: ToolPermission = checked ? 'auto' : 'off';
     updatePluginTools(prev => {
       preToggleRef.current = prev;
-      return prev.map(t => ({ ...t, enabled: checked }));
+      return prev.map(t => ({ ...t, permission }));
     });
-    void setAllToolsEnabled(plugin.name, checked).catch(() => {
+    void setAllToolsPermission(plugin.name, permission).catch(() => {
       if (toggleCounter.current === myVersion) {
         updatePluginTools(() => preToggleRef.current);
       }
@@ -70,14 +73,14 @@ const PluginCard = ({
     });
   };
 
-  const handleToggleTool = (toolName: string, currentEnabled: boolean) => {
+  const handleToggleTool = (toolName: string, currentlyOn: boolean) => {
     const myVersion = ++toggleCounter.current;
-    const newEnabled = !currentEnabled;
+    const newPermission: ToolPermission = currentlyOn ? 'off' : 'auto';
     updatePluginTools(prev => {
       preToggleRef.current = prev;
-      return prev.map(t => (t.name === toolName ? { ...t, enabled: newEnabled } : t));
+      return prev.map(t => (t.name === toolName ? { ...t, permission: newPermission } : t));
     });
-    void setToolEnabled(plugin.name, toolName, newEnabled).catch(() => {
+    void setToolPermission(plugin.name, toolName, newPermission).catch(() => {
       if (toggleCounter.current === myVersion) {
         updatePluginTools(() => preToggleRef.current);
       }
@@ -87,15 +90,16 @@ const PluginCard = ({
 
   const handleToggleGroup = (groupTools: WireToolDef[], checked: boolean) => {
     const myVersion = ++toggleCounter.current;
+    const permission: ToolPermission = checked ? 'auto' : 'off';
     const groupToolNames = new Set(groupTools.map(t => t.name));
     updatePluginTools(prev => {
       preToggleRef.current = prev;
-      return prev.map(t => (groupToolNames.has(t.name) ? { ...t, enabled: checked } : t));
+      return prev.map(t => (groupToolNames.has(t.name) ? { ...t, permission } : t));
     });
-    void setToolsEnabled(
+    void setToolsPermission(
       plugin.name,
       groupTools.map(t => t.name),
-      checked,
+      permission,
     ).catch(() => {
       if (toggleCounter.current === myVersion) {
         updatePluginTools(() => preToggleRef.current);
@@ -157,7 +161,7 @@ const PluginCard = ({
               </div>
             </Tooltip.Trigger>
             <Tooltip.Content>
-              v{plugin.version} &middot; {plugin.trustTier}
+              v{plugin.version}
               {plugin.update && <> &middot; Update: {plugin.update.latestVersion}</>}
             </Tooltip.Content>
           </Tooltip>
@@ -232,7 +236,7 @@ const PluginCard = ({
                     {group.name}
                   </span>
                   <Switch
-                    checked={group.tools.every(t => t.enabled)}
+                    checked={group.tools.every(t => t.permission !== 'off')}
                     onCheckedChange={checked => handleToggleGroup(group.tools, checked)}
                     aria-label={`Toggle all ${group.name} tools`}
                   />
@@ -244,9 +248,9 @@ const PluginCard = ({
                     displayName={tool.displayName}
                     description={tool.description}
                     icon={tool.icon}
-                    enabled={tool.enabled}
+                    enabled={tool.permission !== 'off'}
                     active={activeTools.has(`${plugin.name}:${tool.name}`)}
-                    onToggle={() => handleToggleTool(tool.name, tool.enabled)}
+                    onToggle={() => handleToggleTool(tool.name, tool.permission !== 'off')}
                   />
                 ))}
               </div>
@@ -258,9 +262,9 @@ const PluginCard = ({
                 displayName={tool.displayName}
                 description={tool.description}
                 icon={tool.icon}
-                enabled={tool.enabled}
+                enabled={tool.permission !== 'off'}
                 active={activeTools.has(`${plugin.name}:${tool.name}`)}
-                onToggle={() => handleToggleTool(tool.name, tool.enabled)}
+                onToggle={() => handleToggleTool(tool.name, tool.permission !== 'off')}
               />
             ))}
       </Accordion.Content>

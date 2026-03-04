@@ -27,11 +27,8 @@ const notifyDispatchProgress = (dispatchId: string): void => {
  * Get the link for console.warn logging: npm URL for published plugins, filesystem path for local.
  */
 const getPluginLink = (plugin: PluginMeta): string => {
-  if (plugin.trustTier === 'local' && plugin.sourcePath) {
+  if (plugin.sourcePath) {
     return plugin.sourcePath;
-  }
-  if (plugin.trustTier === 'official') {
-    return `https://npmjs.com/package/@opentabs-dev/plugin-${plugin.name}`;
   }
   return `https://npmjs.com/package/opentabs-plugin-${plugin.name}`;
 };

@@ -366,7 +366,6 @@ describe('handleExtensionMessage — tab.stateChanged', () => {
     version: '1.0.0',
     displayName: name,
     urlPatterns: [],
-    trustTier: 'community',
     source: 'local' as const,
     iife: '// noop',
     tools: [],
@@ -584,7 +583,6 @@ describe('sendSyncFull', () => {
     version: '1.0.0',
     displayName: overrides.name,
     urlPatterns: [],
-    trustTier: 'community',
     source: 'local' as const,
     iife: '// noop',
     tools: [],
@@ -603,7 +601,6 @@ describe('sendSyncFull', () => {
           name: 'alpha',
           version: '1.0.0',
           urlPatterns: ['http://alpha.com/*'],
-          trustTier: 'community',
           iife: '// alpha iife',
           tools: [
             {
@@ -620,7 +617,6 @@ describe('sendSyncFull', () => {
           name: 'beta',
           version: '2.0.0',
           urlPatterns: ['http://beta.com/*'],
-          trustTier: 'local',
           iife: '// beta iife',
           tools: [
             {
@@ -653,15 +649,14 @@ describe('sendSyncFull', () => {
           name: string;
           version: string;
           urlPatterns: string[];
-          trustTier: string;
           displayName: string;
           sourcePath: string | undefined;
           adapterHash: string | undefined;
           source: string;
-          tools: { name: string; displayName: string; description: string; icon: string; enabled: boolean }[];
+          tools: { name: string; displayName: string; description: string; icon: string; permission: string }[];
         }[];
         failedPlugins: { specifier: string; error: string }[];
-        browserTools: { name: string; description: string; enabled: boolean }[];
+        browserTools: { name: string; description: string; permission: string }[];
         serverVersion: string;
       };
     };
@@ -685,10 +680,9 @@ describe('sendSyncFull', () => {
       name: 'alpha',
       version: '1.0.0',
       urlPatterns: ['http://alpha.com/*'],
-      trustTier: 'community',
       displayName: 'alpha',
       source: 'local',
-      tools: [{ name: 'ping', displayName: 'Ping', description: 'Ping', icon: 'wrench', enabled: true }],
+      tools: [{ name: 'ping', displayName: 'Ping', description: 'Ping', icon: 'wrench', permission: 'off' }],
     });
     // adapterFile is now included with content-hashed path
     expect(typeof (firstPlugin as Record<string, unknown>).adapterFile).toBe('string');
@@ -699,10 +693,9 @@ describe('sendSyncFull', () => {
       name: 'beta',
       version: '2.0.0',
       urlPatterns: ['http://beta.com/*'],
-      trustTier: 'local',
       displayName: 'beta',
       source: 'local',
-      tools: [{ name: 'pong', displayName: 'Pong', description: 'Pong', icon: 'wrench', enabled: false }],
+      tools: [{ name: 'pong', displayName: 'Pong', description: 'Pong', icon: 'wrench', permission: 'off' }],
     });
     expect(typeof (secondPlugin as Record<string, unknown>).adapterFile).toBe('string');
   });
@@ -1028,14 +1021,13 @@ describe('handleExtensionMessage — config.getState', () => {
     version: '1.0.0',
     displayName: overrides.name,
     urlPatterns: [],
-    trustTier: 'community',
     source: 'local' as const,
     iife: '// noop',
     tools: [],
     ...overrides,
   });
 
-  test('returns plugins with displayName, version, trustTier, tabState, urlPatterns, and tools', () => {
+  test('returns plugins with displayName, version, tabState, urlPatterns, and tools', () => {
     const state = createState();
     const ws = createMockWs();
     state.extensionWs = ws;
@@ -1046,7 +1038,6 @@ describe('handleExtensionMessage — config.getState', () => {
           name: 'test-plugin',
           displayName: 'Test Plugin',
           version: '2.1.0',
-          trustTier: 'local',
           urlPatterns: ['http://test.com/*'],
           tools: [
             {
@@ -1088,11 +1079,10 @@ describe('handleExtensionMessage — config.getState', () => {
           name: string;
           displayName: string;
           version: string;
-          trustTier: string;
           source: string;
           tabState: string;
           urlPatterns: string[];
-          tools: { name: string; displayName: string; description: string; icon: string; enabled: boolean }[];
+          tools: { name: string; displayName: string; description: string; icon: string; permission: string }[];
         }[];
         failedPlugins: unknown[];
       };
@@ -1108,7 +1098,6 @@ describe('handleExtensionMessage — config.getState', () => {
     expect(plugin.name).toBe('test-plugin');
     expect(plugin.displayName).toBe('Test Plugin');
     expect(plugin.version).toBe('2.1.0');
-    expect(plugin.trustTier).toBe('local');
     expect(plugin.source).toBe('local');
     expect(plugin.tabState).toBe('ready');
     expect(plugin.urlPatterns).toEqual(['http://test.com/*']);
@@ -1120,7 +1109,7 @@ describe('handleExtensionMessage — config.getState', () => {
       displayName: 'Ping',
       description: 'Ping tool',
       icon: 'wrench',
-      enabled: true,
+      permission: 'off',
     });
     const pongTool = plugin.tools[1];
     expect(pongTool).toBeDefined();
@@ -1129,11 +1118,11 @@ describe('handleExtensionMessage — config.getState', () => {
       displayName: 'Pong',
       description: 'Pong tool',
       icon: 'wrench',
-      enabled: true,
+      permission: 'off',
     });
   });
 
-  test('tools respect enabled/disabled state from toolConfig', () => {
+  test('tools respect permission state from toolConfig', () => {
     const state = createState();
     const ws = createMockWs();
     state.extensionWs = ws;
@@ -1173,7 +1162,7 @@ describe('handleExtensionMessage — config.getState', () => {
     const response = JSON.parse(rawConfig as string) as {
       result: {
         plugins: {
-          tools: { name: string; displayName: string; description: string; icon: string; enabled: boolean }[];
+          tools: { name: string; displayName: string; description: string; icon: string; permission: string }[];
         }[];
       };
     };
@@ -1188,7 +1177,7 @@ describe('handleExtensionMessage — config.getState', () => {
       displayName: 'Enabled Tool',
       description: 'Enabled',
       icon: 'wrench',
-      enabled: true,
+      permission: 'off',
     });
     const disabledTool = tools[1];
     expect(disabledTool).toBeDefined();
@@ -1197,7 +1186,7 @@ describe('handleExtensionMessage — config.getState', () => {
       displayName: 'Disabled Tool',
       description: 'Disabled',
       icon: 'wrench',
-      enabled: false,
+      permission: 'off',
     });
   });
 
@@ -1417,7 +1406,6 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
     version: '1.0.0',
     displayName: overrides.name,
     urlPatterns: [],
-    trustTier: 'community',
     source: 'local' as const,
     iife: '// noop',
     tools: [],
@@ -1468,7 +1456,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'my-plugin', tool: 'send', enabled: false },
+        params: { plugin: 'my-plugin', tool: 'send', permission: 'off' },
         id: 1,
       }),
       callbacks,
@@ -1518,7 +1506,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'my-plugin', tool: 'send', enabled: true },
+        params: { plugin: 'my-plugin', tool: 'send', permission: 'auto' },
         id: 2,
       }),
       noopCallbacks,
@@ -1568,7 +1556,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'my-plugin', tool: 'send', enabled: 'yes' },
+        params: { plugin: 'my-plugin', tool: 'send', permission: 123 },
         id: 4,
       }),
       noopCallbacks,
@@ -1582,7 +1570,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
     expect(response.error.message).toContain('Invalid params');
   });
 
-  test('missing enabled field sends -32602 error', () => {
+  test('missing permission field sends -32602 error', () => {
     const state = createState();
     const ws = createMockWs();
     state.extensionWs = ws;
@@ -1599,9 +1587,9 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
     );
 
     expect(ws.sent).toHaveLength(1);
-    const rawEnabled = ws.sent[0];
-    expect(rawEnabled).toBeDefined();
-    const response = JSON.parse(rawEnabled as string) as { error: { code: number; message: string } };
+    const rawPermission = ws.sent[0];
+    expect(rawPermission).toBeDefined();
+    const response = JSON.parse(rawPermission as string) as { error: { code: number; message: string } };
     expect(response.error.code).toBe(-32602);
     expect(response.error.message).toContain('Invalid params');
   });
@@ -1631,7 +1619,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 123, tool: 'send', enabled: true },
+        params: { plugin: 123, tool: 'send', permission: 'auto' },
         id: 6,
       }),
       callbacks,
@@ -1651,7 +1639,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'nonexistent', tool: 'send', enabled: true },
+        params: { plugin: 'nonexistent', tool: 'send', permission: 'auto' },
         id: 7,
       }),
       noopCallbacks,
@@ -1701,7 +1689,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'my-plugin', tool: 'nonexistent-tool', enabled: true },
+        params: { plugin: 'my-plugin', tool: 'nonexistent-tool', permission: 'auto' },
         id: 8,
       }),
       noopCallbacks,
@@ -1747,7 +1735,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'nonexistent', tool: 'send', enabled: true },
+        params: { plugin: 'nonexistent', tool: 'send', permission: 'auto' },
         id: 9,
       }),
       callbacks,
@@ -1786,7 +1774,7 @@ describe('handleExtensionMessage — config.setToolEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setToolEnabled',
-        params: { plugin: 'my-plugin', tool: 'nonexistent-tool', enabled: true },
+        params: { plugin: 'my-plugin', tool: 'nonexistent-tool', permission: 'auto' },
         id: 10,
       }),
       noopCallbacks,
@@ -1801,7 +1789,6 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
     version: '1.0.0',
     displayName: overrides.name,
     urlPatterns: [],
-    trustTier: 'community',
     source: 'local' as const,
     iife: '// noop',
     tools: [],
@@ -1854,7 +1841,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setAllToolsEnabled',
-        params: { plugin: 'my-plugin', enabled: true },
+        params: { plugin: 'my-plugin', permission: 'auto' },
         id: 1,
       }),
       noopCallbacks,
@@ -1911,7 +1898,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setAllToolsEnabled',
-        params: { plugin: 'my-plugin', enabled: false },
+        params: { plugin: 'my-plugin', permission: 'off' },
         id: 2,
       }),
       noopCallbacks,
@@ -1965,7 +1952,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setAllToolsEnabled',
-        params: { plugin: 'my-plugin', enabled: true },
+        params: { plugin: 'my-plugin', permission: 'auto' },
         id: 3,
       }),
       callbacks,
@@ -2000,7 +1987,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setAllToolsEnabled',
-        params: { plugin: 'nonexistent', enabled: true },
+        params: { plugin: 'nonexistent', permission: 'auto' },
         id: 4,
       }),
       callbacks,
@@ -2059,7 +2046,7 @@ describe('handleExtensionMessage — config.setAllToolsEnabled', () => {
       JSON.stringify({
         jsonrpc: '2.0',
         method: 'config.setAllToolsEnabled',
-        params: { plugin: 'my-plugin', enabled: 'yes' },
+        params: { plugin: 'my-plugin', permission: 123 },
         id: 6,
       }),
       noopCallbacks,

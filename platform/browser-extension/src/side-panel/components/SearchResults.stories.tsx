@@ -11,7 +11,7 @@ const mockPlugin = (overrides?: Partial<PluginState>): PluginState => ({
   name: 'slack',
   displayName: 'Slack',
   version: '0.1.0',
-  trustTier: 'local',
+  permission: 'auto',
   source: 'local',
   tabState: 'ready',
   urlPatterns: ['*://*.slack.com/*'],
@@ -22,14 +22,14 @@ const mockPlugin = (overrides?: Partial<PluginState>): PluginState => ({
       displayName: 'Send Message',
       description: 'Send a message to a channel',
       icon: 'send',
-      enabled: true,
+      permission: 'auto',
     },
     {
       name: 'list_channels',
       displayName: 'List Channels',
       description: 'List all channels in the workspace',
       icon: 'list',
-      enabled: true,
+      permission: 'auto',
     },
   ],
   ...overrides,
@@ -217,8 +217,8 @@ const InstallingPluginDemo = () => {
 const InstallingPlugin: Story = { render: () => <InstallingPluginDemo /> };
 
 const mockBrowserTools: BrowserToolState[] = [
-  { name: 'browser_list_tabs', description: 'List all open browser tabs', enabled: true },
-  { name: 'browser_screenshot_tab', description: 'Capture a screenshot of a tab', enabled: true },
+  { name: 'browser_list_tabs', description: 'List all open browser tabs', permission: 'auto' },
+  { name: 'browser_screenshot_tab', description: 'Capture a screenshot of a tab', permission: 'auto' },
 ];
 
 const WithBrowserToolsDemo = () => {

@@ -10,7 +10,7 @@ import {
   registerMcpHandlers,
   sanitizeOutput,
 } from './mcp-setup.js';
-import { buildRegistry, trustTierPrefix } from './registry.js';
+import { buildRegistry } from './registry.js';
 import type { RegisteredPlugin } from './state.js';
 import { createState } from './state.js';
 
@@ -20,7 +20,6 @@ const createPlugin = (name: string, toolNames: string[]): RegisteredPlugin => ({
   version: '1.0.0',
   displayName: name,
   urlPatterns: [`https://${name}.example.com/*`],
-  trustTier: 'local',
   source: 'local' as const,
   iife: `(function(){/* ${name} */})()`,
   tools: toolNames.map(t => ({
@@ -200,20 +199,6 @@ describe('buildRegistry — input validation', () => {
     if (!entry?.validate) throw new Error('Expected entry with validate');
     expect(entry.validate({ a: 'ok' })).toBe(true);
     expect(entry.validate({ a: 'ok', b: 'extra' })).toBe(false);
-  });
-});
-
-describe('trustTierPrefix', () => {
-  test('returns correct prefix for official tier', () => {
-    expect(trustTierPrefix('official')).toBe('[Official] ');
-  });
-
-  test('returns correct prefix for community tier', () => {
-    expect(trustTierPrefix('community')).toBe('[Community plugin — unverified] ');
-  });
-
-  test('returns correct prefix for local tier', () => {
-    expect(trustTierPrefix('local')).toBe('[Local plugin] ');
   });
 });
 
@@ -505,7 +490,7 @@ describe('getEnabledToolsList — tool entry shape', () => {
     expect(tools).toHaveLength(1);
     expect(tools[0]).toMatchObject({
       name: 'slack_send_message',
-      description: '[Local plugin] send_message description',
+      description: 'send_message description',
       inputSchema: { type: 'object' },
     });
   });

@@ -5,11 +5,11 @@ import { BrowserToolsCard } from './BrowserToolsCard';
 import { Accordion } from './retro/Accordion';
 
 const mockBrowserTools: BrowserToolState[] = [
-  { name: 'browser_list_tabs', description: 'List all open browser tabs', enabled: true },
-  { name: 'browser_open_tab', description: 'Open a new browser tab with a URL', enabled: true },
-  { name: 'browser_screenshot_tab', description: 'Capture a screenshot of a tab', enabled: true },
-  { name: 'browser_click_element', description: 'Click an element matching a CSS selector', enabled: true },
-  { name: 'browser_execute_script', description: 'Execute JavaScript in a tab', enabled: false },
+  { name: 'browser_list_tabs', description: 'List all open browser tabs', permission: 'auto' },
+  { name: 'browser_open_tab', description: 'Open a new browser tab with a URL', permission: 'auto' },
+  { name: 'browser_screenshot_tab', description: 'Capture a screenshot of a tab', permission: 'auto' },
+  { name: 'browser_click_element', description: 'Click an element matching a CSS selector', permission: 'auto' },
+  { name: 'browser_execute_script', description: 'Execute JavaScript in a tab', permission: 'off' },
 ];
 
 const meta: Meta<typeof BrowserToolsCard> = {
@@ -29,7 +29,9 @@ const meta: Meta<typeof BrowserToolsCard> = {
 type Story = StoryObj<typeof BrowserToolsCard>;
 
 const DefaultDemo = () => {
-  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: true })));
+  const [tools, setTools] = useState<BrowserToolState[]>(
+    mockBrowserTools.map(t => ({ ...t, permission: 'auto' as const })),
+  );
   return <BrowserToolsCard tools={tools} activeTools={new Set()} onToolsChange={updater => setTools(updater)} />;
 };
 
@@ -47,7 +49,9 @@ const SomeDisabled: Story = {
 };
 
 const AllDisabledDemo = () => {
-  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: false })));
+  const [tools, setTools] = useState<BrowserToolState[]>(
+    mockBrowserTools.map(t => ({ ...t, permission: 'off' as const })),
+  );
   return <BrowserToolsCard tools={tools} activeTools={new Set()} onToolsChange={updater => setTools(updater)} />;
 };
 
@@ -56,7 +60,9 @@ const AllDisabled: Story = {
 };
 
 const WithActiveToolDemo = () => {
-  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: true })));
+  const [tools, setTools] = useState<BrowserToolState[]>(
+    mockBrowserTools.map(t => ({ ...t, permission: 'auto' as const })),
+  );
   return (
     <BrowserToolsCard
       tools={tools}
@@ -71,7 +77,9 @@ const WithActiveTool: Story = {
 };
 
 const WithToolFilterDemo = () => {
-  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: true })));
+  const [tools, setTools] = useState<BrowserToolState[]>(
+    mockBrowserTools.map(t => ({ ...t, permission: 'auto' as const })),
+  );
   return (
     <BrowserToolsCard
       tools={tools}
@@ -88,7 +96,7 @@ const WithToolFilter: Story = {
 
 const interactiveTools: BrowserToolState[] = [
   ...mockBrowserTools,
-  { name: 'extension_get_state', description: 'Get extension internal state', enabled: true },
+  { name: 'extension_get_state', description: 'Get extension internal state', permission: 'auto' },
 ];
 
 const InteractiveDemo = () => {
@@ -101,7 +109,9 @@ const Interactive: Story = {
 };
 
 const WithServerVersionDemo = () => {
-  const [tools, setTools] = useState(mockBrowserTools.map(t => ({ ...t, enabled: true })));
+  const [tools, setTools] = useState<BrowserToolState[]>(
+    mockBrowserTools.map(t => ({ ...t, permission: 'auto' as const })),
+  );
   return (
     <BrowserToolsCard
       tools={tools}

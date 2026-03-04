@@ -6,11 +6,11 @@
  */
 
 import type {
-  ConfigSetAllBrowserToolsEnabledParams,
-  ConfigSetAllToolsEnabledParams,
-  ConfigSetBrowserToolEnabledParams,
-  ConfigSetToolEnabledParams,
-  ConfigSetToolsEnabledParams,
+  ConfigSetAllBrowserToolsPermissionParams,
+  ConfigSetAllToolsPermissionParams,
+  ConfigSetBrowserToolPermissionParams,
+  ConfigSetToolPermissionParams,
+  ConfigSetToolsPermissionParams,
   ConfigStateResult,
   JsonRpcError,
   JsonRpcNotification,
@@ -18,7 +18,7 @@ import type {
   JsonRpcResult,
   PluginTabInfo,
   TabSyncAllParams,
-  TrustTier,
+  ToolPermission,
 } from '@opentabs-dev/shared';
 import type { PluginLogEntry } from './log-buffer.js';
 import { appendLog } from './log-buffer.js';
@@ -31,14 +31,7 @@ import {
   updatePlugin,
 } from './plugin-management.js';
 import type { ConfirmationScope, RegisteredPlugin, ServerState, SessionPermissionRule, TabMapping } from './state.js';
-import {
-  DISPATCH_TIMEOUT_MS,
-  isBrowserToolEnabled,
-  isToolEnabled,
-  MAX_DISPATCH_TIMEOUT_MS,
-  prefixedToolName,
-  pushSessionPermission,
-} from './state.js';
+import { DISPATCH_TIMEOUT_MS, MAX_DISPATCH_TIMEOUT_MS, prefixedToolName, pushSessionPermission } from './state.js';
 import { version } from './version.js';
 
 /** Callbacks the extension protocol can invoke on the MCP side */
@@ -112,13 +105,12 @@ const sendPluginManagementError = (state: ServerState, id: string | number, err:
  */
 const serializePluginForExtension = (
   plugin: RegisteredPlugin,
-  state: ServerState,
 ): {
   name: string;
   version: string;
   displayName: string;
   urlPatterns: string[];
-  trustTier: TrustTier;
+  permission: ToolPermission;
   iconSvg?: string;
   iconInactiveSvg?: string;
   iconDarkSvg?: string;
@@ -131,14 +123,14 @@ const serializePluginForExtension = (
     iconSvg?: string;
     iconInactiveSvg?: string;
     group?: string;
-    enabled: boolean;
+    permission: ToolPermission;
   }[];
 } => ({
   name: plugin.name,
   version: plugin.version,
   displayName: plugin.displayName,
   urlPatterns: plugin.urlPatterns,
-  trustTier: plugin.trustTier,
+  permission: 'off' as ToolPermission,
   ...(plugin.iconSvg ? { iconSvg: plugin.iconSvg } : {}),
   ...(plugin.iconInactiveSvg ? { iconInactiveSvg: plugin.iconInactiveSvg } : {}),
   ...(plugin.iconDarkSvg ? { iconDarkSvg: plugin.iconDarkSvg } : {}),
@@ -151,7 +143,7 @@ const serializePluginForExtension = (
     ...(t.iconSvg ? { iconSvg: t.iconSvg } : {}),
     ...(t.iconInactiveSvg ? { iconInactiveSvg: t.iconInactiveSvg } : {}),
     ...(t.group ? { group: t.group } : {}),
-    enabled: isToolEnabled(state, prefixedToolName(plugin.name, t.name)),
+    permission: 'off' as ToolPermission,
   })),
 });
 
@@ -299,7 +291,7 @@ const buildConfigStatePayload = (state: ServerState): ConfigStateResult => {
       const tabInfo = state.tabMapping.get(p.name);
       const update = p.npmPackageName ? outdatedByPkg.get(p.npmPackageName) : undefined;
       return {
-        ...serializePluginForExtension(p, state),
+        ...serializePluginForExtension(p),
         source: p.source,
         tabState: tabInfo?.state ?? 'closed',
         ...(p.sdkVersion ? { sdkVersion: p.sdkVersion } : {}),
@@ -313,7 +305,7 @@ const buildConfigStatePayload = (state: ServerState): ConfigStateResult => {
     .map(ct => ({
       name: ct.name,
       description: ct.description,
-      enabled: isBrowserToolEnabled(state, ct.name),
+      permission: 'off' as ToolPermission,
       ...(ct.icon ? { icon: ct.icon } : {}),
     }));
 
@@ -347,13 +339,13 @@ const handleConfigSetToolEnabled = (
     return;
   }
 
-  const toolEnabledParams = params as Partial<ConfigSetToolEnabledParams>;
-  const pluginName = toolEnabledParams.plugin;
-  const tool = toolEnabledParams.tool;
-  const enabled = toolEnabledParams.enabled;
+  const toolPermissionParams = params as Partial<ConfigSetToolPermissionParams>;
+  const pluginName = toolPermissionParams.plugin;
+  const tool = toolPermissionParams.tool;
+  const permission = toolPermissionParams.permission;
 
-  if (typeof pluginName !== 'string' || typeof tool !== 'string' || typeof enabled !== 'boolean') {
-    sendJsonRpcError(state, id, -32602, 'Invalid params: expected plugin (string), tool (string), enabled (boolean)');
+  if (typeof pluginName !== 'string' || typeof tool !== 'string' || typeof permission !== 'string') {
+    sendJsonRpcError(state, id, -32602, 'Invalid params: expected plugin (string), tool (string), permission (string)');
     return;
   }
 
@@ -369,7 +361,7 @@ const handleConfigSetToolEnabled = (
   }
 
   const prefixed = prefixedToolName(pluginName, tool);
-  state.toolConfig[prefixed] = enabled;
+  state.toolConfig[prefixed] = permission !== 'off';
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
 
@@ -397,12 +389,12 @@ const handleConfigSetAllToolsEnabled = (
     return;
   }
 
-  const allToolsEnabledParams = params as Partial<ConfigSetAllToolsEnabledParams>;
-  const pluginName = allToolsEnabledParams.plugin;
-  const enabled = allToolsEnabledParams.enabled;
+  const allToolsPermissionParams = params as Partial<ConfigSetAllToolsPermissionParams>;
+  const pluginName = allToolsPermissionParams.plugin;
+  const permission = allToolsPermissionParams.permission;
 
-  if (typeof pluginName !== 'string' || typeof enabled !== 'boolean') {
-    sendJsonRpcError(state, id, -32602, 'Invalid params: expected plugin (string), enabled (boolean)');
+  if (typeof pluginName !== 'string' || typeof permission !== 'string') {
+    sendJsonRpcError(state, id, -32602, 'Invalid params: expected plugin (string), permission (string)');
     return;
   }
 
@@ -414,7 +406,7 @@ const handleConfigSetAllToolsEnabled = (
 
   for (const tool of plugin.tools) {
     const prefixed = prefixedToolName(pluginName, tool.name);
-    state.toolConfig[prefixed] = enabled;
+    state.toolConfig[prefixed] = permission !== 'off';
   }
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
@@ -443,17 +435,17 @@ const handleConfigSetToolsEnabled = (
     return;
   }
 
-  const toolsEnabledParams = params as Partial<ConfigSetToolsEnabledParams>;
-  const pluginName = toolsEnabledParams.plugin;
-  const tools = toolsEnabledParams.tools;
-  const enabled = toolsEnabledParams.enabled;
+  const toolsPermissionParams = params as Partial<ConfigSetToolsPermissionParams>;
+  const pluginName = toolsPermissionParams.plugin;
+  const tools = toolsPermissionParams.tools;
+  const permission = toolsPermissionParams.permission;
 
-  if (typeof pluginName !== 'string' || !Array.isArray(tools) || typeof enabled !== 'boolean') {
+  if (typeof pluginName !== 'string' || !Array.isArray(tools) || typeof permission !== 'string') {
     sendJsonRpcError(
       state,
       id,
       -32602,
-      'Invalid params: expected plugin (string), tools (string[]), enabled (boolean)',
+      'Invalid params: expected plugin (string), tools (string[]), permission (string)',
     );
     return;
   }
@@ -474,7 +466,7 @@ const handleConfigSetToolsEnabled = (
 
   for (const tool of tools) {
     const prefixed = prefixedToolName(pluginName, tool);
-    state.toolConfig[prefixed] = enabled;
+    state.toolConfig[prefixed] = permission !== 'off';
   }
   callbacks.onToolConfigChanged();
   callbacks.onToolConfigPersist();
@@ -503,12 +495,12 @@ const handleConfigSetBrowserToolEnabled = (
     return;
   }
 
-  const browserToolParams = params as Partial<ConfigSetBrowserToolEnabledParams>;
+  const browserToolParams = params as Partial<ConfigSetBrowserToolPermissionParams>;
   const tool = browserToolParams.tool;
-  const enabled = browserToolParams.enabled;
+  const permission = browserToolParams.permission;
 
-  if (typeof tool !== 'string' || typeof enabled !== 'boolean') {
-    sendJsonRpcError(state, id, -32602, 'Invalid params: expected tool (string), enabled (boolean)');
+  if (typeof tool !== 'string' || typeof permission !== 'string') {
+    sendJsonRpcError(state, id, -32602, 'Invalid params: expected tool (string), permission (string)');
     return;
   }
 
@@ -517,7 +509,7 @@ const handleConfigSetBrowserToolEnabled = (
     return;
   }
 
-  state.browserToolPolicy[tool] = enabled;
+  state.browserToolPolicy[tool] = permission !== 'off';
   callbacks.onToolConfigChanged();
   callbacks.onBrowserToolPolicyPersist();
 
@@ -545,16 +537,16 @@ const handleConfigSetAllBrowserToolsEnabled = (
     return;
   }
 
-  const allBrowserToolsParams = params as Partial<ConfigSetAllBrowserToolsEnabledParams>;
-  const enabled = allBrowserToolsParams.enabled;
+  const allBrowserToolsParams = params as Partial<ConfigSetAllBrowserToolsPermissionParams>;
+  const permission = allBrowserToolsParams.permission;
 
-  if (typeof enabled !== 'boolean') {
-    sendJsonRpcError(state, id, -32602, 'Invalid params: expected enabled (boolean)');
+  if (typeof permission !== 'string') {
+    sendJsonRpcError(state, id, -32602, 'Invalid params: expected permission (string)');
     return;
   }
 
   for (const tool of state.cachedBrowserTools) {
-    state.browserToolPolicy[tool.name] = enabled;
+    state.browserToolPolicy[tool.name] = permission !== 'off';
   }
   callbacks.onToolConfigChanged();
   callbacks.onBrowserToolPolicyPersist();

@@ -37,7 +37,7 @@ const App = () => {
   const [plugins, setPlugins] = useState<PluginState[]>([]);
   const [failedPlugins, setFailedPlugins] = useState<FailedPluginState[]>([]);
   const [browserTools, setBrowserTools] = useState<BrowserToolState[]>(() =>
-    BROWSER_TOOLS_CATALOG.map(t => ({ ...t, enabled: true })),
+    BROWSER_TOOLS_CATALOG.map(t => ({ ...t, permission: 'auto' as const })),
   );
   const [serverVersion, setServerVersion] = useState<string | undefined>(undefined);
   const [loading, setLoading] = useState(true);
@@ -201,12 +201,12 @@ const App = () => {
       setFailedPlugins(result.failedPlugins);
       setBrowserTools(() => {
         if (result.browserTools.length === 0) {
-          return BROWSER_TOOLS_CATALOG.map(t => ({ ...t, enabled: true }));
+          return BROWSER_TOOLS_CATALOG.map(t => ({ ...t, permission: 'auto' as const }));
         }
         const serverNames = new Set(result.browserTools.map(t => t.name));
         const merged = [...result.browserTools];
         for (const local of BROWSER_TOOLS_CATALOG) {
-          if (!serverNames.has(local.name)) merged.push({ ...local, enabled: true });
+          if (!serverNames.has(local.name)) merged.push({ ...local, permission: 'auto' as const });
         }
         return merged;
       });
@@ -285,7 +285,7 @@ const App = () => {
         } else {
           setPlugins([]);
           setFailedPlugins([]);
-          setBrowserTools(BROWSER_TOOLS_CATALOG.map(t => ({ ...t, enabled: true })));
+          setBrowserTools(BROWSER_TOOLS_CATALOG.map(t => ({ ...t, permission: 'auto' as const })));
           setServerVersion(undefined);
           setActiveTools(new Set());
           setPendingConfirmations([]);

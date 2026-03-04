@@ -1,8 +1,9 @@
+import type { ToolPermission } from '@opentabs-dev/shared';
 import * as AccordionPrimitive from '@radix-ui/react-accordion';
 import { ChevronDown } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { BrowserToolState } from '../bridge.js';
-import { setAllBrowserToolsEnabled, setBrowserToolEnabled } from '../bridge.js';
+import { setAllBrowserToolsPermission, setBrowserToolPermission } from '../bridge.js';
 import { ERROR_DISPLAY_DURATION_MS } from '../constants.js';
 import { BrowserToolsMenu } from './BrowserToolsMenu.js';
 import { PluginIcon } from './PluginIcon.js';
@@ -70,15 +71,16 @@ const BrowserToolsCard = ({
     errorTimerRef.current = setTimeout(() => setToggleError(null), ERROR_DISPLAY_DURATION_MS);
   };
 
-  const allEnabled = tools.length > 0 && tools.every(t => t.enabled);
+  const allEnabled = tools.length > 0 && tools.every(t => t.permission !== 'off');
 
   const handleToggleAll = (checked: boolean) => {
     const myVersion = ++toggleCounter.current;
+    const permission: ToolPermission = checked ? 'auto' : 'off';
     onToolsChange(prev => {
       preToggleRef.current = prev;
-      return prev.map(t => ({ ...t, enabled: checked }));
+      return prev.map(t => ({ ...t, permission }));
     });
-    void setAllBrowserToolsEnabled(checked).catch(() => {
+    void setAllBrowserToolsPermission(permission).catch(() => {
       if (toggleCounter.current === myVersion) {
         onToolsChange(() => preToggleRef.current);
       }
@@ -86,14 +88,14 @@ const BrowserToolsCard = ({
     });
   };
 
-  const handleToggleTool = (toolName: string, currentEnabled: boolean) => {
+  const handleToggleTool = (toolName: string, currentlyOn: boolean) => {
     const myVersion = ++toggleCounter.current;
-    const newEnabled = !currentEnabled;
+    const newPermission: ToolPermission = currentlyOn ? 'off' : 'auto';
     onToolsChange(prev => {
       preToggleRef.current = prev;
-      return prev.map(t => (t.name === toolName ? { ...t, enabled: newEnabled } : t));
+      return prev.map(t => (t.name === toolName ? { ...t, permission: newPermission } : t));
     });
-    void setBrowserToolEnabled(toolName, newEnabled).catch(() => {
+    void setBrowserToolPermission(toolName, newPermission).catch(() => {
       if (toggleCounter.current === myVersion) {
         onToolsChange(() => preToggleRef.current);
       }
@@ -164,9 +166,9 @@ const BrowserToolsCard = ({
             displayName={toDisplayName(tool.name)}
             description={tool.description}
             icon={tool.icon ?? 'globe'}
-            enabled={tool.enabled}
+            enabled={tool.permission !== 'off'}
             active={activeTools.has(`browser:${tool.name}`)}
-            onToggle={() => handleToggleTool(tool.name, tool.enabled)}
+            onToggle={() => handleToggleTool(tool.name, tool.permission !== 'off')}
           />
         ))}
       </Accordion.Content>

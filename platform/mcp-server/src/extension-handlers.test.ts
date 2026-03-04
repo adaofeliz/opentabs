@@ -659,18 +659,18 @@ describe('handleConfigGetState', () => {
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as {
-      result: { browserTools: { name: string; description: string; enabled: boolean }[] };
+      result: { browserTools: { name: string; description: string; permission: string }[] };
     };
     expect(response.result.browserTools).toHaveLength(2);
     expect(response.result.browserTools[0]).toEqual({
       name: 'browser_list_tabs',
       description: 'List all open browser tabs',
-      enabled: true,
+      permission: 'off',
     });
     expect(response.result.browserTools[1]).toEqual({
       name: 'browser_screenshot',
       description: 'Capture a screenshot',
-      enabled: true,
+      permission: 'off',
     });
   });
 
@@ -696,7 +696,7 @@ describe('handleConfigGetState', () => {
     ]);
   });
 
-  test('browser tool disabled in browserToolPolicy has enabled: false', () => {
+  test('browser tool disabled in browserToolPolicy has permission: off', () => {
     const state = createState();
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
@@ -709,12 +709,12 @@ describe('handleConfigGetState', () => {
     handleConfigGetState(state, 'req-3');
 
     const response = JSON.parse(messages[0] as string) as {
-      result: { browserTools: { name: string; enabled: boolean }[] };
+      result: { browserTools: { name: string; permission: string }[] };
     };
     const listTabs = response.result.browserTools.find(t => t.name === 'browser_list_tabs');
     const screenshot = response.result.browserTools.find(t => t.name === 'browser_screenshot');
-    expect(listTabs?.enabled).toBe(false);
-    expect(screenshot?.enabled).toBe(true);
+    expect(listTabs?.permission).toBe('off');
+    expect(screenshot?.permission).toBe('off');
   });
 
   test('empty cachedBrowserTools returns empty browserTools array', () => {
@@ -761,7 +761,7 @@ describe('handleConfigSetBrowserToolEnabled', () => {
       { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
     ];
 
-    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: false }, 'req-1', noopCallbacks);
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', permission: 'off' }, 'req-1', noopCallbacks);
 
     expect(state.browserToolPolicy.browser_list_tabs).toBe(false);
     // First message is plugins.changed notification, second is the result
@@ -780,8 +780,8 @@ describe('handleConfigSetBrowserToolEnabled', () => {
     // The disabled tool should be reflected in browserTools
     const listTabsTool = notification.params.browserTools.find(
       (t: unknown) => (t as { name: string }).name === 'browser_list_tabs',
-    ) as { enabled: boolean } | undefined;
-    expect(listTabsTool?.enabled).toBe(false);
+    ) as { permission: string } | undefined;
+    expect(listTabsTool?.permission).toBe('off');
     const response = JSON.parse(messages[1] as string) as { result: { ok: boolean }; id: string };
     expect(response.result).toEqual({ ok: true });
     expect(response.id).toBe('req-1');
@@ -806,7 +806,7 @@ describe('handleConfigSetBrowserToolEnabled', () => {
       },
     };
 
-    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: false }, 'req-2', callbacks);
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', permission: 'off' }, 'req-2', callbacks);
 
     expect(configChanged).toBe(true);
     expect(policyPersisted).toBe(true);
@@ -820,7 +820,7 @@ describe('handleConfigSetBrowserToolEnabled', () => {
       { name: 'browser_list_tabs', description: 'List tabs', inputSchema: {}, tool: null as never },
     ];
 
-    handleConfigSetBrowserToolEnabled(state, { tool: 'nonexistent_tool', enabled: false }, 'req-3', noopCallbacks);
+    handleConfigSetBrowserToolEnabled(state, { tool: 'nonexistent_tool', permission: 'off' }, 'req-3', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
@@ -846,12 +846,12 @@ describe('handleConfigSetBrowserToolEnabled', () => {
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
 
-    handleConfigSetBrowserToolEnabled(state, { tool: 123, enabled: 'yes' }, 'req-5', noopCallbacks);
+    handleConfigSetBrowserToolEnabled(state, { tool: 123, permission: 'yes' }, 'req-5', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
     expect(response.error.code).toBe(-32602);
-    expect(response.error.message).toContain('expected tool (string), enabled (boolean)');
+    expect(response.error.message).toContain('expected tool (string), permission (string)');
   });
 
   test('re-enabling a disabled tool sets policy to true', () => {
@@ -863,7 +863,7 @@ describe('handleConfigSetBrowserToolEnabled', () => {
     ];
     state.browserToolPolicy = { browser_list_tabs: false };
 
-    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', enabled: true }, 'req-6', noopCallbacks);
+    handleConfigSetBrowserToolEnabled(state, { tool: 'browser_list_tabs', permission: 'auto' }, 'req-6', noopCallbacks);
 
     expect(state.browserToolPolicy.browser_list_tabs).toBe(true);
   });
@@ -884,7 +884,7 @@ describe('handleConfigSetAllBrowserToolsEnabled', () => {
       { name: 'browser_screenshot', description: 'Screenshot', inputSchema: {}, tool: null as never },
     ];
 
-    handleConfigSetAllBrowserToolsEnabled(state, { enabled: false }, 'req-1', noopCallbacks);
+    handleConfigSetAllBrowserToolsEnabled(state, { permission: 'off' }, 'req-1', noopCallbacks);
 
     expect(state.browserToolPolicy.browser_list_tabs).toBe(false);
     expect(state.browserToolPolicy.browser_screenshot).toBe(false);
@@ -902,12 +902,12 @@ describe('handleConfigSetAllBrowserToolsEnabled', () => {
     // Both tools should be disabled in browserTools
     const listTabsTool = notification.params.browserTools.find(
       (t: unknown) => (t as { name: string }).name === 'browser_list_tabs',
-    ) as { enabled: boolean } | undefined;
+    ) as { permission: string } | undefined;
     const screenshotTool = notification.params.browserTools.find(
       (t: unknown) => (t as { name: string }).name === 'browser_screenshot',
-    ) as { enabled: boolean } | undefined;
-    expect(listTabsTool?.enabled).toBe(false);
-    expect(screenshotTool?.enabled).toBe(false);
+    ) as { permission: string } | undefined;
+    expect(listTabsTool?.permission).toBe('off');
+    expect(screenshotTool?.permission).toBe('off');
     const response = JSON.parse(messages[1] as string) as { result: { ok: boolean }; id: string };
     expect(response.result).toEqual({ ok: true });
     expect(response.id).toBe('req-1');
@@ -923,7 +923,7 @@ describe('handleConfigSetAllBrowserToolsEnabled', () => {
     ];
     state.browserToolPolicy = { browser_list_tabs: false, browser_screenshot: false };
 
-    handleConfigSetAllBrowserToolsEnabled(state, { enabled: true }, 'req-2', noopCallbacks);
+    handleConfigSetAllBrowserToolsEnabled(state, { permission: 'auto' }, 'req-2', noopCallbacks);
 
     expect(state.browserToolPolicy.browser_list_tabs).toBe(true);
     expect(state.browserToolPolicy.browser_screenshot).toBe(true);
@@ -948,7 +948,7 @@ describe('handleConfigSetAllBrowserToolsEnabled', () => {
       },
     };
 
-    handleConfigSetAllBrowserToolsEnabled(state, { enabled: false }, 'req-3', callbacks);
+    handleConfigSetAllBrowserToolsEnabled(state, { permission: 'off' }, 'req-3', callbacks);
 
     expect(configChanged).toBe(true);
     expect(policyPersisted).toBe(true);
@@ -972,12 +972,12 @@ describe('handleConfigSetAllBrowserToolsEnabled', () => {
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
 
-    handleConfigSetAllBrowserToolsEnabled(state, { enabled: 'yes' }, 'req-5', noopCallbacks);
+    handleConfigSetAllBrowserToolsEnabled(state, { permission: 123 }, 'req-5', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
     expect(response.error.code).toBe(-32602);
-    expect(response.error.message).toContain('expected enabled (boolean)');
+    expect(response.error.message).toContain('expected permission (string)');
   });
 });
 
@@ -992,7 +992,6 @@ describe('handleConfigSetToolEnabled', () => {
     version: '1.0.0',
     displayName: name,
     urlPatterns: ['https://example.com/*'],
-    trustTier: 'local',
     iife: '',
     tools: toolNames.map(toolName => ({
       name: toolName,
@@ -1017,7 +1016,7 @@ describe('handleConfigSetToolEnabled', () => {
 
     handleConfigSetToolEnabled(
       state,
-      { plugin: 'test-plugin', tool: 'do_thing', enabled: false },
+      { plugin: 'test-plugin', tool: 'do_thing', permission: 'off' },
       'req-1',
       noopCallbacks,
     );
@@ -1036,9 +1035,9 @@ describe('handleConfigSetToolEnabled', () => {
     // The updated toolConfig should be reflected in the plugins.changed payload
     const pluginEntry = notification.params.plugins.find(
       (p: unknown) => (p as { name: string }).name === 'test-plugin',
-    ) as { tools: { name: string; enabled: boolean }[] } | undefined;
+    ) as { tools: { name: string; permission: string }[] } | undefined;
     const tool = pluginEntry?.tools.find(t => t.name === 'do_thing');
-    expect(tool?.enabled).toBe(false);
+    expect(tool?.permission).toBe('off');
     const response = JSON.parse(messages[1] as string) as { result: { ok: boolean }; id: string };
     expect(response.result).toEqual({ ok: true });
     expect(response.id).toBe('req-1');
@@ -1056,7 +1055,7 @@ describe('handleConfigSetToolEnabled', () => {
 
     handleConfigSetToolEnabled(
       state,
-      { plugin: 'test-plugin', tool: 'do_thing', enabled: false },
+      { plugin: 'test-plugin', tool: 'do_thing', permission: 'off' },
       'req-2',
       noopCallbacks,
     );
@@ -1085,7 +1084,12 @@ describe('handleConfigSetToolEnabled', () => {
       },
     };
 
-    handleConfigSetToolEnabled(state, { plugin: 'test-plugin', tool: 'do_thing', enabled: false }, 'req-3', callbacks);
+    handleConfigSetToolEnabled(
+      state,
+      { plugin: 'test-plugin', tool: 'do_thing', permission: 'off' },
+      'req-3',
+      callbacks,
+    );
 
     expect(configChanged).toBe(true);
     expect(configPersisted).toBe(true);
@@ -1098,7 +1102,7 @@ describe('handleConfigSetToolEnabled', () => {
 
     handleConfigSetToolEnabled(
       state,
-      { plugin: 'nonexistent', tool: 'do_thing', enabled: false },
+      { plugin: 'nonexistent', tool: 'do_thing', permission: 'off' },
       'req-4',
       noopCallbacks,
     );
@@ -1121,7 +1125,7 @@ describe('handleConfigSetToolEnabled', () => {
 
     handleConfigSetToolEnabled(
       state,
-      { plugin: 'test-plugin', tool: 'nonexistent', enabled: false },
+      { plugin: 'test-plugin', tool: 'nonexistent', permission: 'off' },
       'req-5',
       noopCallbacks,
     );
@@ -1150,7 +1154,7 @@ describe('handleConfigSetToolEnabled', () => {
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
 
-    handleConfigSetToolEnabled(state, { plugin: 123, tool: 'do_thing', enabled: 'yes' }, 'req-7', noopCallbacks);
+    handleConfigSetToolEnabled(state, { plugin: 123, tool: 'do_thing', permission: 'yes' }, 'req-7', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
@@ -1170,7 +1174,6 @@ describe('handleConfigSetAllToolsEnabled', () => {
     version: '1.0.0',
     displayName: name,
     urlPatterns: ['https://example.com/*'],
-    trustTier: 'local',
     iife: '',
     tools: toolNames.map(toolName => ({
       name: toolName,
@@ -1193,7 +1196,7 @@ describe('handleConfigSetAllToolsEnabled', () => {
       plugins: new Map([['test-plugin', plugin]]) as ReadonlyMap<string, RegisteredPlugin>,
     };
 
-    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', enabled: false }, 'req-1', noopCallbacks);
+    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', permission: 'off' }, 'req-1', noopCallbacks);
 
     // Two messages: plugins.changed notification, then result
     expect(messages).toHaveLength(2);
@@ -1209,8 +1212,8 @@ describe('handleConfigSetAllToolsEnabled', () => {
     // Both tools should be disabled in the payload
     const pluginEntry = notification.params.plugins.find(
       (p: unknown) => (p as { name: string }).name === 'test-plugin',
-    ) as { tools: { name: string; enabled: boolean }[] } | undefined;
-    expect(pluginEntry?.tools.every(t => !t.enabled)).toBe(true);
+    ) as { tools: { name: string; permission: string }[] } | undefined;
+    expect(pluginEntry?.tools.every(t => t.permission === 'off')).toBe(true);
     const response = JSON.parse(messages[1] as string) as { result: { ok: boolean }; id: string };
     expect(response.result).toEqual({ ok: true });
     expect(response.id).toBe('req-1');
@@ -1226,7 +1229,7 @@ describe('handleConfigSetAllToolsEnabled', () => {
       plugins: new Map([['test-plugin', plugin]]) as ReadonlyMap<string, RegisteredPlugin>,
     };
 
-    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', enabled: false }, 'req-2', noopCallbacks);
+    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', permission: 'off' }, 'req-2', noopCallbacks);
 
     expect(state.toolConfig['test-plugin_tool_a']).toBe(false);
     expect(state.toolConfig['test-plugin_tool_b']).toBe(false);
@@ -1253,7 +1256,7 @@ describe('handleConfigSetAllToolsEnabled', () => {
       },
     };
 
-    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', enabled: true }, 'req-3', callbacks);
+    handleConfigSetAllToolsEnabled(state, { plugin: 'test-plugin', permission: 'auto' }, 'req-3', callbacks);
 
     expect(configChanged).toBe(true);
     expect(configPersisted).toBe(true);
@@ -1264,7 +1267,7 @@ describe('handleConfigSetAllToolsEnabled', () => {
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
 
-    handleConfigSetAllToolsEnabled(state, { plugin: 'nonexistent', enabled: false }, 'req-4', noopCallbacks);
+    handleConfigSetAllToolsEnabled(state, { plugin: 'nonexistent', permission: 'off' }, 'req-4', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
@@ -1290,7 +1293,7 @@ describe('handleConfigSetAllToolsEnabled', () => {
     const { ws, messages } = createMockWs();
     state.extensionWs = ws;
 
-    handleConfigSetAllToolsEnabled(state, { plugin: 123, enabled: 'yes' }, 'req-6', noopCallbacks);
+    handleConfigSetAllToolsEnabled(state, { plugin: 123, permission: 'yes' }, 'req-6', noopCallbacks);
 
     expect(messages).toHaveLength(1);
     const response = JSON.parse(messages[0] as string) as { error: { code: number; message: string } };
