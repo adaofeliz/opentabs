@@ -72,7 +72,7 @@ describe('create-opentabs-plugin CLI', () => {
         devDependencies: Record<string, string>;
       };
 
-      expect(pkgJson.name).toBe('opentabs-plugin-my-plugin');
+      expect(pkgJson.name).toBe('@opentabs-dev/opentabs-plugin-my-plugin');
       expect(pkgJson.dependencies['@opentabs-dev/plugin-sdk']).toBeDefined();
       expect(pkgJson.devDependencies['@opentabs-dev/plugin-tools']).toBeDefined();
     });
@@ -319,8 +319,8 @@ describe('create-opentabs-plugin CLI', () => {
 
       // Verify package.json has opentabs field with metadata
       const pkgJson = JSON.parse(await readFile(join(projectDir, 'package.json'), 'utf-8')) as Record<string, unknown>;
-      expect(pkgJson.name).toBe('opentabs-plugin-build-test');
-      expect(pkgJson.version).toBe('0.0.1');
+      expect(pkgJson.name).toBe('@opentabs-dev/opentabs-plugin-build-test');
+      expect(pkgJson.version).toMatch(/^\d+\.\d+\.\d+$/);
       expect(pkgJson.main).toBe('dist/adapter.iife.js');
       const opentabs = pkgJson.opentabs as { urlPatterns: string[] };
       expect(Array.isArray(opentabs.urlPatterns)).toBe(true);

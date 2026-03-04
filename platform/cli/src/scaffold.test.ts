@@ -134,6 +134,22 @@ describe('scaffoldPlugin', () => {
     expect(config.linter.rules.correctness.noUnusedVariables).toBe('error');
   });
 
+  test('generated package.json uses scoped name, publishConfig, and resolved version', async () => {
+    mockNpmViewSuccess('0.0.60');
+
+    await scaffoldPlugin({ name: 'figma', domain: 'figma.com' });
+
+    const pkg = JSON.parse(await readFile(join(tmpDir, 'figma', 'package.json'), 'utf-8')) as {
+      name: string;
+      version: string;
+      publishConfig: { access: string };
+    };
+
+    expect(pkg.name).toBe('@opentabs-dev/opentabs-plugin-figma');
+    expect(pkg.publishConfig).toEqual({ access: 'restricted' });
+    expect(pkg.version).toBe('0.0.60');
+  });
+
   test('cleans up partial directory if a file write fails, allowing retry', async () => {
     const fsp = await import('node:fs/promises');
     vi.mocked(fsp.writeFile).mockRejectedValueOnce(new Error('Disk full'));
@@ -250,10 +266,16 @@ describe('scaffoldPlugin version resolution', () => {
     await scaffoldPlugin({ name: 'registry-test', domain: 'example.com' });
 
     const pkg = JSON.parse(await readFile(join(tmpDir, 'registry-test', 'package.json'), 'utf-8')) as {
+      name: string;
+      version: string;
+      publishConfig: { access: string };
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
     };
 
+    expect(pkg.name).toBe('@opentabs-dev/opentabs-plugin-registry-test');
+    expect(pkg.version).toBe('0.0.99');
+    expect(pkg.publishConfig).toEqual({ access: 'restricted' });
     expect(pkg.dependencies['@opentabs-dev/plugin-sdk']).toBe('^0.0.99');
     expect(pkg.devDependencies['@opentabs-dev/plugin-tools']).toBe('^0.0.99');
   });
