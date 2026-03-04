@@ -15,30 +15,23 @@ interface UseServerNotificationsParams {
 
 interface UseServerNotificationsResult {
   handleNotification: (data: Record<string, unknown>) => void;
-  clearConfirmationTimeout: (id: string) => void;
 }
 
 /**
  * Returns a stable callback that processes server notification messages
- * (confirmation.request, tab.stateChanged, tool.invocationStart, tool.invocationEnd)
- * and a function to clear a confirmation's auto-removal timeout.
+ * (confirmation.request, tab.stateChanged, tool.invocationStart, tool.invocationEnd).
  */
 const useServerNotifications = ({
   setPlugins,
   setActiveTools,
   setPendingConfirmations,
 }: UseServerNotificationsParams): UseServerNotificationsResult => {
-  const timeoutIds = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const seenConfirmationIds = useRef<Set<string>>(new Set());
   const invocationTimeoutIds = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
   useEffect(() => {
-    const confirmationMap = timeoutIds.current;
     const invocationMap = invocationTimeoutIds.current;
     return () => {
-      for (const id of confirmationMap.values()) {
-        clearTimeout(id);
-      }
-      confirmationMap.clear();
       for (const id of invocationMap.values()) {
         clearTimeout(id);
       }
@@ -46,40 +39,26 @@ const useServerNotifications = ({
     };
   }, []);
 
-  const clearConfirmationTimeout = (id: string) => {
-    const tid = timeoutIds.current.get(id);
-    if (tid !== undefined) {
-      clearTimeout(tid);
-      timeoutIds.current.delete(id);
-    }
-  };
-
   const handleNotification = (data: Record<string, unknown>): void => {
     if (data.method === 'confirmation.request' && data.params) {
       const params = data.params as Record<string, unknown>;
       if (typeof params.id === 'string' && typeof params.tool === 'string') {
-        // Use the background's receivedAt when hydrating from bg:getFullState so
-        // the UI reflects true elapsed time since the request arrived.
-        const receivedAt =
-          typeof params.receivedAt === 'number' && params.receivedAt > 0 ? params.receivedAt : Date.now();
+        // Skip duplicate confirmations (e.g., real-time sp:serverMessage
+        // followed by bg:getFullState hydration for the same id).
+        if (seenConfirmationIds.current.has(params.id)) return;
+        seenConfirmationIds.current.add(params.id);
+
         const confirmation: ConfirmationData = {
           id: params.id,
           tool: params.tool,
-          domain: null,
-          paramsPreview: typeof params.params === 'object' && params.params ? JSON.stringify(params.params) : '',
-          timeoutMs: 0,
-          receivedAt,
+          plugin: typeof params.plugin === 'string' ? params.plugin : 'unknown',
+          params:
+            typeof params.params === 'object' && params.params !== null
+              ? (params.params as Record<string, unknown>)
+              : {},
         };
-        // Skip duplicate confirmations (e.g., real-time sp:serverMessage
-        // followed by bg:getFullState hydration for the same id).
-        if (timeoutIds.current.has(confirmation.id)) return;
 
         setPendingConfirmations(prev => (prev.some(c => c.id === confirmation.id) ? prev : [...prev, confirmation]));
-        // Mark this confirmation id so duplicates are skipped
-        timeoutIds.current.set(
-          confirmation.id,
-          setTimeout(() => {}, 0),
-        );
       }
     }
 
@@ -142,7 +121,7 @@ const useServerNotifications = ({
     }
   };
 
-  return { handleNotification, clearConfirmationTimeout };
+  return { handleNotification };
 };
 
 export { useServerNotifications };

@@ -65,7 +65,7 @@ const App = () => {
     pluginsRef.current = plugins;
   }, [connected, loading, plugins]);
 
-  const { handleNotification, clearConfirmationTimeout } = useServerNotifications({
+  const { handleNotification } = useServerNotifications({
     setPlugins,
     setActiveTools,
     setPendingConfirmations,
@@ -222,9 +222,7 @@ const App = () => {
       });
 
       // Hydrate pending confirmations from the background. Replay each one
-      // through handleNotification so auto-removal timeouts are registered.
-      // handleNotification adds each confirmation to React state and sets up
-      // the auto-removal timeout using the background's receivedAt timestamp.
+      // through handleNotification so deduplication tracking is registered.
       for (const c of result.pendingConfirmations ?? []) {
         handleNotification({
           method: 'confirmation.request',
@@ -233,7 +231,6 @@ const App = () => {
             tool: c.tool,
             plugin: c.plugin,
             params: c.params,
-            receivedAt: c.receivedAt,
           },
         });
       }
@@ -328,25 +325,9 @@ const App = () => {
     };
   }, [handleNotification]);
 
-  const handleConfirmationRespond = (
-    id: string,
-    decision: 'allow_once' | 'allow_always' | 'deny',
-    _scope?: 'tool_domain' | 'tool_all' | 'domain_all',
-  ) => {
-    clearConfirmationTimeout(id);
-    // Translate old ConfirmationDialog decision to new bridge API
-    const newDecision = decision === 'deny' ? 'deny' : 'allow';
-    const alwaysAllow = decision === 'allow_always' ? true : undefined;
-    sendConfirmationResponse(id, newDecision, alwaysAllow);
+  const handleConfirmationRespond = (id: string, decision: 'allow' | 'deny', alwaysAllow?: boolean) => {
+    sendConfirmationResponse(id, decision, alwaysAllow);
     setPendingConfirmations(prev => prev.filter(c => c.id !== id));
-  };
-
-  const handleDenyAll = () => {
-    for (const c of pendingConfirmations) {
-      clearConfirmationTimeout(c.id);
-      sendConfirmationResponse(c.id, 'deny');
-    }
-    setPendingConfirmations([]);
   };
 
   const hasContent = plugins.length > 0 || failedPlugins.length > 0 || browserTools.length > 0;
@@ -356,13 +337,7 @@ const App = () => {
   return (
     <Tooltip.Provider>
       <div className="flex h-screen flex-col overflow-hidden text-foreground">
-        {connected && pendingConfirmations.length > 0 && (
-          <ConfirmationDialog
-            confirmations={pendingConfirmations}
-            onRespond={handleConfirmationRespond}
-            onDenyAll={handleDenyAll}
-          />
-        )}
+        {connected && <ConfirmationDialog confirmations={pendingConfirmations} onRespond={handleConfirmationRespond} />}
         {showSearchBar && (
           <div className="shrink-0 px-4 pt-4 pb-2">
             <div className="relative">
