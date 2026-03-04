@@ -67,7 +67,6 @@ interface StartOptions {
   port?: number;
   showConfig?: boolean;
   background?: boolean;
-  dangerouslySkipPermissions?: boolean;
 }
 
 const resolveServerEntry = (): string => {
@@ -315,11 +314,13 @@ const handleStart = async (options: StartOptions): Promise<void> => {
   const env: Record<string, string | undefined> = { ...process.env };
   env.PORT = String(port);
 
-  const serverArgs = options.dangerouslySkipPermissions ? ['--dangerously-skip-permissions'] : [];
+  const serverArgs: string[] = [];
 
-  if (options.dangerouslySkipPermissions) {
+  if (process.env.OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS === '1') {
     console.warn(
-      pc.yellow('WARNING: Approval prompts for ask-mode tools are bypassed. Disabled (off) tools remain off.'),
+      pc.yellow(
+        'WARNING: OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS is set. AI runs tools without asking. Off tools stay off.',
+      ),
     );
     console.log('');
   }
@@ -444,7 +445,6 @@ const registerStartCommand = (program: Command): void => {
     .option('--port <number>', 'Server port (default: 9515)', parsePort)
     .option('--background', 'Start the server in the background')
     .option('--show-config', 'Print full MCP client configuration even on subsequent runs')
-    .option('--dangerously-skip-permissions', 'Skip approval prompts for ask-mode tools (disabled tools stay disabled)')
     .addHelpText(
       'after',
       `
@@ -453,7 +453,9 @@ Examples:
   $ opentabs start --background
   $ opentabs start --port 3000
   $ opentabs start --show-config
-  $ opentabs start --dangerously-skip-permissions`,
+
+Environment:
+  OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS=1  Skip approval prompts (off tools stay off)`,
     )
     .action((_options: StartOptions, command: Command) => handleStart(command.optsWithGlobals()));
 };

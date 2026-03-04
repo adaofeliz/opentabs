@@ -159,7 +159,7 @@ test.describe('Side panel — tool permission change', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], permissions: { 'e2e-test': { permission: 'auto' } } });
 
     // Disable skipPermissions so permission selects are interactive
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const mcpClient = createMcpClient(server.port, server.secret);
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
@@ -286,7 +286,7 @@ test.describe('Side panel — disabled tool dispatch rejection', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], permissions: { 'e2e-test': { permission: 'auto' } } });
 
     // Disable skipPermissions so permission selects are interactive
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const testServer = await startTestServer();
     const mcpClient = createMcpClient(server.port, server.secret);
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
@@ -402,7 +402,7 @@ test.describe('Side panel — plugin-level permission select', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], permissions: { 'e2e-test': { permission: 'auto' } } });
 
     // Disable skipPermissions so permission selects are interactive
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const mcpClient = createMcpClient(server.port, server.secret);
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
@@ -523,7 +523,7 @@ test.describe('Side panel — skipPermissions mode and group headers', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], permissions: { 'e2e-test': { permission: 'auto' } } });
 
     // Enable skipPermissions — selects should remain interactive (not disabled)
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '1' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '1' });
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
 
@@ -538,8 +538,8 @@ test.describe('Side panel — skipPermissions mode and group headers', () => {
       });
 
       // Wait for the approval-bypassed banner to confirm skipPermissions propagated
-      await expect(sidePanelPage.getByText('Approval prompts bypassed')).toBeVisible({ timeout: 15_000 });
-      await expect(sidePanelPage.getByText('--dangerously-skip-permissions')).toBeVisible();
+      await expect(sidePanelPage.getByText('Approvals skipped')).toBeVisible({ timeout: 15_000 });
+      await expect(sidePanelPage.getByText('OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS')).toBeVisible();
 
       // Verify the plugin-level select trigger is visible and ENABLED (not disabled)
       const pluginTrigger = sidePanelPage.locator('[aria-label="Permission for e2e-test plugin"]');

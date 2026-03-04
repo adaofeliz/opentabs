@@ -527,7 +527,7 @@ const startMcpServer = (
         PORT: portStr,
         OPENTABS_CONFIG_DIR: configDir,
         OPENTABS_SKIP_NPM_DISCOVERY: '1',
-        OPENTABS_SKIP_PERMISSIONS: '1',
+        OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '1',
         OPENTABS_SKIP_SANITIZATION: '1',
         // Use a short mtime polling interval so the fallback catches missed
         // fs.watch events quickly. Under high parallelism (16+ Playwright

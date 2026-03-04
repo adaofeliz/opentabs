@@ -48,7 +48,7 @@ test.describe('Side panel real-time state propagation', () => {
     });
 
     // Disable skipPermissions so permission changes are visible in the UI
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const mcpClient = createMcpClient(server.port, server.secret);
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);
@@ -229,7 +229,7 @@ test.describe('Side panel real-time state propagation', () => {
     });
 
     // Disable skipPermissions so permission changes are visible in the UI
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const mcpClient = createMcpClient(server.port, server.secret);
     const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
     setupAdapterSymlink(configDir, extensionDir);

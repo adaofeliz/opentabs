@@ -14,19 +14,16 @@ Build a production-ready OpenTabs plugin for any web application. This skill gui
 
 Plugin development requires heavy use of browser tools (`browser_execute_script`, `browser_navigate_tab`, `browser_get_tab_content`, etc.) for exploring the target web app. By default, all tools have permission `'off'` (disabled). Tools set to `'ask'` require human approval in the Chrome extension side panel before executing.
 
-**Before starting, ask the user if they want to enable `skipPermissions`** to bypass all permission checks during the development session. This sets all tools to `'auto'` (execute immediately), dramatically speeding up exploration and testing.
+**Before starting, ask the user if they want to enable `skipPermissions`** to bypass approval prompts during the development session. This converts `'ask'` tools to `'auto'` (execute immediately), dramatically speeding up exploration and testing. Tools set to `'off'` remain disabled.
 
-Two ways to enable it:
-
-1. Restart the MCP server: `opentabs start --dangerously-skip-permissions`
-2. Set the env var: `OPENTABS_SKIP_PERMISSIONS=1`
+Set the env var: `OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS=1`
 
 Alternatively, set specific plugins or tools to `'auto'` in `~/.opentabs/config.json`:
 ```json
 { "permissions": { "__browser__": { "permission": "auto" } } }
 ```
 
-**Warn the user**: `skipPermissions` disables all human-in-the-loop safety for tool operations. It should only be used during active plugin development sessions and disabled afterward.
+**Warn the user**: `skipPermissions` bypasses human approval for tool operations. It should only be used during active plugin development sessions and unset afterward.
 
 If the user declines, set browser tools to `'ask'` permission and plan for manual approvals — use read-only tools like `opentabs_plugin_list_tabs` (no approval needed when set to `'auto'`) where possible, and batch browser tool calls to minimize the number of approvals needed.
 

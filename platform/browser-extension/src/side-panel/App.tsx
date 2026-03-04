@@ -346,11 +346,15 @@ const App = () => {
       <div className="flex h-screen flex-col overflow-hidden text-foreground">
         {connected && <ConfirmationDialog confirmations={pendingConfirmations} onRespond={handleConfirmationRespond} />}
         {skipPermissions && (
-          <div className="flex shrink-0 items-center gap-2 border-border border-b bg-accent/40 px-4 py-1.5">
-            <ShieldOff className="h-3.5 w-3.5 shrink-0 text-accent-foreground/70" />
-            <span className="text-[11px] text-accent-foreground leading-tight">
-              AI won't ask before running tools. Off tools stay off.
-            </span>
+          <div className="shrink-0 border-destructive border-b-2 bg-destructive/15 px-4 py-1.5">
+            <div className="flex items-center gap-1.5">
+              <ShieldOff className="h-3.5 w-3.5 shrink-0 text-destructive" />
+              <span className="font-head text-destructive text-xs uppercase">Approvals skipped</span>
+            </div>
+            <p className="mt-0.5 text-[11px] text-foreground/70 leading-tight">
+              AI runs tools without asking. Off tools stay off. Set by{' '}
+              <code className="font-mono">OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS</code>.
+            </p>
           </div>
         )}
         {showSearchBar && (

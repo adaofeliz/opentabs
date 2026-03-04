@@ -10,7 +10,7 @@
  *   - Plugin-level permission: setting plugin to 'auto' makes all tools auto
  *   - Per-tool override: tool-level permission overrides plugin default
  *
- * These tests start the MCP server WITHOUT OPENTABS_SKIP_PERMISSIONS and use
+ * These tests start the MCP server WITHOUT OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS and use
  * explicit plugin permission configs to exercise each permission state.
  */
 
@@ -44,7 +44,7 @@ import {
 // ---------------------------------------------------------------------------
 
 interface PermissionFixtures {
-  /** MCP server started WITHOUT OPENTABS_SKIP_PERMISSIONS. */
+  /** MCP server started WITHOUT OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS. */
   mcpServer: McpServer;
   /** Controllable test web server (bound to 0.0.0.0 so 127.0.0.2 works). */
   testServer: TestServer;
@@ -57,10 +57,10 @@ interface PermissionFixtures {
 const test = base.extend<PermissionFixtures>({
   mcpServer: async ({ browserName: _ }, use) => {
     const configDir = createTestConfigDir();
-    // Start server with OPENTABS_SKIP_PERMISSIONS set to empty string
+    // Start server with OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS set to empty string
     // to disable the bypass. The check is `=== '1'`, so '' disables it.
     const server = await startMcpServer(configDir, true, undefined, {
-      OPENTABS_SKIP_PERMISSIONS: '',
+      OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '',
     });
     try {
       await use(server);
@@ -363,7 +363,7 @@ test.describe('skipPermissions bypass', () => {
       writeTestConfig(configDir, config);
 
       const server = await startMcpServer(configDir, true, undefined, {
-        OPENTABS_SKIP_PERMISSIONS: '1',
+        OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '1',
       });
       try {
         const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
@@ -411,7 +411,7 @@ test.describe('skipPermissions bypass', () => {
       writeTestConfig(configDir, config);
 
       const server = await startMcpServer(configDir, true, undefined, {
-        OPENTABS_SKIP_PERMISSIONS: '1',
+        OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '1',
       });
       try {
         const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);

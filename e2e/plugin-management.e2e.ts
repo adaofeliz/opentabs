@@ -514,7 +514,7 @@ test.describe('config.setPluginPermission', () => {
     config.permissions = { 'e2e-test': { permission: 'auto' } };
     writeTestConfig(configDir, config);
 
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const { sendRequest, close } = await connectWs(server.port, server.secret);
     const mcpClient = createMcpClient(server.port, server.secret);
     await mcpClient.initialize();
@@ -559,7 +559,7 @@ test.describe('config.setPluginPermission', () => {
     config.permissions = { 'e2e-test': { permission: 'auto' } };
     writeTestConfig(configDir, config);
 
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const { sendRequest, close } = await connectWs(server.port, server.secret);
     const mcpClient = createMcpClient(server.port, server.secret);
     await mcpClient.initialize();
@@ -611,7 +611,7 @@ test.describe('config.setPluginPermission', () => {
     config.permissions = { 'e2e-test': { permission: 'auto' } };
     writeTestConfig(configDir, config);
 
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const { sendRequest, close } = await connectWs(server.port, server.secret);
     const mcpClient = createMcpClient(server.port, server.secret);
     await mcpClient.initialize();
@@ -666,7 +666,7 @@ test.describe('config.setToolPermission', () => {
     config.permissions = { 'e2e-test': { permission: 'auto' } };
     writeTestConfig(configDir, config);
 
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const { sendRequest, close } = await connectWs(server.port, server.secret);
     const mcpClient = createMcpClient(server.port, server.secret);
     await mcpClient.initialize();

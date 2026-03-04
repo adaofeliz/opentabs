@@ -134,7 +134,7 @@ Controls which tools require human approval before executing. The `permissions` 
   </Table.Body>
 </Table>
 
-Resolution order: `skipPermissions` (CLI flag / env var) → per-tool override → plugin default → `'off'`.
+Resolution order: `skipPermissions` (`OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS` env var) → per-tool override → plugin default → `'off'`.
 
 Example — set Slack tools to require approval by default, but auto-approve `send_message` and disable `delete_message`:
 
@@ -172,7 +172,7 @@ Permissions are managed through the Chrome extension side panel. The side panel 
 
 ### Bypassing permissions
 
-The `--dangerously-skip-permissions` flag on `opentabs start` or the `OPENTABS_SKIP_PERMISSIONS=1` environment variable bypasses all permission checks — all tools become `'auto'`. **This is dangerous and intended only for CI/testing environments.** In normal usage, configure per-plugin and per-tool permissions via the side panel or `config.json`.
+Set the `OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS=1` environment variable to bypass approval prompts for tools in `'ask'` mode (they run as `'auto'`). Tools set to `'off'` remain disabled. **This is dangerous and intended only for CI/testing environments.** In normal usage, configure per-plugin and per-tool permissions via the side panel or `config.json`.
 
 ## Plugin discovery
 
@@ -215,9 +215,9 @@ Local plugins override npm plugins of the same name. Discovery runs at server st
       <Table.Cell>Set to `1` to enable dev mode. Equivalent to passing `--dev` to the MCP server binary (used by platform contributors via `npm run dev`). Enables file watchers and config watching.</Table.Cell>
     </Table.Row>
     <Table.Row>
-      <Table.Cell className="font-medium">`OPENTABS_SKIP_PERMISSIONS`</Table.Cell>
+      <Table.Cell className="font-medium">`OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS`</Table.Cell>
       <Table.Cell>_(unset)_</Table.Cell>
-      <Table.Cell>Set to `1` to bypass all permission checks — all tools become `'auto'`. Equivalent to `--dangerously-skip-permissions`. For CI/testing only.</Table.Cell>
+      <Table.Cell>Set to `1` to bypass approval prompts for ask-mode tools (they run as auto). Off tools stay off. For CI/testing only.</Table.Cell>
     </Table.Row>
     <Table.Row>
       <Table.Cell className="font-medium">`OPENTABS_LOG_LEVEL`</Table.Cell>

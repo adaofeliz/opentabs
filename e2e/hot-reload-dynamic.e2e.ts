@@ -233,7 +233,7 @@ test.describe
       });
 
       // Disable skipPermissions so [Disabled] prefix appears
-      const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+      const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
       const client = createMcpClient(server.port, server.secret);
 
       try {
@@ -279,7 +279,7 @@ test.describe
       });
 
       // Disable skipPermissions so [Disabled] prefix appears
-      const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+      const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
       const client = createMcpClient(server.port, server.secret);
 
       try {
@@ -504,7 +504,7 @@ test.describe('Hot reload — multiple MCP sessions', () => {
     writeTestConfig(configDir, { localPlugins: [absPluginPath], permissions: { 'e2e-test': { permission: 'auto' } } });
 
     // Disable skipPermissions so [Disabled] prefix appears
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const client1 = createMcpClient(server.port, server.secret);
     const client2 = createMcpClient(server.port, server.secret);
 
@@ -690,7 +690,7 @@ test.describe('File watcher + hot reload combined', () => {
     // Start with e2e-test at 'auto' permission; disable skipPermissions so [Disabled] prefix appears
     writeTestConfig(configDir, { localPlugins: [pluginDir], permissions: { 'e2e-test': { permission: 'auto' } } });
 
-    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_SKIP_PERMISSIONS: '' });
+    const server = await startMcpServer(configDir, true, undefined, { OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '' });
     const client = createMcpClient(server.port, server.secret);
 
     try {

@@ -11,7 +11,7 @@
  *   - Reviewed plugin does not show unreviewed icon or dialog
  *   - plugin_inspect and plugin_mark_reviewed do not appear in side panel
  *
- * These tests start the MCP server WITHOUT OPENTABS_SKIP_PERMISSIONS and use
+ * These tests start the MCP server WITHOUT OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS and use
  * explicit plugin permission configs to exercise the review system.
  */
 
@@ -47,7 +47,7 @@ import {
 // ---------------------------------------------------------------------------
 
 interface ReviewFixtures {
-  /** MCP server started WITHOUT OPENTABS_SKIP_PERMISSIONS. */
+  /** MCP server started WITHOUT OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS. */
   mcpServer: McpServer;
   /** Controllable test web server. */
   testServer: TestServer;
@@ -61,7 +61,7 @@ const test = base.extend<ReviewFixtures>({
   mcpServer: async ({ browserName: _ }, use) => {
     const configDir = createTestConfigDir();
     const server = await startMcpServer(configDir, true, undefined, {
-      OPENTABS_SKIP_PERMISSIONS: '',
+      OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS: '',
     });
     try {
       await use(server);

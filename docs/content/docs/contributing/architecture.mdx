@@ -434,7 +434,7 @@ Tools not in the tier map default to `interact` as a safe middle ground.
 
 **Permission evaluation order**:
 
-1. **`skipPermissions`** (CLI flag / env var) → all tools become `'auto'`
+1. **`skipPermissions`** (`OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS` env var) → `'ask'` becomes `'auto'`, `'off'` stays `'off'`
 2. **Per-tool override** in `permissions[plugin].tools[tool]`
 3. **Plugin default** in `permissions[plugin].permission`
 4. **`'off'`** — disabled if no permission is configured

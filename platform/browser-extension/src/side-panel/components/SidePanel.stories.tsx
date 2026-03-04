@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { Search, X } from 'lucide-react';
+import { Search, ShieldOff, X } from 'lucide-react';
 import { useState } from 'react';
 import type { BrowserToolState, FailedPluginState, PluginSearchResult, PluginState } from '../bridge';
 import { BrowserToolsCard } from './BrowserToolsCard';
@@ -8,7 +8,6 @@ import { Footer } from './Footer';
 import { PluginCard } from './PluginCard';
 import { PluginList } from './PluginList';
 import { Accordion } from './retro/Accordion';
-import { Alert } from './retro/Alert';
 import { Input } from './retro/Input';
 import { SearchResults } from './SearchResults';
 
@@ -850,7 +849,7 @@ const BrowserToolsOnlyDemo = () => {
 const BrowserToolsOnly: Story = { render: () => <BrowserToolsOnlyDemo /> };
 
 // ---------------------------------------------------------------------------
-// 28: Skip-permissions banner — warning shown when --dangerously-skip-permissions is active
+// 28: Skip-permissions banner — warning shown when OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS is set
 // ---------------------------------------------------------------------------
 
 const SkipPermissionsBannerDemo = () => {
@@ -858,13 +857,16 @@ const SkipPermissionsBannerDemo = () => {
   const [browserTools, setBrowserTools] = useState(mockBrowserTools);
   return (
     <SidePanelShell>
-      <Alert status="warning" className="mx-4 mt-2 px-3 py-2">
-        <div className="font-head text-xs uppercase">Approval prompts bypassed</div>
-        <div className="mt-0.5 text-[11px] leading-tight">
-          Ask-mode tools execute without confirmation. Disabled tools remain off.
+      <div className="shrink-0 border-destructive border-b-2 bg-destructive/15 px-4 py-1.5">
+        <div className="flex items-center gap-1.5">
+          <ShieldOff className="h-3.5 w-3.5 shrink-0 text-destructive" />
+          <span className="font-head text-destructive text-xs uppercase">Approvals skipped</span>
         </div>
-        <div className="mt-1 font-mono text-[10px] opacity-70">--dangerously-skip-permissions</div>
-      </Alert>
+        <p className="mt-0.5 text-[11px] text-foreground/70 leading-tight">
+          AI runs tools without asking. Off tools stay off. Set by{' '}
+          <code className="font-mono">OPENTABS_DANGEROUSLY_SKIP_PERMISSIONS</code>.
+        </p>
+      </div>
       <Accordion type="multiple" className="mt-2 mb-2 space-y-2">
         <BrowserToolsCard
           tools={browserTools}
