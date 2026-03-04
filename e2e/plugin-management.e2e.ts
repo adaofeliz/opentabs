@@ -164,7 +164,6 @@ test.describe('plugin.search', () => {
           description: string;
           version: string;
           author: string;
-          isOfficial: boolean;
         }>;
       };
       expect(Array.isArray(result.results)).toBe(true);
@@ -175,7 +174,6 @@ test.describe('plugin.search', () => {
         expect(typeof r.description).toBe('string');
         expect(typeof r.version).toBe('string');
         expect(typeof r.author).toBe('string');
-        expect(typeof r.isOfficial).toBe('boolean');
       }
     } finally {
       close();

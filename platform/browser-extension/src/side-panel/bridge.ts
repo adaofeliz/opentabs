@@ -31,7 +31,6 @@ interface PluginSearchResult {
   description: string;
   version: string;
   author: string;
-  isOfficial: boolean;
 }
 
 /** Result returned after a successful plugin install or update */

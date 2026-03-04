@@ -40,7 +40,6 @@ const mockNpmResult = (overrides?: Partial<PluginSearchResult>): PluginSearchRes
   description: 'OpenTabs plugin for Notion — read and write pages, databases, and blocks.',
   version: '1.0.0',
   author: 'opentabs-dev',
-  isOfficial: true,
   ...overrides,
 });
 
@@ -99,7 +98,6 @@ const NpmOnlyDemo = () => {
           name: '@opentabs-dev/opentabs-plugin-linear',
           description: 'OpenTabs plugin for Linear — manage issues, cycles, and projects.',
           version: '0.8.0',
-          isOfficial: false,
         }),
       ]}
       npmSearching={false}
@@ -129,7 +127,6 @@ const BothDemo = () => {
           description: 'Legacy Slack integration for OpenTabs.',
           version: '0.5.0',
           author: 'community',
-          isOfficial: false,
         }),
       ]}
       npmSearching={false}
@@ -203,7 +200,6 @@ const InstallingPluginDemo = () => {
           name: '@opentabs-dev/opentabs-plugin-github',
           description: 'OpenTabs plugin for GitHub — create issues, review PRs, and browse repos.',
           version: '1.1.0',
-          isOfficial: true,
         }),
       ]}
       npmSearching={false}
@@ -319,7 +315,6 @@ const AllStatesDemo = () => {
               description: 'Legacy Slack integration.',
               version: '0.5.0',
               author: 'community',
-              isOfficial: false,
             }),
           ]}
           npmSearching={false}

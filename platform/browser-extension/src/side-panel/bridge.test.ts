@@ -178,7 +178,7 @@ describe('setAllBrowserToolsPermission', () => {
 describe('searchPlugins', () => {
   test('sends bg:searchPlugins with correct params', async () => {
     mockResponse = {
-      results: [{ name: 'slack', description: 'Slack', version: '1.0', author: 'x', isOfficial: true }],
+      results: [{ name: 'slack', description: 'Slack', version: '1.0', author: 'x' }],
     };
 
     const result = await searchPlugins('slack');

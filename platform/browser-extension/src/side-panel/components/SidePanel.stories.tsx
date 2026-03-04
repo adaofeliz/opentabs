@@ -482,21 +482,18 @@ const mockNpmResults: PluginSearchResult[] = [
     description: 'OpenTabs plugin for Notion — manage pages, databases, and content blocks',
     version: '1.0.0',
     author: 'opentabs-dev',
-    isOfficial: true,
   },
   {
     name: '@opentabs-dev/opentabs-plugin-confluence',
     description: 'OpenTabs plugin for Confluence — search and edit wiki pages',
     version: '0.3.2',
     author: 'opentabs-dev',
-    isOfficial: true,
   },
   {
     name: 'opentabs-plugin-asana',
     description: 'Community plugin for Asana task management with full CRUD operations',
     version: '0.1.4',
     author: 'community-dev',
-    isOfficial: false,
   },
 ];
 
