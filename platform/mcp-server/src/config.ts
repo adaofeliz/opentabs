@@ -44,7 +44,7 @@ interface OpentabsConfig {
   localPlugins: string[];
   /** Per-plugin permission configuration: plugin name → { permission?, tools? } */
   plugins: Record<string, PluginPermissionConfig>;
-  /** Whether to skip all permission prompts (dangerous — disables human-in-the-loop) */
+  /** Whether to skip approval prompts for ask-mode tools (off tools remain disabled) */
   skipPermissions?: boolean;
 }
 

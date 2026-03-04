@@ -319,9 +319,7 @@ const handleStart = async (options: StartOptions): Promise<void> => {
 
   if (options.dangerouslySkipPermissions) {
     console.warn(
-      pc.yellow(
-        'WARNING: All browser tool confirmations are bypassed. Sensitive operations will execute without human approval.',
-      ),
+      pc.yellow('WARNING: Approval prompts for ask-mode tools are bypassed. Disabled (off) tools remain off.'),
     );
     console.log('');
   }
@@ -446,10 +444,7 @@ const registerStartCommand = (program: Command): void => {
     .option('--port <number>', 'Server port (default: 9515)', parsePort)
     .option('--background', 'Start the server in the background')
     .option('--show-config', 'Print full MCP client configuration even on subsequent runs')
-    .option(
-      '--dangerously-skip-permissions',
-      'Bypass all browser tool confirmation dialogs (WARNING: sensitive operations execute without human approval)',
-    )
+    .option('--dangerously-skip-permissions', 'Skip approval prompts for ask-mode tools (disabled tools stay disabled)')
     .addHelpText(
       'after',
       `

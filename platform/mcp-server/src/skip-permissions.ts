@@ -2,10 +2,10 @@
  * Permission bypass detection — determined once at startup.
  *
  * The --dangerously-skip-permissions flag (or OPENTABS_SKIP_PERMISSIONS=1
- * env var) bypasses all browser tool permission prompts. This is a
- * dangerous option that disables human-in-the-loop safety for sensitive
- * browser operations. It exists for CI/testing environments where no human
- * is available to approve tool calls.
+ * env var) bypasses approval prompts for tools set to 'ask' mode, converting
+ * them to 'auto'. Tools set to 'off' remain disabled — this flag does not
+ * enable disabled tools. It exists for CI/testing environments where no
+ * human is available to approve tool calls.
  *
  * The old names (--dangerously-skip-confirmation / OPENTABS_SKIP_CONFIRMATION)
  * are accepted for backward compatibility.
