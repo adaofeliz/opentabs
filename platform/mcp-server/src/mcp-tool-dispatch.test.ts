@@ -555,9 +555,16 @@ describe('handlePluginToolCall', () => {
     vi.clearAllMocks();
   });
 
-  test('permission off returns disabled error', async () => {
+  test('permission off for unreviewed plugin returns review flow instructions', async () => {
     vi.mocked(getToolPermission).mockReturnValue('off');
-    const state = createMockState();
+    const pluginMap = new Map([['testplugin', { name: 'testplugin', version: '2.0.0' }]]) as unknown as ReadonlyMap<
+      string,
+      RegisteredPlugin
+    >;
+    const state = createMockState({
+      registry: { plugins: pluginMap, toolLookup: new Map(), failures: [] },
+      pluginPermissions: {},
+    });
     const lookup = createMockLookup();
     const extra = createMockExtra();
     const callbacks = createMockCallbacks();
@@ -574,8 +581,60 @@ describe('handlePluginToolCall', () => {
     );
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]?.text).toContain('currently disabled');
-    expect(result.content[0]?.text).toContain('enable it in the OpenTabs side panel');
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('"testplugin" (v2.0.0) has not been reviewed yet');
+    expect(text).toContain('plugin_inspect');
+    expect(text).toContain('plugin_mark_reviewed');
+    expect(text).toContain('OpenTabs side panel');
+  });
+
+  test('permission off for version-updated plugin returns re-review instructions', async () => {
+    vi.mocked(getToolPermission).mockReturnValue('off');
+    const pluginMap = new Map([['testplugin', { name: 'testplugin', version: '3.0.0' }]]) as unknown as ReadonlyMap<
+      string,
+      RegisteredPlugin
+    >;
+    const state = createMockState({
+      registry: { plugins: pluginMap, toolLookup: new Map(), failures: [] },
+      pluginPermissions: { testplugin: { reviewedVersion: '2.0.0' } },
+    });
+    const lookup = createMockLookup();
+    const extra = createMockExtra();
+    const callbacks = createMockCallbacks();
+
+    const result = await handlePluginToolCall(
+      state,
+      'testplugin_test_action',
+      {},
+      'testplugin',
+      'test_action',
+      lookup,
+      extra,
+      callbacks,
+    );
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('"testplugin" has been updated from v2.0.0 to v3.0.0 and needs re-review');
+    expect(text).toContain('plugin_inspect');
+    expect(text).toContain('plugin_mark_reviewed');
+    expect(text).toContain('OpenTabs side panel');
+  });
+
+  test('browser tool off error has no review flow', async () => {
+    vi.mocked(getToolPermission).mockReturnValue('off');
+    const state = createMockState();
+    const bt = createMockBrowserTool();
+    const extra = createMockExtra();
+    const callbacks = createMockCallbacks();
+
+    const result = await handleBrowserToolCall(state, 'browser_test_tool', {}, bt, extra, callbacks);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0]?.text ?? '';
+    expect(text).toContain('currently disabled');
+    expect(text).not.toContain('plugin_inspect');
+    expect(text).not.toContain('review');
   });
 
   test('permission ask with deny returns error', async () => {

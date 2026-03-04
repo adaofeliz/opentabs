@@ -197,7 +197,7 @@ const handleBrowserToolCall = async (
       content: [
         {
           type: 'text' as const,
-          text: `Tool ${toolName} is currently disabled. Ask the user to enable it in the OpenTabs side panel.`,
+          text: `Tool "${toolName}" is currently disabled. Ask the user to enable it in the OpenTabs side panel.`,
         },
       ],
       isError: true,
@@ -271,11 +271,23 @@ const handlePluginToolCall = async (
   const permission = getToolPermission(state, pluginName, toolBaseName);
 
   if (permission === 'off') {
+    const plugin = state.registry.plugins.get(pluginName);
+    const pluginVersion = plugin?.version ?? 'unknown';
+    const permConfig = state.pluginPermissions[pluginName];
+    const reviewedVersion = permConfig?.reviewedVersion;
+
+    let statusLine: string;
+    if (reviewedVersion && reviewedVersion !== pluginVersion) {
+      statusLine = `Plugin "${pluginName}" has been updated from v${reviewedVersion} to v${pluginVersion} and needs re-review.`;
+    } else {
+      statusLine = `Plugin "${pluginName}" (v${pluginVersion}) has not been reviewed yet.`;
+    }
+
     return {
       content: [
         {
           type: 'text' as const,
-          text: `Tool ${toolName} is currently disabled. Ask the user to enable it in the OpenTabs side panel.`,
+          text: `${statusLine}\n\nYou can help the user by:\n1. Ask the user if they would like you to review the plugin's code for security before enabling it.\n2. If they agree, call the plugin_inspect tool to retrieve the adapter source code.\n3. Review the code and share your findings with the user.\n4. If the user approves, call plugin_mark_reviewed to enable the plugin.\n\nAlternatively, the user can enable this plugin directly from the OpenTabs side panel.`,
         },
       ],
       isError: true,
