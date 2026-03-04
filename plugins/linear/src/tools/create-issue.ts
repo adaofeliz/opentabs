@@ -7,6 +7,7 @@ export const createIssue = defineTool({
   name: 'create_issue',
   displayName: 'Create Issue',
   description: 'Create a new issue in Linear. Requires a team ID and title at minimum.',
+  summary: 'Create a new issue in Linear',
   icon: 'plus-circle',
   group: 'Issues',
   input: z.object({

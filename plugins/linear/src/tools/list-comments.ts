@@ -7,6 +7,7 @@ export const listComments = defineTool({
   name: 'list_comments',
   displayName: 'List Comments',
   description: 'List comments on a Linear issue, ordered by creation date.',
+  summary: 'List comments on an issue',
   icon: 'message-square',
   group: 'Comments',
   input: z.object({

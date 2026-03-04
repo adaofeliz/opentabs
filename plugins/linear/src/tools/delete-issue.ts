@@ -6,6 +6,7 @@ export const deleteIssue = defineTool({
   name: 'delete_issue',
   displayName: 'Delete Issue',
   description: 'Move a Linear issue to the trash. Trashed issues can be restored within 30 days.',
+  summary: 'Move an issue to the trash',
   icon: 'trash-2',
   group: 'Issues',
   input: z.object({

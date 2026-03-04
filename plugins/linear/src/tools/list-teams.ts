@@ -7,6 +7,7 @@ export const listTeams = defineTool({
   name: 'list_teams',
   displayName: 'List Teams',
   description: 'List all teams in the Linear workspace that the current user can access.',
+  summary: 'List teams in the workspace',
   icon: 'users',
   group: 'Teams & Users',
   input: z.object({}),

@@ -8,6 +8,7 @@ export const listWorkflowStates = defineTool({
   displayName: 'List Workflow States',
   description:
     'List all workflow states for a team. Use this to find state IDs for filtering issues or updating issue state.',
+  summary: 'List workflow states for a team',
   icon: 'git-branch',
   group: 'Workflow',
   input: z.object({

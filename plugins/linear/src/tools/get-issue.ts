@@ -8,6 +8,7 @@ export const getIssue = defineTool({
   displayName: 'Get Issue',
   description:
     'Get detailed information about a single Linear issue by its UUID or human-readable identifier (e.g. ENG-123).',
+  summary: 'Get details of a single issue',
   icon: 'file-text',
   group: 'Issues',
   input: z.object({

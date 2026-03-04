@@ -7,6 +7,7 @@ export const listProjects = defineTool({
   name: 'list_projects',
   displayName: 'List Projects',
   description: 'List all projects in the Linear workspace. Supports pagination.',
+  summary: 'List all projects',
   icon: 'folder',
   group: 'Projects',
   input: z.object({

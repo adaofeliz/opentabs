@@ -7,6 +7,7 @@ export const listCycles = defineTool({
   name: 'list_cycles',
   displayName: 'List Cycles',
   description: 'List cycles (sprints) for a team. Use this to find cycle IDs for creating or filtering issues.',
+  summary: 'List cycles for a team',
   icon: 'rotate-cw',
   group: 'Workflow',
   input: z.object({

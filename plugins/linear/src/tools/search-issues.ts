@@ -19,6 +19,7 @@ export const searchIssues = defineTool({
   displayName: 'Search Issues',
   description:
     'Search and filter Linear issues. Supports text search, filtering by team, assignee, state, label, project, and more. Returns paginated results.',
+  summary: 'Search and filter issues',
   icon: 'search',
   group: 'Issues',
   input: z.object({

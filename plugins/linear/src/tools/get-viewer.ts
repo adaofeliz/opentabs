@@ -7,6 +7,7 @@ export const getViewer = defineTool({
   name: 'get_viewer',
   displayName: 'Get Viewer',
   description: "Get the authenticated user's profile information.",
+  summary: "Get the current user's profile",
   icon: 'user',
   group: 'Teams & Users',
   input: z.object({}),

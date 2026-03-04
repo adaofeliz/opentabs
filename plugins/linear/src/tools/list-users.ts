@@ -7,6 +7,7 @@ export const listUsers = defineTool({
   name: 'list_users',
   displayName: 'List Users',
   description: 'List all users in the Linear organization. Use this to find user IDs for assigning issues.',
+  summary: 'List all users in the organization',
   icon: 'users',
   group: 'Teams & Users',
   input: z.object({
