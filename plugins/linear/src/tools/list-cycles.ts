@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { cycleSchema, mapCycle, paginationSchema } from './schemas.js';
 
@@ -42,6 +42,7 @@ export const listCycles = defineTool({
       { id: params.team_id, first: limit, after: params.after },
     );
 
+    if (!data.team) throw ToolError.notFound('Team not found');
     const result = data.team.cycles;
     return {
       cycles: result.nodes.map(n => mapCycle(n as Parameters<typeof mapCycle>[0])),

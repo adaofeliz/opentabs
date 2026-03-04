@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { issueSchema, mapIssue, paginationSchema } from './schemas.js';
 
@@ -68,6 +68,7 @@ export const searchIssues = defineTool({
         { query: params.query, first: limit, after: params.after, filter: filterArg },
       );
 
+      if (!data.searchIssues) throw ToolError.internal('Search returned no results object');
       const result = data.searchIssues;
       return {
         issues: result.nodes.map(n => mapIssue(n as Parameters<typeof mapIssue>[0])),
@@ -95,6 +96,7 @@ export const searchIssues = defineTool({
       { first: limit, after: params.after, filter: filterArg },
     );
 
+    if (!data.issues) throw ToolError.internal('Issues query returned no results object');
     const result = data.issues;
     return {
       issues: result.nodes.map(n => mapIssue(n as Parameters<typeof mapIssue>[0])),

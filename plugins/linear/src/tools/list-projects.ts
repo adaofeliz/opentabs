@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { mapProject, paginationSchema, projectSchema } from './schemas.js';
 
@@ -40,6 +40,7 @@ export const listProjects = defineTool({
       { first: limit, after: params.after },
     );
 
+    if (!data.projects) throw ToolError.internal('Projects query returned no results object');
     const result = data.projects;
     return {
       projects: result.nodes.map(n => mapProject(n as Parameters<typeof mapProject>[0])),

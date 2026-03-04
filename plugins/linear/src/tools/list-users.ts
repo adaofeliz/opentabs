@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { mapUser, paginationSchema, userSchema } from './schemas.js';
 
@@ -37,6 +37,7 @@ export const listUsers = defineTool({
       { first: limit, after: params.after },
     );
 
+    if (!data.users) throw ToolError.internal('Users query returned no results object');
     const result = data.users;
     return {
       users: result.nodes.map(n => mapUser(n as Parameters<typeof mapUser>[0])),

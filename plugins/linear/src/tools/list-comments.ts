@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { commentSchema, mapComment, paginationSchema } from './schemas.js';
 
@@ -43,6 +43,7 @@ export const listComments = defineTool({
       { id: params.issue_id, first: limit, after: params.after },
     );
 
+    if (!data.issue) throw ToolError.notFound('Issue not found');
     const result = data.issue.comments;
     return {
       comments: result.nodes.map(n => mapComment(n as Parameters<typeof mapComment>[0])),

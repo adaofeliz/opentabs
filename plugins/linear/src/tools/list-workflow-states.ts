@@ -1,5 +1,5 @@
 import { graphql } from '../linear-api.js';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { mapWorkflowState, workflowStateSchema } from './schemas.js';
 
@@ -34,6 +34,7 @@ export const listWorkflowStates = defineTool({
       { id: params.team_id },
     );
 
+    if (!data.team) throw ToolError.notFound('Team not found');
     const nodes = data.team.states.nodes
       .map(n => mapWorkflowState(n as Parameters<typeof mapWorkflowState>[0]))
       .sort((a, b) => a.position - b.position);
