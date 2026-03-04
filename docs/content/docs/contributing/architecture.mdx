@@ -432,15 +432,14 @@ Every browser tool is classified into one of three security tiers based on its r
 
 Tools not in the tier map default to `interact` as a safe middle ground.
 
-**Permission evaluation order** — first match wins:
+**Permission evaluation order**:
 
-1. **`domainToolPolicy[domain][tool]`** — per-domain per-tool override (most specific)
-2. **`sensitiveDomains` match** → forces `ask`
-3. **`toolPolicy[tool]`** — global per-tool override
-4. **Tool tier default** — `observe` → `allow`, `interact` → `ask`, `sensitive` → `ask`
-5. **`trustedDomains` match** — upgrades `ask` to `allow` (does **not** override `deny`)
+1. **`skipPermissions`** (CLI flag / env var) → all tools become `'auto'`
+2. **Per-tool override** in `permissions[plugin].tools[tool]`
+3. **Plugin default** in `permissions[plugin].permission`
+4. **`'off'`** — disabled if no permission is configured
 
-Session permission rules (created by "Allow Always" actions) are checked before the evaluation chain. If a matching session rule exists, the tool is auto-allowed without running the chain. The `skipPermissions` config flag bypasses the entire evaluation — all tools are auto-allowed.
+Session permission rules (created by "Allow Always" actions) are checked before the evaluation chain. If a matching session rule exists, the tool is auto-allowed without running the chain.
 
 ### Confirmation System
 

@@ -16,15 +16,14 @@ Plugin development requires heavy use of browser tools (`browser_execute_script`
 
 **Before starting, ask the user if they want to enable `skipPermissions`** to bypass all permission checks during the development session. This sets all tools to `'auto'` (execute immediately), dramatically speeding up exploration and testing.
 
-Three ways to enable it:
+Two ways to enable it:
 
 1. Restart the MCP server: `opentabs start --dangerously-skip-permissions`
 2. Set the env var: `OPENTABS_SKIP_PERMISSIONS=1`
-3. Add to `~/.opentabs/config.json`: `{ "skipPermissions": true }`
 
 Alternatively, set specific plugins or tools to `'auto'` in `~/.opentabs/config.json`:
 ```json
-{ "plugins": { "browser": { "permission": "auto" } } }
+{ "permissions": { "__browser__": { "permission": "auto" } } }
 ```
 
 **Warn the user**: `skipPermissions` disables all human-in-the-loop safety for tool operations. It should only be used during active plugin development sessions and disabled afterward.

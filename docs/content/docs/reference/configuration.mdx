@@ -31,34 +31,16 @@ Override the config directory with the `OPENTABS_CONFIG_DIR` environment variabl
       <Table.Cell>Local plugin directory paths. Resolved relative to the config directory. For plugins under active development.</Table.Cell>
     </Table.Row>
     <Table.Row>
-      <Table.Cell className="font-medium">`tools`</Table.Cell>
-      <Table.Cell className="*:text-xs">`Record<string, boolean>`</Table.Cell>
-      <Table.Cell className="*:text-xs">`{}`</Table.Cell>
-      <Table.Cell>Per-tool enable/disable overrides. Keys are prefixed tool names (e.g., `slack_send_message`). Absent keys default to enabled.</Table.Cell>
-    </Table.Row>
-    <Table.Row>
-      <Table.Cell className="font-medium">`browserToolPolicy`</Table.Cell>
-      <Table.Cell className="*:text-xs">`Record<string, boolean>`</Table.Cell>
-      <Table.Cell className="*:text-xs">`{}`</Table.Cell>
-      <Table.Cell>Browser tool enable/disable overrides. Keys are browser tool names (e.g., `browser_execute_script`). Absent keys default to enabled.</Table.Cell>
-    </Table.Row>
-    <Table.Row>
       <Table.Cell className="font-medium">`permissions`</Table.Cell>
-      <Table.Cell className="*:text-xs">`object`</Table.Cell>
-      <Table.Cell className="*:text-xs">_(see below)_</Table.Cell>
-      <Table.Cell>Permission configuration for the browser tool confirmation system. Controls which tools require human approval and on which domains.</Table.Cell>
+      <Table.Cell className="*:text-xs">`Record<string, PluginPermissionConfig>`</Table.Cell>
+      <Table.Cell className="*:text-xs">`{}`</Table.Cell>
+      <Table.Cell>Per-plugin permission configuration. Keys are plugin names (or `__browser__` for browser tools). Each value specifies a default permission and optional per-tool overrides. See [permissions](#permissions) below.</Table.Cell>
     </Table.Row>
     <Table.Row>
       <Table.Cell className="font-medium">`port`</Table.Cell>
       <Table.Cell className="*:text-xs">`number`</Table.Cell>
       <Table.Cell className="*:text-xs">`9515`</Table.Cell>
       <Table.Cell>CLI-side port setting, persisted by `opentabs config set port`. Used as a fallback by CLI commands when neither `--port` nor `OPENTABS_PORT` is set. The MCP server itself reads its port from the `PORT` environment variable, set by `opentabs start`.</Table.Cell>
-    </Table.Row>
-    <Table.Row>
-      <Table.Cell className="font-medium">`skipPermissions`</Table.Cell>
-      <Table.Cell className="*:text-xs">`boolean`</Table.Cell>
-      <Table.Cell className="*:text-xs">`undefined`</Table.Cell>
-      <Table.Cell>Skip all browser tool confirmation prompts. **Dangerous** — disables the human-in-the-loop safety check. Intended for CI/testing only.</Table.Cell>
     </Table.Row>
   </Table.Body>
 </Table>
@@ -71,22 +53,19 @@ Override the config directory with the `OPENTABS_CONFIG_DIR` environment variabl
     "../plugins/my-plugin",
     "/Users/you/projects/opentabs-plugin-jira"
   ],
-  "tools": {
-    "slack_delete_message": false
-  },
-  "browserToolPolicy": {
-    "browser_execute_script": false
-  },
   "permissions": {
-    "trustedDomains": ["localhost", "127.0.0.1"],
-    "sensitiveDomains": ["*.bank.example.com"],
-    "toolPolicy": {
-      "browser_screenshot_tab": "allow"
+    "slack": {
+      "permission": "ask",
+      "tools": {
+        "send_message": "auto",
+        "delete_message": "off"
+      }
     },
-    "domainToolPolicy": {
-      "app.example.com": {
-        "browser_click_element": "allow",
-        "browser_execute_script": "deny"
+    "__browser__": {
+      "permission": "ask",
+      "tools": {
+        "browser_screenshot_tab": "auto",
+        "browser_execute_script": "off"
       }
     }
   }
@@ -102,26 +81,6 @@ An array of filesystem paths to local plugin directories. These are plugins unde
 Local plugins are registered automatically when you first run `opentabs-plugin build` in a plugin directory. You can also add them manually.
 
 npm plugins (installed globally via `npm install -g`) are auto-discovered from global `node_modules` — they do not need to be listed here. Local plugins override npm plugins of the same name.
-
-### tools
-
-Disable specific tools without removing the plugin:
-
-```json
-{
-  "tools": {
-    "slack_delete_message": false,
-    "slack_send_message": false
-  }
-}
-```
-
-Only include entries for tools you want to disable — absent keys default to enabled. Use the CLI to toggle tools:
-
-```bash
-opentabs config set tool.slack_send_message disabled
-opentabs config set tool.slack_send_message enabled
-```
 
 ### secret
 
@@ -146,34 +105,14 @@ opentabs config show --json --show-secret | jq -r .secret
 
 The `--show-secret` flag is required to output the full secret value. Without it, the secret is truncated. The source of truth is always auth.json.
 
-### browserToolPolicy
-
-Disable specific browser tools without affecting plugin tools:
-
-```json
-{
-  "browserToolPolicy": {
-    "browser_execute_script": false,
-    "browser_get_cookies": false
-  }
-}
-```
-
-Only include entries for tools you want to disable — absent keys default to enabled. Use the CLI to toggle browser tools:
-
-```bash
-opentabs config set browser-tool.browser_execute_script disabled
-opentabs config set browser-tool.browser_execute_script enabled
-```
-
 ### permissions
 
-Controls the browser tool confirmation system — which tools require human approval and on which domains. The `permissions` object has four sub-fields:
+Controls which tools require human approval before executing. The `permissions` map is keyed by plugin name (or `__browser__` for browser tools). Each entry is a `PluginPermissionConfig`:
 
 <Table>
   <Table.Header>
     <Table.Row>
-      <Table.Head>Sub-field</Table.Head>
+      <Table.Head>Field</Table.Head>
       <Table.Head>Type</Table.Head>
       <Table.Head>Default</Table.Head>
       <Table.Head>Description</Table.Head>
@@ -181,66 +120,59 @@ Controls the browser tool confirmation system — which tools require human appr
   </Table.Header>
   <Table.Body>
     <Table.Row>
-      <Table.Cell className="font-medium">`trustedDomains`</Table.Cell>
-      <Table.Cell className="*:text-xs">`string[]`</Table.Cell>
-      <Table.Cell className="*:text-xs">`["localhost", "127.0.0.1"]`</Table.Cell>
-      <Table.Cell>Domains where tools that would normally require confirmation are auto-allowed. Supports glob patterns (e.g., `*.example.com`). Does not override `deny` policies.</Table.Cell>
+      <Table.Cell className="font-medium">`permission`</Table.Cell>
+      <Table.Cell className="*:text-xs">`'off' | 'ask' | 'auto'`</Table.Cell>
+      <Table.Cell className="*:text-xs">`'off'`</Table.Cell>
+      <Table.Cell>Default permission for all tools in this plugin. `'off'` disables the tool (returns an error), `'ask'` requires human approval via the side panel, `'auto'` executes immediately.</Table.Cell>
     </Table.Row>
     <Table.Row>
-      <Table.Cell className="font-medium">`sensitiveDomains`</Table.Cell>
-      <Table.Cell className="*:text-xs">`string[]`</Table.Cell>
-      <Table.Cell className="*:text-xs">`[]`</Table.Cell>
-      <Table.Cell>Domains where all tools require confirmation regardless of tier. Supports glob patterns. Use for banking sites, admin panels, or other high-risk domains.</Table.Cell>
-    </Table.Row>
-    <Table.Row>
-      <Table.Cell className="font-medium">`toolPolicy`</Table.Cell>
-      <Table.Cell className="*:text-xs">`Record<string, "allow" | "ask" | "deny">`</Table.Cell>
+      <Table.Cell className="font-medium">`tools`</Table.Cell>
+      <Table.Cell className="*:text-xs">`Record<string, 'off' | 'ask' | 'auto'>`</Table.Cell>
       <Table.Cell className="*:text-xs">`{}`</Table.Cell>
-      <Table.Cell>Per-tool policy overrides. Keys are browser tool names. `allow` skips confirmation, `ask` requires it, `deny` blocks the tool entirely.</Table.Cell>
-    </Table.Row>
-    <Table.Row>
-      <Table.Cell className="font-medium">`domainToolPolicy`</Table.Cell>
-      <Table.Cell className="*:text-xs">`Record<string, Record<string, "allow" | "ask" | "deny">>`</Table.Cell>
-      <Table.Cell className="*:text-xs">`{}`</Table.Cell>
-      <Table.Cell>Per-domain per-tool overrides. Most specific — takes priority over all other policies. Keys are domains, values are tool-to-permission maps.</Table.Cell>
+      <Table.Cell>Per-tool permission overrides. Keys are tool base names (e.g., `send_message`, not the prefixed `slack_send_message`). Overrides the plugin-level `permission` for individual tools.</Table.Cell>
     </Table.Row>
   </Table.Body>
 </Table>
 
-The permission evaluation uses a first-match-wins order:
+Resolution order: `skipPermissions` (CLI flag / env var) → per-tool override → plugin default → `'off'`.
 
-1. `domainToolPolicy[domain][tool]` — most specific, checked first
-2. `sensitiveDomains` match → forces `ask`
-3. `toolPolicy[tool]` — global per-tool override
-4. Tool tier default (`observe` → `allow`, `interact`/`sensitive` → `ask`)
-5. `trustedDomains` match → upgrades `ask` to `allow` (does **not** override `deny`)
-
-Example — allow screenshots everywhere, require confirmation for script execution on a specific domain, and mark banking sites as sensitive:
+Example — set Slack tools to require approval by default, but auto-approve `send_message` and disable `delete_message`:
 
 ```json
 {
   "permissions": {
-    "trustedDomains": ["localhost", "127.0.0.1", "*.internal.company.com"],
-    "sensitiveDomains": ["*.bank.example.com"],
-    "toolPolicy": {
-      "browser_screenshot_tab": "allow"
-    },
-    "domainToolPolicy": {
-      "app.example.com": {
-        "browser_execute_script": "deny"
+    "slack": {
+      "permission": "ask",
+      "tools": {
+        "send_message": "auto",
+        "delete_message": "off"
       }
     }
   }
 }
 ```
 
-### skipPermissions
+Browser tools use the special plugin key `__browser__`:
 
-Set to `true` to bypass all browser tool confirmation prompts. This disables the human-in-the-loop safety check entirely — all tools run without asking for approval, even on sensitive domains.
+```json
+{
+  "permissions": {
+    "__browser__": {
+      "permission": "ask",
+      "tools": {
+        "browser_screenshot_tab": "auto",
+        "browser_execute_script": "off"
+      }
+    }
+  }
+}
+```
 
-**This is dangerous and intended only for CI/testing environments.** In normal usage, leave this unset and use the `permissions` object to fine-tune which tools require confirmation.
+Permissions are managed through the Chrome extension side panel. The side panel provides toggle controls for each plugin and each tool, persisting changes to `config.json` automatically.
 
-Can also be enabled via the `OPENTABS_SKIP_PERMISSIONS` environment variable or the `--dangerously-skip-permissions` flag on `opentabs start`. Prefer the env var for portability. The legacy names `OPENTABS_SKIP_CONFIRMATION`, `--dangerously-skip-confirmation`, and `skipConfirmation` are still accepted as aliases.
+### Bypassing permissions
+
+The `--dangerously-skip-permissions` flag on `opentabs start` or the `OPENTABS_SKIP_PERMISSIONS=1` environment variable bypasses all permission checks — all tools become `'auto'`. **This is dangerous and intended only for CI/testing environments.** In normal usage, configure per-plugin and per-tool permissions via the side panel or `config.json`.
 
 ## Plugin discovery
 
@@ -285,7 +217,7 @@ Local plugins override npm plugins of the same name. Discovery runs at server st
     <Table.Row>
       <Table.Cell className="font-medium">`OPENTABS_SKIP_PERMISSIONS`</Table.Cell>
       <Table.Cell>_(unset)_</Table.Cell>
-      <Table.Cell>Set to `1` to bypass all browser tool confirmation prompts. Equivalent to `--dangerously-skip-permissions` or `skipPermissions: true` in config. For CI/testing only. The legacy name `OPENTABS_SKIP_CONFIRMATION` is still accepted as an alias.</Table.Cell>
+      <Table.Cell>Set to `1` to bypass all permission checks — all tools become `'auto'`. Equivalent to `--dangerously-skip-permissions`. For CI/testing only.</Table.Cell>
     </Table.Row>
     <Table.Row>
       <Table.Cell className="font-medium">`OPENTABS_LOG_LEVEL`</Table.Cell>
@@ -339,12 +271,3 @@ Both `config.json` and `auth.json` are created with `0600` permissions (owner re
 The `extension/` directory is managed by `opentabs start`. Load it as an unpacked extension from `chrome://extensions`. The `adapters/` subdirectory holds the built adapter IIFE files for each discovered plugin — these are what the extension injects into matching tabs.
 
 Config writes use an atomic pattern: content is written to a temp file then renamed over the target. A mutex serializes concurrent writes.
-
-## Legacy config migration
-
-If your config still has the old `plugins` array or `npmPlugins` field, the server migrates automatically:
-
-- **`plugins` array** — local paths (starting with `./`, `../`, `/`, `~/`) are moved to `localPlugins`. npm package names are dropped (npm plugins are now auto-discovered).
-- **`npmPlugins` array** — entries are dropped with a log notice (npm plugins are auto-discovered from global `node_modules`).
-
-Update your config to use `localPlugins` to suppress migration log messages.
