@@ -700,6 +700,49 @@ describe('handleBgGetFullState', () => {
     expect(outputPlugin).not.toHaveProperty('adapterFile');
   });
 
+  test('prefers server cache plugin-level permission over stale meta', async () => {
+    handleWsState({ connected: true }, () => {});
+    vi.clearAllMocks();
+
+    mockGetAllPluginMeta.mockResolvedValueOnce({
+      'test-plugin': {
+        name: 'test-plugin',
+        displayName: 'Test Plugin',
+        version: '1.0.0',
+        permission: 'off', // stale meta value
+        urlPatterns: ['https://example.com/*'],
+        tools: [{ name: 'my_tool', displayName: 'My Tool', description: 'desc' }],
+      },
+    });
+
+    mockGetServerStateCache.mockReturnValueOnce({
+      plugins: [
+        {
+          name: 'test-plugin',
+          displayName: 'Test Plugin',
+          version: '1.0.0',
+          permission: 'auto', // updated server value
+          source: 'npm',
+          tabState: 'closed',
+          urlPatterns: ['https://example.com/*'],
+          tools: [{ name: 'my_tool', displayName: 'My Tool', description: 'desc', permission: 'ask' }],
+        },
+      ],
+      failedPlugins: [],
+      browserTools: [],
+      serverVersion: undefined,
+    });
+
+    const sendResponse = vi.fn();
+    handleBgGetFullState({}, sendResponse);
+    await vi.waitFor(() => expect(sendResponse).toHaveBeenCalled());
+
+    const result = sendResponse.mock.calls.at(0)?.at(0) as FullStateResponse;
+    expect(result.plugins).toHaveLength(1);
+    expect(result.plugins[0]?.permission).toBe('auto');
+    expect(result.plugins[0]?.tools[0]).toMatchObject({ permission: 'ask' });
+  });
+
   test('defaults tool permission to auto when server cache is empty', async () => {
     mockGetAllPluginMeta.mockResolvedValueOnce({
       'test-plugin': {

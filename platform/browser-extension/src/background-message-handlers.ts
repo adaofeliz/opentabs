@@ -197,10 +197,11 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
       });
 
       // Spread meta to inherit all display-relevant fields (name, displayName,
-      // version, permission, urlPatterns, icon variants, etc.) so new fields
-      // added to PluginMeta flow through automatically without manual
-      // enumeration. Exclude internal-only fields and override tools (merged
-      // with permission state), tabState (from live tab cache), and server-only
+      // version, urlPatterns, icon variants, etc.) so new fields added to
+      // PluginMeta flow through automatically without manual enumeration.
+      // Exclude internal-only fields and override tools (merged with permission
+      // state), tabState (from live tab cache), permission (from server cache,
+      // which reflects the latest user-configured value), and server-only
       // fields (source, sdkVersion, update).
       const {
         tools: _metaTools,
@@ -211,6 +212,7 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
       } = meta;
       return {
         ...metaFields,
+        permission: serverPlugin?.permission ?? meta.permission,
         tools,
         tabState,
         source: serverPlugin?.source ?? 'local',
