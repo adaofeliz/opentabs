@@ -562,12 +562,10 @@ test.describe('Side panel — skipPermissions mode and group headers', () => {
       await expect(echoTrigger).toBeVisible({ timeout: 5_000 });
       await expect(echoTrigger).toBeDisabled();
 
-      // Verify group toggle switches are disabled when skipPermissions is active
+      // Verify no Switch components exist anywhere in the side panel
+      // (group headers are plain text dividers, not interactive switches)
       const switches = sidePanelPage.locator('[role="switch"]');
-      const switchCount = await switches.count();
-      for (let i = 0; i < switchCount; i++) {
-        await expect(switches.nth(i)).toBeDisabled();
-      }
+      await expect(switches).toHaveCount(0);
 
       await sidePanelPage.close();
     } finally {
