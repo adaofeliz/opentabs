@@ -526,67 +526,59 @@ npm run check        # build + type-check + lint + format:check
 
 ---
 
-## Phase 7: Document Friction and Feed Back
+## Phase 7: Fix Platform Friction and Update Skill
 
-This phase is **mandatory**. Every plugin build surfaces friction in the platform and new learnings about how to develop plugins well. Capturing them closes the loop.
+This phase is **mandatory**. Every plugin build surfaces friction in the platform, SDK, and tooling. The goal is to **fix every issue at the source** — not document workarounds.
 
-### 1. Document Friction Encountered
+### 1. Identify Friction
 
-While building and testing, keep a running mental note of anything that slowed you down, required workarounds, or was confusing. After the plugin is working, think across **three dimensions of friction**:
+While building and testing, track anything that slowed you down or required a workaround. After the plugin is working, classify each friction point:
 
-**Platform bugs and rough edges** — things that were broken or wrong:
+**Platform bugs** — things that were broken:
 - Scaffolder generated wrong versions, missing fields, or unhelpful defaults
-- A platform API returned an unexpected shape or error
+- A browser tool returned wrong results or failed silently
 - A build/lint/type-check failure caused by a platform issue (not a plugin bug)
-- A browser tool limitation that required a workaround
 
-**Missing SDK capabilities** — things you had to hand-roll that the SDK should provide:
-- Ask: *"If the SDK had a helper for X, would virtually every plugin developer hit this same need?"*
-- Examples of things that clear the bar: retry logic, cookie parsing, request timeout wiring, token persistence boilerplate — these are universal to all plugins regardless of what app they target
-- Examples of things that do NOT clear the bar: resolving a Notion workspace ID, normalizing a Discord message shape, handling Slack's rate limit headers — these are app-specific, not platform-level concerns
-- **The test is universality, not frequency.** Something that every plugin needs once beats something a few plugins need repeatedly. If the need is tied to a specific app's quirks, it belongs in that plugin — not in the SDK.
+**Missing SDK capabilities** — things you had to hand-roll that every plugin needs:
+- The test is **universality**: would virtually every plugin developer hit this same need?
+- Things that clear the bar: retry logic, cookie parsing, request timeout wiring, token persistence boilerplate
+- Things that do NOT: app-specific API normalization, app-specific auth extraction
 
-**Missing documentation or guidance** — things that required trial and error to discover:
-- Auth patterns not covered in the scaffold comments or skill
-- API behaviors that weren't obvious and required `browser_execute_script` experimentation
-- Conventions that exist in the codebase but aren't written down anywhere
+**Tooling gaps** — things the scaffolder, build tool, or CLI should handle but don't
 
-For each friction point, ask: **is this something the platform team can fix or add?** If yes, it belongs in a PRD.
+### 2. File PRDs to Fix Every Issue
 
-### 2. Create PRDs for Friction Fixes
-
-Use the `ralph` skill to create a PRD for any actionable friction. Run it at the end once all friction is identified — batch related fixes into one PRD where they touch the same files:
+**Every friction point gets a PRD.** No workarounds, no "document it and move on." Use the `ralph` skill to create PRDs:
 
 ```
-/ralph  create PRD for <brief description of friction>
+/ralph  fix <brief description of friction>
 ```
 
-Each PRD story must:
+Group related fixes into one PRD when they touch the same files. Each story must:
 - Target exactly one file or closely related set of files
-- Have a concrete acceptance criterion (not "works better")
+- Have a concrete acceptance criterion
 - Be completable by a fresh AI agent in one iteration
+- Include E2E tests where the fix affects runtime behavior
 
-### 3. Write Learnings Back to This Skill
+The codebase and tooling should be perfect before the next plugin is built. If something slowed you down, it will slow down every future plugin build until it's fixed.
 
-After building the plugin, update this file (`__SKILL__.md`) with any new patterns or gotchas discovered. Follow these rules:
+### 3. Update This Skill (Generic Knowledge Only)
 
-**Before adding anything:**
-- Read the existing Common Gotchas list and all named sections
-- Check whether the insight is already covered — if it is, skip or merge rather than add
-- Ask: *does this save meaningful time for the next agent, or is it obvious from context?*
+After filing PRDs, update this file (`__SKILL__.md`) with **universal knowledge about building plugins for diverse web services**. This skill teaches how to efficiently tackle different auth layers, API patterns, and browser environments.
 
 **What belongs here:**
-- Auth patterns specific to a new class of web app (not already covered)
-- API quirks that are non-obvious and will recur (e.g., response shape varies by endpoint)
-- Platform constraints that bite developers repeatedly
-- Concrete workarounds for known gotchas
+- Auth patterns for new classes of web apps (cookie-based, token-based, OAuth, CORS, etc.)
+- Browser environment constraints that apply to all plugins (SPA hydration, HttpOnly cookies, CSP, globalThis lifecycle)
+- API exploration patterns that work across different web services
+- Defensive coding patterns for untrusted API responses
 
 **What does NOT belong here:**
-- App-specific details that won't recur (e.g., "Notion uses space IDs")
-- Learnings already captured in an existing gotcha
-- Notes that belong in the plugin's own README
+- Platform bugs or tooling limitations — these get PRDs, not gotchas
+- App-specific details (e.g., "Jira uses ADF format for descriptions")
+- Things the scaffolder/SDK/CLI should handle — fix the tool instead
+- Workarounds for known issues — fix the issue instead
 
-**Deduplication is required:** After adding anything, scan the full gotcha list for overlap with existing items. Merge if two gotchas teach the same lesson. The list should always be the shortest version that conveys maximum value.
+**The litmus test:** If an issue can be fixed in the platform code, it does not belong in this skill. This skill contains only knowledge that is inherent to the problem domain (browsers, web APIs, auth patterns) — not knowledge about platform shortcomings.
 
 ---
 
@@ -729,28 +721,31 @@ When using browser tools during testing (like `browser_navigate_tab`, `browser_e
 
 ---
 
-## Common Gotchas
+## Web Development Gotchas
 
-1. **All plugin code runs in the browser** — no Node.js APIs, no filesystem, no server-side logic
-2. **SPAs hydrate asynchronously** — `isReady()` must poll, not just check once (500ms interval, 3-5s max wait)
-3. **Some apps delete browser APIs** — Discord deletes `window.localStorage`; use iframe fallback when `typeof window.localStorage === 'undefined'`
+These are inherent constraints of the browser environment and web APIs — not platform issues. They apply to all plugins regardless of the target web app.
+
+### Browser Environment
+
+1. **All plugin code runs in the browser** — no Node.js APIs, no filesystem, no server-side logic.
+2. **SPAs hydrate asynchronously** — `isReady()` must poll, not just check once (500ms interval, 3-5s max wait).
+3. **Some apps delete browser APIs** — Discord deletes `window.localStorage`; use iframe fallback when `typeof window.localStorage === 'undefined'`.
 4. **Tokens must persist on globalThis** — module-level variables are reset when the extension reloads and re-injects the adapter. Use `globalThis.__openTabs.tokenCache.<pluginName>` instead.
-5. **API responses may return arrays** — when the generic type expects `Record<string, unknown>` but the endpoint returns an array, use `Array.isArray(data) ? (data as T[]).map(...) : []`
-6. **Parse error response bodies before HTTP status** — web apps reuse 403 for both auth and permission errors. The error code in the body distinguishes them.
-7. **Icons must be valid Lucide names** — TypeScript catches invalid ones at build time
-8. **Biome formatting** — always run `npm run format` after writing code; the project's config may differ from your defaults
-9. **The `opentabs` field in `package.json`** is how the platform discovers plugin metadata — `displayName`, `description`, and `urlPatterns` must be there
-10. **Browser tools require human approval** — `browser_navigate_tab`, `browser_execute_script`, etc. show a confirmation dialog that times out in 30 seconds
-11. **`browser_execute_script` bypasses page CSP** — The tool injects code via a file URL (`chrome.scripting.executeScript({ files: [...] })`), which runs as extension-origin code and is not subject to the page's Content Security Policy. This means `browser_execute_script` works on all pages, including strict-CSP sites like GitHub. The adapter IIFE uses the same file-based injection mechanism — plugin code also bypasses CSP on strict pages.
-12. **HttpOnly cookies are invisible to plugin code** — `getCookie()` uses `document.cookie`, which cannot read HttpOnly cookies. Most session cookies are HttpOnly. Always check the cookie `httpOnly` property when exploring auth (use `browser_get_cookies`). For HttpOnly cookie auth, detect auth indirectly: from `<meta>` tags the server embeds in HTML (e.g., `<meta name="user-login">`), from non-HttpOnly indicator cookies (e.g., Notion's `notion_user_id`), from page globals (`window.__APP_STATE__`), or from localStorage. The API calls still work with `credentials: 'include'` because the browser sends HttpOnly cookies automatically — you just can't read them in JS. Auth persistence still matters — persist the *user context* (user ID, workspace ID) on globalThis even when the auth token itself is in HttpOnly cookies. See the "Cookie-Based Auth Pattern" section below.
-13. **Cross-origin API + cookies: check CORS before choosing fetch strategy** — When the API is on a different subdomain (e.g., `client-api.example.com` for an `example.com` plugin), verify CORS with `curl -sI -X OPTIONS <api-url> -H "Origin: https://example.com" -H "Access-Control-Request-Method: POST"`. Three outcomes: (a) `allow-origin: https://example.com` + `allow-credentials: true` — direct `fetch()` with `credentials: 'include'` works perfectly; the browser sends HttpOnly cookies and sets correct Origin/Referer headers; this is the ideal path and works for cross-subdomain APIs (same registrable domain); (b) `allow-origin: *` — `credentials: 'include'` is rejected by the browser; use token-based auth extracted from the page instead; (c) no CORS headers — cross-origin requests are blocked; find same-origin internal endpoints. **Always use direct in-page `fetch()` for cookie-based auth** — the adapter runs in the page's MAIN world, so from the browser's perspective it is page JavaScript; `credentials: 'include'` sends cookies just like the web app's own code does.
-14. **Scaffolder uses double quotes; Biome wants single quotes** — The `opentabs plugin create` scaffold generates TypeScript with double quotes, but the Biome config uses `quoteStyle: 'single'`. Always run `npm run format` immediately after scaffolding.
-15. **Internal API format may differ between endpoints** — The same app may wrap API responses differently across endpoints. Example: Notion's `getRecordValues` returns `block[id].value` (direct), while `queryCollection` returns `block[id].value.value` (extra wrapper with `role` field). Always verify the response shape of each endpoint individually by inspecting the actual response in `browser_execute_script` rather than assuming consistency. Build defensive accessor functions or check both nesting levels.
-16. **CRDT-enabled workspaces may reject write operations** — Modern web apps are migrating to CRDTs for real-time collaboration. The older `submitTransaction` API may fail with "User does not have edit access" even on pages the user owns. This is because the CRDT system requires operations in a different format. When write operations fail unexpectedly, check if the app has a CRDT migration flag or a different write endpoint.
-17. **`setPersistedToken` must avoid `??=` assignment-in-expression** — The Biome lint rule `noAssignInExpressions` forbids `(obj.prop ??= value)`. Use explicit if-checks instead: `if (!obj.prop) obj.prop = value`.
-18. **Scaffolder `package.json` needs manual adjustments** — The scaffold creates a minimal `package.json` that is missing fields that official plugins need: scoped `@opentabs-dev/` package name, matching version with platform, `publishConfig`, `jiti` dev dependency, correct `zod` version matching other plugins. Always compare with an existing plugin's `package.json` and align.
-19. **GraphQL APIs may differ between query types** — The same logical field may not exist on all connection types. Example: Linear's `searchIssues` supports `totalCount` but `issues` (the filter-based query) does not. Similarly, `orderBy` enum values vary between connections. Always verify each GraphQL query independently against the live API rather than assuming consistency across query types.
-20. **Test every tool against the live browser** — The `opentabs_plugin_list_tabs` tool is the first thing to verify (no confirmation needed). Then systematically test read-only tools (search, list, get) before write tools (create, update, delete). This catches auth issues, API format mismatches, and schema mapping errors early.
+5. **`browser_execute_script` bypasses page CSP** — code is injected via extension-origin files, not subject to the page's Content Security Policy. Both `browser_execute_script` and the adapter IIFE work on strict-CSP pages like GitHub.
+
+### Auth and Cookies
+
+6. **HttpOnly cookies are invisible to plugin code** — `document.cookie` cannot read HttpOnly cookies (most session cookies). Detect auth indirectly: `<meta>` tags (e.g., `<meta name="user-login">`), non-HttpOnly indicator cookies, page globals (`window.__APP_STATE__`), or localStorage. API calls still work with `credentials: 'include'` — the browser sends HttpOnly cookies automatically. Persist the *user context* (user ID, workspace ID) on globalThis even when the token itself is HttpOnly. See the "Cookie-Based Auth Pattern" section below.
+7. **Cross-origin API + cookies: check CORS first** — When the API is on a different subdomain, verify CORS. Three outcomes: (a) `allow-origin` + `allow-credentials: true` — direct `fetch()` with `credentials: 'include'` works; (b) `allow-origin: *` — credentials rejected, use token-based auth; (c) no CORS headers — blocked, find same-origin endpoints. The adapter runs in the page's MAIN world, so `credentials: 'include'` sends cookies like the app's own code.
+
+### API Patterns
+
+8. **Parse error response bodies before HTTP status** — web apps reuse 403 for both auth and permission errors. The error code in the body distinguishes them.
+9. **API responses may return arrays** — when the generic type expects `Record<string, unknown>` but the endpoint returns an array, use `Array.isArray(data) ? (data as T[]).map(...) : []`.
+10. **Internal API format may differ between endpoints** — The same app may wrap responses differently. Always verify each endpoint's response shape individually rather than assuming consistency. Build defensive accessor functions.
+11. **GraphQL APIs may differ between query types** — The same logical field may not exist on all connection types. Always verify each query independently against the live API.
+12. **CRDT-enabled workspaces may reject write operations** — Modern web apps are migrating to CRDTs. The older REST/transaction API may fail even on pages the user owns. Check for CRDT migration flags or alternative write endpoints.
+13. **Test every tool against the live browser** — Verify `plugin_list_tabs` first, then test read-only tools (search, list, get) before write tools (create, update, delete). This catches auth issues, API format mismatches, and schema mapping errors early.
 
 ---
 
