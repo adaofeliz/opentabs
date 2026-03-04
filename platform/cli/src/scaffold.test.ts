@@ -141,7 +141,7 @@ describe('scaffoldPlugin', () => {
     expect(config.linter.rules.correctness.noUnusedVariables).toBe('error');
   });
 
-  test('generated package.json uses scoped name, publishConfig, and resolved version', async () => {
+  test('generated package.json uses unscoped name, no publishConfig, and fixed 0.1.0 version', async () => {
     mockNpmViewSuccess('0.0.60');
 
     await scaffoldPlugin({ name: 'figma', domain: 'figma.com' });
@@ -149,12 +149,12 @@ describe('scaffoldPlugin', () => {
     const pkg = JSON.parse(await readFile(join(tmpDir, 'figma', 'package.json'), 'utf-8')) as {
       name: string;
       version: string;
-      publishConfig: { access: string };
+      publishConfig?: { access: string };
     };
 
-    expect(pkg.name).toBe('@opentabs-dev/opentabs-plugin-figma');
-    expect(pkg.publishConfig).toEqual({ access: 'restricted' });
-    expect(pkg.version).toBe('0.0.60');
+    expect(pkg.name).toBe('opentabs-plugin-figma');
+    expect(pkg.publishConfig).toBeUndefined();
+    expect(pkg.version).toBe('0.1.0');
   });
 
   test('cleans up partial directory if a file write fails, allowing retry', async () => {
@@ -267,7 +267,7 @@ describe('scaffoldPlugin version resolution', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  test('scaffolded package.json uses npm registry version when available', async () => {
+  test('scaffolded package.json uses unscoped name, fixed version, and npm registry SDK version', async () => {
     mockNpmViewSuccess('0.0.99');
 
     await scaffoldPlugin({ name: 'registry-test', domain: 'example.com' });
@@ -275,14 +275,14 @@ describe('scaffoldPlugin version resolution', () => {
     const pkg = JSON.parse(await readFile(join(tmpDir, 'registry-test', 'package.json'), 'utf-8')) as {
       name: string;
       version: string;
-      publishConfig: { access: string };
+      publishConfig?: { access: string };
       dependencies: Record<string, string>;
       devDependencies: Record<string, string>;
     };
 
-    expect(pkg.name).toBe('@opentabs-dev/opentabs-plugin-registry-test');
-    expect(pkg.version).toBe('0.0.99');
-    expect(pkg.publishConfig).toEqual({ access: 'restricted' });
+    expect(pkg.name).toBe('opentabs-plugin-registry-test');
+    expect(pkg.version).toBe('0.1.0');
+    expect(pkg.publishConfig).toBeUndefined();
     expect(pkg.dependencies['@opentabs-dev/plugin-sdk']).toBe('^0.0.99');
     expect(pkg.devDependencies['@opentabs-dev/plugin-tools']).toBe('^0.0.99');
   });

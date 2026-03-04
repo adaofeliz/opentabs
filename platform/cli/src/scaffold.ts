@@ -140,10 +140,9 @@ const generatePackageJson = (
   const { openTabsVersion, zodVersion } = versions;
 
   const pkg = {
-    name: `@opentabs-dev/opentabs-plugin-${args.name}`,
+    name: `opentabs-plugin-${args.name}`,
     description: desc,
-    version: openTabsVersion.replace(/^\^/, ''),
-    publishConfig: { access: 'restricted' },
+    version: '0.1.0',
     type: 'module',
     main: 'dist/adapter.iife.js',
     keywords: ['opentabs-plugin'],
@@ -601,7 +600,7 @@ const scaffoldPlugin = async (args: ScaffoldArgs): Promise<string> => {
   const sourceLabel =
     versions.source === 'registry' ? 'from npm registry' : 'from local CLI — npm registry unreachable';
   console.log(`Using @opentabs-dev packages ${pc.bold(versions.openTabsVersion)} (${sourceLabel})`);
-  console.log(`Creating ${pc.bold(`@opentabs-dev/opentabs-plugin-${args.name}`)}...`);
+  console.log(`Creating ${pc.bold(`opentabs-plugin-${args.name}`)}...`);
 
   try {
     mkdirSync(projectDir, { recursive: true });
