@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'vitest';
-import type { PermissionsConfig } from './config.js';
 import { evaluatePermission, getToolTier, matchDomain, matchesDomainList, TOOL_TIERS } from './permissions.js';
+import type { PermissionsConfig } from './state.js';
 import { createState } from './state.js';
 
 /** Create a PermissionsConfig with sensible defaults, overridable per-test */

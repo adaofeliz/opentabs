@@ -17,7 +17,7 @@ import { WebStandardStreamableHTTPServerTransport } from '@modelcontextprotocol/
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
 import type { WsHandle } from '@opentabs-dev/shared';
 import { toErrorMessage } from '@opentabs-dev/shared';
-import { saveBrowserToolPolicy, saveToolConfig } from './config.js';
+import { savePluginPermissions } from './config.js';
 import { isDev } from './dev-mode.js';
 import type { McpCallbacks } from './extension-protocol.js';
 import {
@@ -61,12 +61,12 @@ const createMcpCallbacks = (
     }
   },
   onToolConfigPersist: () => {
-    saveToolConfig(state, { ...state.toolConfig }).catch(() => {
+    savePluginPermissions(state, { ...state.pluginPermissions }).catch(() => {
       // Best-effort persistence — errors are non-fatal for in-memory state
     });
   },
   onBrowserToolPolicyPersist: () => {
-    saveBrowserToolPolicy(state, { ...state.browserToolPolicy }).catch(() => {
+    savePluginPermissions(state, { ...state.pluginPermissions }).catch(() => {
       // Best-effort persistence — errors are non-fatal for in-memory state
     });
   },

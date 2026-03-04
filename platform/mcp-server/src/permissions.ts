@@ -13,8 +13,10 @@
  *   5. trustedDomains match → override 'ask' to 'allow' (does NOT override 'deny')
  */
 
-import type { ToolPermission } from './config.js';
 import type { ServerState } from './state.js';
+
+/** Legacy permission values used by the browser tool evaluation engine (pending removal in US-004) */
+type LegacyPermission = 'allow' | 'ask' | 'deny';
 
 /** Security tier for browser tools */
 type ToolTier = 'observe' | 'interact' | 'sensitive';
@@ -75,7 +77,7 @@ const TOOL_TIERS: Record<string, ToolTier> = {
 };
 
 /** Default permission for each tier */
-const TIER_DEFAULTS: Record<ToolTier, ToolPermission> = {
+const TIER_DEFAULTS: Record<ToolTier, LegacyPermission> = {
   observe: 'allow',
   interact: 'ask',
   sensitive: 'ask',
@@ -119,7 +121,7 @@ export const getToolTier = (toolName: string): ToolTier => TOOL_TIERS[toolName] 
  * @param state - Server state (for skipPermissions flag and permissions config)
  * @returns 'allow', 'ask', or 'deny'
  */
-export const evaluatePermission = (toolName: string, domain: string | null, state: ServerState): ToolPermission => {
+export const evaluatePermission = (toolName: string, domain: string | null, state: ServerState): LegacyPermission => {
   // Bypass: if skipPermissions is active, all tools are auto-allowed
   if (state.skipPermissions) return 'allow';
 

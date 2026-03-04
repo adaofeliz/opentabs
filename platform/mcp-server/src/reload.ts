@@ -213,11 +213,9 @@ const reloadCore = async ({ state, sessionServers, transports }: ReloadCoreArgs)
     // Compute all new state values locally before touching state.
     // This ensures an atomic swap: if any step throws, state retains its previous values.
     const newRegistry = registry;
-    const newToolConfig = { ...config.tools };
-    const newBrowserToolPolicy = { ...config.browserToolPolicy };
+    const newPluginPermissions = { ...config.plugins };
     const newPluginPaths = [...config.localPlugins];
     const newDiscoveryErrors = errors;
-    const newPermissions = config.permissions;
     const newSkipPermissions = isCliSkipPermissions() || config.skipPermissions === true;
 
     // Build the new cached browser tools on a staging object so a throw here
@@ -235,16 +233,14 @@ const reloadCore = async ({ state, sessionServers, transports }: ReloadCoreArgs)
     }
 
     log.info(
-      `Config loaded: ${config.localPlugins.length} local plugin path(s), ${Object.keys(config.tools).length} tool setting(s)`,
+      `Config loaded: ${config.localPlugins.length} local plugin path(s), ${Object.keys(config.plugins).length} plugin permission(s)`,
     );
 
     // All preparation succeeded — swap all state fields atomically.
     state.registry = newRegistry;
-    state.toolConfig = newToolConfig;
-    state.browserToolPolicy = newBrowserToolPolicy;
+    state.pluginPermissions = newPluginPermissions;
     state.pluginPaths = newPluginPaths;
     state.discoveryErrors = newDiscoveryErrors;
-    state.permissions = newPermissions;
     state.skipPermissions = newSkipPermissions;
     state.cachedBrowserTools = newCachedBrowserTools;
 

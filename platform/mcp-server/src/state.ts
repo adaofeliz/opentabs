@@ -8,10 +8,9 @@
  */
 
 import type { FSWatcher } from 'node:fs';
-import type { ManifestTool, PluginTabInfo, TabState, WsHandle } from '@opentabs-dev/shared';
+import type { ManifestTool, PluginPermissionConfig, PluginTabInfo, TabState, WsHandle } from '@opentabs-dev/shared';
 import { appendAuditEntryToDisk } from './audit-disk.js';
 import type { BrowserToolDefinition } from './browser-tools/definition.js';
-import type { PermissionsConfig } from './config.js';
 
 /**
  * Overrides the mutating methods of an existing Map to throw TypeError, preventing
@@ -158,6 +157,17 @@ export interface CachedBrowserTool {
 
 /** Tool config: maps prefixed tool name → enabled boolean */
 export type ToolConfig = Record<string, boolean>;
+
+/** Legacy permission values used by the browser tool evaluation engine (pending removal) */
+type LegacyPermission = 'allow' | 'ask' | 'deny';
+
+/** Permission configuration for browser tool confirmation (legacy, pending removal) */
+export interface PermissionsConfig {
+  trustedDomains: string[];
+  sensitiveDomains: string[];
+  toolPolicy: Record<string, LegacyPermission>;
+  domainToolPolicy: Record<string, Record<string, LegacyPermission>>;
+}
 
 /** A plugin path that failed discovery, with a human-readable error */
 export interface FailedPlugin {
@@ -321,6 +331,8 @@ export interface ServerState {
   /** Whether permission prompts are bypassed (from CLI flag, env var, or config) */
   skipPermissions: boolean;
 
+  /** Per-plugin permission configuration from config.json */
+  pluginPermissions: Record<string, PluginPermissionConfig>;
   /** Permission rules for browser tool confirmation */
   permissions: PermissionsConfig;
   /** Pending confirmation requests awaiting human approval in the side panel */
@@ -386,6 +398,7 @@ export const createState = (): ServerState => ({
   auditLog: [],
   skipPermissions: false,
 
+  pluginPermissions: {},
   permissions: {
     trustedDomains: ['localhost', '127.0.0.1'],
     sensitiveDomains: [],

@@ -35,8 +35,8 @@ const createMockServer = () => ({
 const emptyTransports = (): Map<string, WebStandardStreamableHTTPServerTransport> => new Map();
 
 /** Write a config.json to the given directory */
-const writeConfig = (configDir: string, localPlugins: string[] = [], tools: Record<string, boolean> = {}): void => {
-  writeFileSync(join(configDir, 'config.json'), JSON.stringify({ localPlugins, tools }));
+const writeConfig = (configDir: string, localPlugins: string[] = []): void => {
+  writeFileSync(join(configDir, 'config.json'), JSON.stringify({ localPlugins, plugins: {} }));
 };
 
 /** Create a minimal valid plugin directory with package.json, tools.json, and adapter */
@@ -165,10 +165,13 @@ describe('performReload', () => {
 
   test('prunes stale toolConfig entries for removed plugins/tools', async () => {
     const pluginDir = createPluginDir(configDir, 'my-plugin');
-    writeConfig(configDir, [pluginDir], {
+    writeConfig(configDir, [pluginDir]);
+
+    // Pre-populate toolConfig (no longer populated from config, but pruning still runs)
+    state.toolConfig = {
       'my-plugin_test_tool': true,
       'old-plugin_stale_tool': false,
-    });
+    };
 
     await performReload(state, [], emptyTransports(), false);
 
