@@ -760,6 +760,90 @@ test.describe('Confirmation dialog — dismiss resistance', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tests — Confirmation dialog — parameters display
+// ---------------------------------------------------------------------------
+
+test.describe('Confirmation dialog — parameters display', () => {
+  test('dialog shows expandable parameters for tools with params', async ({
+    mcpServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    const config = readTestConfig(mcpServer.configDir);
+    config.permissions = { browser: { permission: 'ask' } };
+    writeTestConfig(mcpServer.configDir, config);
+
+    mcpServer.logs.length = 0;
+    mcpServer.triggerHotReload();
+    await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+
+    await waitForExtensionConnected(mcpServer);
+    await waitForLog(mcpServer, 'tab.syncAll received');
+
+    const sidePanel = await openSidePanel(extensionContext);
+
+    const [result] = await Promise.all([
+      mcpClient.callTool('browser_open_tab', { url: 'https://example.com' }, { timeout: 35_000 }),
+      (async () => {
+        await waitForConfirmationDialog(sidePanel);
+        const dialog = sidePanel.locator('[role="dialog"]');
+
+        // Parameters summary should be visible
+        const summary = dialog.getByText('Parameters');
+        await expect(summary).toBeVisible();
+
+        // Click to expand
+        await summary.click();
+
+        // Pre should show the JSON params
+        const pre = dialog.locator('pre');
+        await expect(pre).toBeVisible();
+        const text = await pre.textContent();
+        expect(text).toContain('https://example.com');
+
+        await sidePanel.getByRole('button', { name: 'Allow' }).click();
+      })(),
+    ]);
+
+    expect(result.isError).toBe(false);
+  });
+
+  test('dialog does not show Parameters section for tools without params', async ({
+    mcpServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    const config = readTestConfig(mcpServer.configDir);
+    config.permissions = { browser: { permission: 'ask' } };
+    writeTestConfig(mcpServer.configDir, config);
+
+    mcpServer.logs.length = 0;
+    mcpServer.triggerHotReload();
+    await waitForLog(mcpServer, 'Hot reload complete', 20_000);
+
+    await waitForExtensionConnected(mcpServer);
+    await waitForLog(mcpServer, 'tab.syncAll received');
+
+    const sidePanel = await openSidePanel(extensionContext);
+
+    const [result] = await Promise.all([
+      mcpClient.callTool('browser_list_tabs', {}, { timeout: 35_000 }),
+      (async () => {
+        await waitForConfirmationDialog(sidePanel);
+        const dialog = sidePanel.locator('[role="dialog"]');
+
+        // Parameters section should NOT be present
+        await expect(dialog.getByText('Parameters')).toBeHidden({ timeout: 2_000 });
+
+        await sidePanel.getByRole('button', { name: 'Allow' }).click();
+      })(),
+    ]);
+
+    expect(result.isError).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tests — Tool description prefixes in tools/list
 // ---------------------------------------------------------------------------
 
