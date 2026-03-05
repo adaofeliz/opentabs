@@ -50,6 +50,7 @@ const App = () => {
   const [pendingConfirmations, setPendingConfirmations] = useState<ConfirmationData[]>([]);
   const [npmResults, setNpmResults] = useState<PluginSearchResult[]>([]);
   const [npmSearching, setNpmSearching] = useState(false);
+  const [npmSearchError, setNpmSearchError] = useState(false);
   const [installingPlugins, setInstallingPlugins] = useState<Set<string>>(new Set());
   const [removingPlugins, setRemovingPlugins] = useState<Set<string>>(new Set());
   const [installErrors, setInstallErrors] = useState<Map<string, string>>(new Map());
@@ -131,6 +132,7 @@ const App = () => {
     if (!query.trim()) {
       setNpmResults([]);
       setNpmSearching(false);
+      setNpmSearchError(false);
       return;
     }
     setNpmSearching(true);
@@ -140,11 +142,13 @@ const App = () => {
         .then(result => {
           if (npmSearchCounter.current === searchId) {
             setNpmResults(result.results);
+            setNpmSearchError(false);
           }
         })
         .catch(() => {
           if (npmSearchCounter.current === searchId) {
             setNpmResults([]);
+            setNpmSearchError(true);
           }
         })
         .finally(() => {
@@ -309,6 +313,7 @@ const App = () => {
           clearTimeout(npmSearchTimer.current);
           setNpmResults([]);
           setNpmSearching(false);
+          setNpmSearchError(false);
           setInstallingPlugins(new Set());
           setRemovingPlugins(new Set());
           setInstallErrors(new Map());
@@ -426,6 +431,7 @@ const App = () => {
                 toolFilter={searchQuery}
                 npmResults={npmResults}
                 npmSearching={npmSearching}
+                npmSearchError={npmSearchError}
                 installingPlugins={installingPlugins}
                 onInstall={handleInstall}
                 installErrors={installErrors}
