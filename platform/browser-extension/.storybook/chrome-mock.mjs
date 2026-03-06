@@ -54,7 +54,30 @@ if (typeof globalThis.chrome === 'undefined') {
   globalThis.chrome = {};
 }
 
+const sessionStore = {};
+
+const sessionStorageMock = {
+  get: keys => {
+    const result = {};
+    const keyList = typeof keys === 'string' ? [keys] : keys;
+    for (const k of keyList) {
+      if (k in sessionStore) result[k] = sessionStore[k];
+    }
+    return Promise.resolve(result);
+  },
+  set: items => {
+    Object.assign(sessionStore, items);
+    return Promise.resolve();
+  },
+  remove: keys => {
+    const keyList = typeof keys === 'string' ? [keys] : keys;
+    for (const k of keyList) delete sessionStore[k];
+    return Promise.resolve();
+  },
+};
+
 globalThis.chrome.storage ??= storageMock;
 globalThis.chrome.storage.local ??= storageMock.local;
+globalThis.chrome.storage.session ??= sessionStorageMock;
 globalThis.chrome.storage.onChanged ??= storageMock.onChanged;
 globalThis.chrome.runtime ??= runtimeMock;

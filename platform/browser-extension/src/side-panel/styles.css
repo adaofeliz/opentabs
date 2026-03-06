@@ -209,6 +209,27 @@ body {
   margin: 0;
 }
 
+/* Respect prefers-reduced-motion: disable infinite/flashing animations for
+   users with motion sensitivity. Show a static yellow border instead. */
+@media (prefers-reduced-motion: reduce) {
+  .animate-activity-border-flash {
+    animation: none;
+    border-color: var(--primary);
+  }
+  .animate-activity-border-fade-out {
+    animation: none;
+    border-color: var(--border);
+  }
+  .animate-group-fade-in,
+  .animate-group-fade-in-dim {
+    animation: none;
+    opacity: 1;
+  }
+  .animate-group-fade-in-dim {
+    opacity: 0.7;
+  }
+}
+
 /* Keyboard focus ring — flat retro style using primary accent */
 .focus-ring {
   outline: none;
