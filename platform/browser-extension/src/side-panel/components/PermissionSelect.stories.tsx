@@ -1,6 +1,7 @@
 import type { ToolPermission } from '@opentabs-dev/shared';
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import { expect, screen, userEvent, within } from 'storybook/test';
 import { PermissionSelect } from './ToolRow';
 
 const meta: Meta<typeof PermissionSelect> = {
@@ -32,7 +33,17 @@ const InteractiveDemo = () => {
   return <PermissionSelect value={value} onValueChange={setValue} disabled={false} ariaLabel="Permission" />;
 };
 
-const Interactive: Story = { render: () => <InteractiveDemo /> };
+const Interactive: Story = {
+  render: () => <InteractiveDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole('combobox');
+    await userEvent.click(trigger);
+    const autoOption = await screen.findByRole('option', { name: /auto/i });
+    await userEvent.click(autoOption);
+    await expect(trigger).toHaveTextContent('Auto');
+  },
+};
 
 const AllStates: Story = {
   render: () => (

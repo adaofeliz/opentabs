@@ -1,6 +1,7 @@
 import type { ToolPermission } from '@opentabs-dev/shared';
 import type { Meta, StoryObj } from '@storybook/react';
 import { useState } from 'react';
+import { expect, screen, userEvent, within } from 'storybook/test';
 import { ToolRow } from './ToolRow';
 
 const meta: Meta<typeof ToolRow> = {
@@ -97,6 +98,14 @@ const InteractiveDemo = () => {
 
 const Interactive: Story = {
   render: () => <InteractiveDemo />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole('combobox');
+    await userEvent.click(trigger);
+    const askOption = await screen.findByRole('option', { name: /ask/i });
+    await userEvent.click(askOption);
+    await expect(trigger).toHaveTextContent('Ask');
+  },
 };
 
 const ToolList: Story = {

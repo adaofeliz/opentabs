@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
-import { fn } from 'storybook/test';
+import { expect, fn, screen, userEvent, within } from 'storybook/test';
 import type { ConfirmationData } from './ConfirmationDialog';
 import { ConfirmationDialog } from './ConfirmationDialog';
 
@@ -24,6 +24,13 @@ type Story = StoryObj<typeof ConfirmationDialog>;
 const SingleConfirmation: Story = {
   args: {
     confirmations: [mockConfirmation()],
+  },
+  play: async ({ args }) => {
+    const dialog = await screen.findByRole('dialog');
+    const canvas = within(dialog);
+    const allowBtn = canvas.getByRole('button', { name: /allow/i });
+    await userEvent.click(allowBtn);
+    await expect(args.onRespond).toHaveBeenCalledWith('conf-1', 'allow', undefined);
   },
 };
 
