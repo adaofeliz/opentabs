@@ -22,6 +22,8 @@ The embedded \`opentabs://guide/self-improvement\` resource below contains the c
 
 ## Step 1: Identify What You Learned
 
+Check your tool call history in this session — failed calls, retries, and workarounds are the richest source of learnings.
+
 Review your session for:
 
 - **New patterns** — auth extraction techniques, API discovery methods, Zod schema tricks
@@ -30,11 +32,42 @@ Review your session for:
 - **Missing documentation** — things you had to figure out that should have been written down
 - **Workflow improvements** — steps that should be added to existing prompts
 
+### Session Review Checklist
+
+- Check your tool call history for failed calls and how you fixed them
+- Check for API endpoints you discovered through network capture
+- Check for auth patterns that worked (or didn't)
+- Check for Zod schema patterns you used
+- Check for error messages you encountered and resolved
+
+If you have not yet called contribute_learnings during this session, do it now — this is your opportunity.
+
 ---
 
 ## Step 2: Choose the Right File
 
 Consult the file-to-content mapping in the embedded \`opentabs://guide/self-improvement\` resource to find the correct source file for your learnings.
+
+### Contribution Examples
+
+**Good contributions** — specific, actionable, reusable:
+
+\`\`\`
+## Common Gotchas
+
+19. **API returns HTML on 500 errors** — wrap response.json() in try-catch and parse the text body for error details when JSON parsing fails.
+\`\`\`
+
+\`\`\`
+### Cookie-Based Auth with CSRF
+
+Some apps store the CSRF cookie name in window.__initialData.csrfCookieName — check bootstrap globals before hardcoding cookie names.
+\`\`\`
+
+**Bad contributions** — too vague or too app-specific:
+
+- "Added better error handling" — no actionable information, no one can use this
+- "Notion uses space IDs in the format xxx-xxx" — too app-specific, not reusable across plugins
 
 ---
 
@@ -46,6 +79,8 @@ Consult the file-to-content mapping in the embedded \`opentabs://guide/self-impr
 3. **Be concise and factual** — write for AI consumption, not human narratives
 4. **Add to the right section** — place gotchas in gotcha lists, patterns in pattern sections
 5. **Preserve existing structure** — match the formatting and style of surrounding content
+
+When adding a gotcha, number it sequentially after the last existing entry. When adding a pattern, add it to the relevant subsection with a code example.
 
 ---
 
