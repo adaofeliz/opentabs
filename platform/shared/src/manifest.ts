@@ -14,6 +14,8 @@ interface PluginOpentabsField {
   readonly displayName: string;
   readonly description: string;
   readonly urlPatterns: string[];
+  readonly excludePatterns?: string[];
+  readonly homepage?: string;
 }
 
 /** A plugin's package.json with the required `opentabs` field */
@@ -102,6 +104,31 @@ const parsePluginPackageJson = (json: unknown, sourcePath: string): Result<Plugi
     }
   }
 
+  // Parse excludePatterns (optional)
+  const excludePatterns = ot.excludePatterns;
+  let parsedExcludePatterns: string[] | undefined;
+  if (excludePatterns !== undefined) {
+    if (!Array.isArray(excludePatterns)) {
+      return err(`Invalid package.json at ${sourcePath}: "opentabs.excludePatterns" must be an array of strings`);
+    }
+    for (let i = 0; i < excludePatterns.length; i++) {
+      if (typeof excludePatterns[i] !== 'string') {
+        return err(`Invalid package.json at ${sourcePath}: "opentabs.excludePatterns[${i}]" must be a string`);
+      }
+    }
+    parsedExcludePatterns = excludePatterns as string[];
+  }
+
+  // Parse homepage (optional)
+  const homepage = ot.homepage;
+  let parsedHomepage: string | undefined;
+  if (homepage !== undefined) {
+    if (typeof homepage !== 'string' || homepage.length === 0) {
+      return err(`Invalid package.json at ${sourcePath}: "opentabs.homepage" must be a non-empty string`);
+    }
+    parsedHomepage = homepage;
+  }
+
   return ok({
     name,
     version,
@@ -110,6 +137,8 @@ const parsePluginPackageJson = (json: unknown, sourcePath: string): Result<Plugi
       displayName,
       description,
       urlPatterns: urlPatterns as string[],
+      ...(parsedExcludePatterns ? { excludePatterns: parsedExcludePatterns } : {}),
+      ...(parsedHomepage ? { homepage: parsedHomepage } : {}),
     },
   });
 };

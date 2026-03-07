@@ -294,6 +294,97 @@ describe('parsePluginPackageJson', () => {
     });
   });
 
+  describe('opentabs.excludePatterns validation', () => {
+    test('parses valid excludePatterns', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, excludePatterns: ['*://*.wiki.example.com/*'] },
+      };
+      const result = parsePluginPackageJson(json, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.excludePatterns).toEqual(['*://*.wiki.example.com/*']);
+    });
+
+    test('absent excludePatterns still parses successfully', () => {
+      const result = parsePluginPackageJson(validPackageJson, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.excludePatterns).toBeUndefined();
+    });
+
+    test('rejects non-array excludePatterns', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, excludePatterns: 'not-array' },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.excludePatterns" must be an array of strings');
+    });
+
+    test('rejects excludePatterns containing non-string values', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, excludePatterns: ['*://*.example.com/*', 42] },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.excludePatterns[1]" must be a string');
+    });
+
+    test('rejects excludePatterns with non-string at index 0', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, excludePatterns: [null] },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.excludePatterns[0]" must be a string');
+    });
+
+    test('parses empty excludePatterns array', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, excludePatterns: [] },
+      };
+      const result = parsePluginPackageJson(json, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.excludePatterns).toEqual([]);
+    });
+  });
+
+  describe('opentabs.homepage validation', () => {
+    test('parses valid homepage', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, homepage: 'https://slack.com' },
+      };
+      const result = parsePluginPackageJson(json, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.homepage).toBe('https://slack.com');
+    });
+
+    test('absent homepage still parses successfully', () => {
+      const result = parsePluginPackageJson(validPackageJson, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.homepage).toBeUndefined();
+    });
+
+    test('rejects non-string homepage', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, homepage: 123 },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.homepage" must be a non-empty string');
+    });
+
+    test('rejects empty string homepage', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, homepage: '' },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.homepage" must be a non-empty string');
+    });
+  });
+
   describe('error messages include source path', () => {
     test('error message includes the provided sourcePath', () => {
       const customPath = '/home/user/plugins/my-plugin/package.json';

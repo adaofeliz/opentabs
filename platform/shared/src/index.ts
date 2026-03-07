@@ -123,6 +123,8 @@ export interface PluginManifest {
   displayName: string;
   description: string;
   url_patterns: string[];
+  exclude_patterns?: string[];
+  homepage?: string;
   /** SDK version the plugin was built with (set by `opentabs-plugin build` since SDK 0.0.17) */
   sdkVersion?: string;
   tools: ManifestTool[];
@@ -226,6 +228,8 @@ export interface WirePluginPayload {
   version: string;
   displayName: string;
   urlPatterns: string[];
+  excludePatterns?: string[];
+  homepage?: string;
   permission: ToolPermission;
   sourcePath?: string;
   adapterHash?: string;
@@ -308,6 +312,8 @@ export interface ConfigStatePlugin {
   source: 'npm' | 'local';
   tabState: TabState;
   urlPatterns: string[];
+  excludePatterns?: string[];
+  homepage?: string;
   /** SDK version the plugin was built with (from tools.json). Undefined for old plugins. */
   sdkVersion?: string;
   tools: WireToolDef[];
