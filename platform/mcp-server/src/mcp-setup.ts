@@ -344,11 +344,25 @@ When a tool fails, the error message includes actionable guidance:
 - "Too many concurrent dispatches" → Wait briefly and retry
 - Errors with retryAfterMs → Wait the specified duration before retrying
 
+## Workflow Triggers
+
+When the user's request matches a pattern below, **invoke the corresponding prompt before proceeding** — do not attempt the task from general knowledge. These prompts contain accumulated patterns, gotchas, and step-by-step workflows from prior sessions that are critical for success.
+
+| User intent | Prompt to invoke | Also fetch these resources |
+|---|---|---|
+| Build / create / develop a plugin | \`build_plugin(url, name?)\` | \`opentabs://guide/plugin-development\`, \`opentabs://reference/sdk-api\` |
+| Troubleshoot a failing tool or platform issue | \`troubleshoot(error?)\` | \`opentabs://guide/troubleshooting\` |
+| Install / set up / enable / configure a plugin | \`setup_plugin(name)\` | \`opentabs://guide/quick-start\` |
+| Add or update a plugin icon | \`plugin_icon(plugin)\` | — |
+| Audit or improve AI-facing documentation | \`audit_ai_docs\` | All resources |
+
+**Always fetch \`opentabs://status\` first** when diagnosing issues — it shows live extension connectivity, plugin states, and tab info.
+
 ## Resources
 
 Fetch via MCP resources/read for detailed guidance:
 
-- \`opentabs://status\` — Live server state: plugins, extension connectivity, tabs (fetch first)
+- \`opentabs://status\` — Live server state: plugins, extension connectivity, tabs
 - \`opentabs://guide/quick-start\` — Installation, configuration, first tool call
 - \`opentabs://guide/plugin-development\` — Building plugins: SDK, patterns, conventions
 - \`opentabs://guide/troubleshooting\` — Common errors and resolution steps
@@ -356,26 +370,25 @@ Fetch via MCP resources/read for detailed guidance:
 - \`opentabs://reference/cli\` — CLI commands: opentabs, opentabs-plugin
 - \`opentabs://reference/browser-tools\` — All browser tools by category
 
-## Prompts
+## Contributing Learnings (Mandatory)
 
-- \`build_plugin(url, name?)\` — Workflow for building a new plugin for a web app
-- \`troubleshoot(error?)\` — Guided debugging when tools fail or the platform misbehaves
-- \`setup_plugin(name)\` — Install, configure, review, and test a plugin from npm
-- \`plugin_icon(plugin)\` — Add or update an SVG icon for a plugin
-- \`audit_ai_docs\` — Audit and improve AI-facing documentation (instructions, resources, prompts)
+After completing any plugin development, troubleshooting, or platform task, you **must** write new patterns, gotchas, and techniques back into the MCP server source code. This is how the platform self-improves — every AI session makes the next one better.
 
-## Contributing Learnings
+**Where to write:**
 
-When you discover new patterns, gotchas, or techniques while working with this platform, write them directly into the MCP server source code so the next AI benefits automatically:
+| What you learned | Write to |
+|---|---|
+| Plugin dev patterns, gotchas, conventions | \`platform/mcp-server/src/prompts/build-plugin.ts\` and \`platform/mcp-server/src/resources/plugin-development.ts\` |
+| Icon handling patterns | \`platform/mcp-server/src/prompts/plugin-icon.ts\` |
+| Troubleshooting patterns | \`platform/mcp-server/src/resources/troubleshooting.ts\` |
+| CLI or config changes | \`platform/mcp-server/src/resources/cli.ts\` |
+| New workflow triggers or instruction gaps | \`platform/mcp-server/src/mcp-setup.ts\` (\`SERVER_INSTRUCTIONS\`) |
 
-- **Plugin dev patterns, gotchas, conventions** → \`platform/mcp-server/src/prompts/build-plugin.ts\` (Common Gotchas section) and \`platform/mcp-server/src/resources/plugin-development.ts\`
-- **Icon handling patterns** → \`platform/mcp-server/src/prompts/plugin-icon.ts\`
-- **Troubleshooting patterns** → \`platform/mcp-server/src/resources/troubleshooting.ts\`
-- **CLI or config changes** → \`platform/mcp-server/src/resources/cli.ts\`
-
-After editing, verify the server builds: \`cd platform/mcp-server && npm run build\`
-
-Do NOT write learnings to local markdown files or skill files — write them to the source files above so every AI client receives them via MCP.`;
+**Rules:**
+- Check for duplicates before adding — scan existing content first
+- Keep learnings generic, not app-specific
+- Verify the server builds after editing: \`cd platform/mcp-server && npm run build\`
+- Do NOT write learnings to local markdown files or skill files — write them to the source files above so every AI client receives them via MCP`;
 
 /**
  * Create a new low-level MCP Server instance with the OpenTabs server info
