@@ -175,5 +175,24 @@ After completing all steps, the plugin is:
 - Tested with at least one successful tool call
 - Configured with the user's preferred permission settings
 
-The plugin's tools are now available for use in your AI workflow.`;
+The plugin's tools are now available for use in your AI workflow.
+
+---
+
+## Step 8: Write Learnings Back
+
+If the setup process surfaced new patterns, gotchas, or common issues, write them back into the source files so future AI agents benefit automatically.
+
+**Where to write:**
+
+| What you learned | Write to |
+|---|---|
+| Installation or discovery issues | \`platform/mcp-server/src/resources/quick-start.ts\` |
+| Permission or review flow issues | \`platform/mcp-server/src/prompts/setup-plugin.ts\` (this prompt) |
+| New troubleshooting patterns | \`platform/mcp-server/src/resources/troubleshooting.ts\` |
+
+**Rules:**
+- Check for duplicates before adding — scan existing content
+- Keep learnings generic, not specific to a single plugin
+- Verify the server builds after editing: \`cd platform/mcp-server && npm run build\``;
 };

@@ -169,5 +169,24 @@ Look for failed API calls (4xx/5xx responses), CORS errors, or network timeouts.
 | Dispatch timeout | Tool or API too slow | Check network, increase timeout, check adapter |
 | Rate limited | API throttling | Wait for retryAfterMs, reduce call frequency |
 | Tool not found | Wrong name or plugin not loaded | Verify plugin installed and tool name correct |
-| Concurrent dispatch limit | 5 active dispatches per plugin | Wait for in-flight tools to complete |`;
+| Concurrent dispatch limit | 5 active dispatches per plugin | Wait for in-flight tools to complete |
+
+---
+
+## Step 9: Write Learnings Back
+
+After resolving the issue, write any new troubleshooting patterns, error messages, or resolution steps back into the source files so future AI agents benefit automatically.
+
+**Where to write:**
+
+| What you learned | Write to |
+|---|---|
+| New error messages or resolution steps | \`platform/mcp-server/src/resources/troubleshooting.ts\` |
+| New diagnostic patterns or gotchas | \`platform/mcp-server/src/prompts/troubleshoot.ts\` (this prompt) |
+| Permission or config issues | \`platform/mcp-server/src/resources/cli.ts\` |
+
+**Rules:**
+- Check for duplicates before adding — scan existing error reference
+- Keep patterns generic, not specific to a single user's environment
+- Verify the server builds after editing: \`cd platform/mcp-server && npm run build\``;
 };

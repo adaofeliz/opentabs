@@ -25,6 +25,7 @@
 import { getStaticResourceContent } from './mcp-resources.js';
 import { auditAiDocsPromptText } from './prompts/audit-ai-docs.js';
 import { buildPluginPromptText } from './prompts/build-plugin.js';
+import { contributeLearningsPromptText } from './prompts/contribute-learnings.js';
 import { pluginIconPromptText } from './prompts/plugin-icon.js';
 import { setupPluginPromptText } from './prompts/setup-plugin.js';
 import { troubleshootPromptText } from './prompts/troubleshoot.js';
@@ -154,6 +155,23 @@ export const PROMPTS: PromptDefinition[] = [
       'Identifies gaps, stale content, and drift. Use this to keep AI docs up to date.',
     arguments: [],
   },
+  {
+    name: 'contribute_learnings',
+    title: 'Contribute Learnings',
+    description:
+      'Write new patterns, gotchas, and techniques back into MCP server source code after completing any task. ' +
+      'Edits to these source files compile into the resources and prompts served to every future AI session, ' +
+      'creating a self-improving loop. Invoke this after plugin development, troubleshooting, or any task that surfaced new knowledge.',
+    arguments: [
+      {
+        name: 'task',
+        description:
+          'Brief description of the task you completed (e.g., "built a plugin for Linear", "fixed CORS issue with Notion API"). ' +
+          'If omitted, reviews the entire session for learnings.',
+        required: false,
+      },
+    ],
+  },
 ];
 
 /** Prompt name → definition for O(1) lookup */
@@ -205,6 +223,8 @@ export const resolvePrompt = (name: string, args: Record<string, string>): Promp
       return resolvePluginIcon(args);
     case 'audit_ai_docs':
       return resolveAuditAiDocs();
+    case 'contribute_learnings':
+      return resolveContributeLearnings(args);
     default:
       return null;
   }
@@ -285,3 +305,19 @@ const resolveAuditAiDocs = (): PromptResult => ({
     { uri: 'opentabs://reference/browser-tools', mimeType: 'text/markdown' },
   ]),
 });
+
+// ---------------------------------------------------------------------------
+// contribute_learnings prompt
+// ---------------------------------------------------------------------------
+
+const resolveContributeLearnings = (args: Record<string, string>): PromptResult => {
+  const task = args.task ?? '';
+
+  return {
+    description: task ? `Contribute learnings from: ${task}` : 'Contribute learnings from recent session',
+    messages: buildMessages(contributeLearningsPromptText(task), [
+      { uri: 'opentabs://guide/plugin-development', mimeType: 'text/markdown' },
+      { uri: 'opentabs://guide/troubleshooting', mimeType: 'text/markdown' },
+    ]),
+  };
+};

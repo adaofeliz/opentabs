@@ -365,6 +365,7 @@ When the user's request matches a pattern below, **invoke the corresponding prom
 | Install / set up / enable / configure a plugin | \`setup_plugin(name)\` | \`opentabs://guide/quick-start\` |
 | Add or update a plugin icon | \`plugin_icon(plugin)\` | — |
 | Audit or improve AI-facing documentation | \`audit_ai_docs\` | All resources |
+| After completing any task (always do this) | \`contribute_learnings(task?)\` | — |
 
 **Always fetch \`opentabs://status\` first** when diagnosing issues — it shows live extension connectivity, plugin states, and tab info.
 
@@ -380,19 +381,20 @@ Fetch via MCP resources/read for detailed guidance:
 - \`opentabs://reference/cli\` — CLI commands: opentabs, opentabs-plugin
 - \`opentabs://reference/browser-tools\` — All browser tools by category
 
-## Contributing Learnings (Mandatory)
+## Contributing Learnings (Mandatory — Do This After Every Task)
 
-After completing any plugin development, troubleshooting, or platform task, you **must** write new patterns, gotchas, and techniques back into the MCP server source code.
+After completing any plugin development, troubleshooting, setup, or platform task, you **must** invoke the \`contribute_learnings\` prompt and write new patterns, gotchas, and techniques back into the MCP server source code. This is not optional — it is the final step of every task.
 
-**Why this matters:** The source files listed below are compiled into the MCP resources and prompts that this server serves. When you edit them, the next build produces updated content that every future AI agent receives automatically via \`resources/read\` and \`prompts/get\`. This creates a self-improving loop — every AI session that builds a plugin, fixes an issue, or discovers a gotcha makes every subsequent session smarter. You are both a consumer and a contributor to these resources.
+**Why this matters:** The source files you edit compile into the MCP resources and prompts this server serves. When you edit them and the server rebuilds, every future AI agent receives your learnings automatically via \`resources/read\` and \`prompts/get\`. This creates a self-improving loop — every session that builds a plugin, fixes an issue, or discovers a gotcha makes every subsequent session smarter. You are both a consumer and a contributor to these resources.
 
-**Where to write:**
+**Quick reference — where to write:**
 
 | What you learned | Write to | Served as |
 |---|---|---|
 | Plugin dev patterns, gotchas, conventions | \`platform/mcp-server/src/prompts/build-plugin.ts\` and \`platform/mcp-server/src/resources/plugin-development.ts\` | \`build_plugin\` prompt + \`opentabs://guide/plugin-development\` resource |
 | Icon handling patterns | \`platform/mcp-server/src/prompts/plugin-icon.ts\` | \`plugin_icon\` prompt |
 | Troubleshooting patterns | \`platform/mcp-server/src/resources/troubleshooting.ts\` | \`opentabs://guide/troubleshooting\` resource |
+| Plugin setup patterns | \`platform/mcp-server/src/prompts/setup-plugin.ts\` | \`setup_plugin\` prompt |
 | CLI or config changes | \`platform/mcp-server/src/resources/cli.ts\` | \`opentabs://reference/cli\` resource |
 | New workflow triggers or instruction gaps | \`platform/mcp-server/src/mcp-setup.ts\` (\`SERVER_INSTRUCTIONS\`) | MCP initialize instructions (pushed to every session) |
 
@@ -400,7 +402,8 @@ After completing any plugin development, troubleshooting, or platform task, you 
 - Check for duplicates before adding — scan existing content first
 - Keep learnings generic, not app-specific
 - Verify the server builds after editing: \`cd platform/mcp-server && npm run build\`
-- Do NOT write learnings to local markdown files or skill files — write them to the source files above so every AI client receives them via MCP`;
+- Do NOT write learnings to local markdown files or skill files — write them to the source files above so every AI client receives them via MCP
+- Invoke \`contribute_learnings(task?)\` for the full workflow with file mapping`;
 
 /**
  * Create a new low-level MCP Server instance with the OpenTabs server info

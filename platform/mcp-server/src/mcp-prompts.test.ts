@@ -164,6 +164,45 @@ describe('resolvePrompt — audit_ai_docs', () => {
   });
 });
 
+describe('resolvePrompt — contribute_learnings', () => {
+  test('returns result with task substituted', () => {
+    const result = resolvePrompt('contribute_learnings', { task: 'built a Slack plugin' });
+    expect(result).not.toBeNull();
+    expect(result?.description).toContain('built a Slack plugin');
+    expect(firstMessageText(result?.messages)).toContain('built a Slack plugin');
+  });
+
+  test('works without task argument', () => {
+    const result = resolvePrompt('contribute_learnings', {});
+    expect(result).not.toBeNull();
+    expect(result?.description).toContain('recent session');
+    expect(firstMessageText(result?.messages)).toContain('Review your recent session');
+  });
+
+  test('embeds plugin-development and troubleshooting resources', () => {
+    const result = resolvePrompt('contribute_learnings', {});
+    expect(result).not.toBeNull();
+    const uris = embeddedResourceUris(result?.messages ?? []);
+    expect(uris).toHaveLength(2);
+    expect(uris).toContain('opentabs://guide/plugin-development');
+    expect(uris).toContain('opentabs://guide/troubleshooting');
+  });
+
+  test('includes file mapping table', () => {
+    const result = resolvePrompt('contribute_learnings', {});
+    const text = firstMessageText(result?.messages);
+    expect(text).toContain('platform/mcp-server/src/resources/plugin-development.ts');
+    expect(text).toContain('platform/mcp-server/src/prompts/build-plugin.ts');
+    expect(text).toContain('platform/mcp-server/src/resources/troubleshooting.ts');
+  });
+
+  test('includes self-improvement loop explanation', () => {
+    const result = resolvePrompt('contribute_learnings', {});
+    const text = firstMessageText(result?.messages);
+    expect(text).toContain('Self-Improvement Loop');
+  });
+});
+
 describe('resolvePrompt — unknown prompts', () => {
   test('returns null for unknown prompt name', () => {
     expect(resolvePrompt('nonexistent', {})).toBeNull();
