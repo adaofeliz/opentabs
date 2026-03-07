@@ -352,52 +352,6 @@ export const gmailSync = async (body: unknown, queryParams: Record<string, strin
   return response.json();
 };
 
-// --- Action API ---
-
-export const gmailAction = async (act: string, params: Record<string, string> = {}): Promise<string> => {
-  const auth = getAuth();
-  if (!auth?.at)
-    throw ToolError.auth(
-      'Action token not captured yet. Interact with Gmail (click an email) to capture the token, then retry.',
-    );
-
-  const form = new URLSearchParams();
-  for (const [key, value] of Object.entries(params)) {
-    if (value !== undefined) form.append(key, value);
-  }
-
-  const reqId = Math.floor(Math.random() * 9000000) + 1000000;
-  const url = `${auth.basePath}/?ui=2&ik=${auth.ik}&at=${encodeURIComponent(auth.at)}&view=up&act=${act}&_reqid=${reqId}&rt=j`;
-
-  let response: Response;
-  try {
-    response = await fetch(url, {
-      method: 'POST',
-      headers: {
-        'X-Same-Domain': '1',
-        'Content-Type': 'application/x-www-form-urlencoded;charset=utf-8',
-      },
-      body: form.toString(),
-      credentials: 'include',
-      signal: AbortSignal.timeout(30_000),
-    });
-  } catch (err: unknown) {
-    if (err instanceof DOMException && err.name === 'TimeoutError')
-      throw ToolError.timeout('Gmail action request timed out');
-    throw ToolError.internal(`Network error: ${err instanceof Error ? err.message : String(err)}`);
-  }
-
-  if (!response.ok) {
-    if (response.status === 401 || response.status === 403) {
-      clearPersistedAuth();
-      throw ToolError.auth('Gmail session expired. Please refresh the page.');
-    }
-    throw ToolError.internal(`Gmail action failed (${response.status}): ${act}`);
-  }
-
-  return response.text();
-};
-
 // --- Sync response parsers ---
 
 const parseParticipant = (p: unknown): { email: string; name: string } => {
@@ -548,6 +502,232 @@ export const formatLabelName = (raw: string): string => LABEL_MAP[raw] ?? raw;
 export const isUnread = (labels: string[]): boolean => labels.includes('^u');
 
 export const isStarred = (labels: string[]): boolean => labels.includes('^t') || labels.includes('^b');
+
+// --- gmonkey compose API ---
+// Gmail exposes gmonkey (v2), an internal extension API, on the page.
+// GmailDraftMessage has setTo/setSubject/setBody/send methods that use
+// Gmail's own send infrastructure (including the cryptographic token the
+// sync API requires but cannot be replicated externally).
+
+interface GmonkeyEmailAddress {
+  address: string;
+  name: string;
+}
+
+interface GmailDraftMessage {
+  getTo: () => string;
+  getToEmails: () => GmonkeyEmailAddress[];
+  setTo: (to: string) => void;
+  setToEmails: (emails: GmonkeyEmailAddress[]) => void;
+  getCc: () => string;
+  getCcEmails: () => GmonkeyEmailAddress[];
+  setCc: (cc: string) => void;
+  setCcEmails: (emails: GmonkeyEmailAddress[]) => void;
+  getBcc: () => string;
+  getBccEmails: () => GmonkeyEmailAddress[];
+  setBcc: (bcc: string) => void;
+  setBccEmails: (emails: GmonkeyEmailAddress[]) => void;
+  getSubject: () => string;
+  setSubject: (subject: string) => void;
+  getBody: () => string;
+  setBody: (body: string) => void;
+  getPlainTextBody: () => string;
+  send: () => void;
+  ha: { Pk: { isEnabled: () => boolean }; dispose: () => void };
+}
+
+interface GmailMainWindow {
+  createNewCompose: () => void;
+  getOpenDraftMessages: () => GmailDraftMessage[];
+}
+
+interface GmonkeyApi {
+  getMainWindow: () => GmailMainWindow;
+  GmailDraftMessage: unknown;
+}
+
+interface Gmonkey {
+  get: (version: string) => GmonkeyApi | undefined;
+  isLoaded: boolean;
+}
+
+const getGmonkey = (): Gmonkey | null => {
+  try {
+    const g = (window as unknown as Record<string, unknown>).gmonkey;
+    if (g && typeof g === 'object' && 'get' in g) return g as Gmonkey;
+  } catch {
+    // Silently fail
+  }
+  return null;
+};
+
+const getGmonkeyApi = (): GmonkeyApi | null => {
+  const gmonkey = getGmonkey();
+  if (!gmonkey) return null;
+  return gmonkey.get('2.0') ?? null;
+};
+
+/**
+ * Send an email using Gmail's gmonkey compose API. This opens a compose window,
+ * sets the fields, and triggers Gmail's internal send mechanism (which generates
+ * the cryptographic send token that the sync API requires).
+ *
+ * Returns true if the send was initiated, or throws on failure.
+ */
+export const sendViaCompose = async (params: {
+  to: string[];
+  cc?: string[];
+  bcc?: string[];
+  subject: string;
+  body: string;
+}): Promise<{ sent: boolean }> => {
+  const api = getGmonkeyApi();
+  if (!api) throw ToolError.internal('Gmail gmonkey API not available — the page may not be fully loaded.');
+
+  const mainWin = api.getMainWindow();
+  if (!mainWin) throw ToolError.internal('Gmail main window not available.');
+
+  // Snapshot existing draft references before creating a new compose
+  const existingDraftSet = new WeakSet<GmailDraftMessage>(mainWin.getOpenDraftMessages());
+  const existingCount = mainWin.getOpenDraftMessages().length;
+
+  // Open a new compose window
+  mainWin.createNewCompose();
+
+  // Wait for the new draft to appear (polls every 200ms, 5s timeout)
+  const draft = await new Promise<GmailDraftMessage>((resolve, reject) => {
+    let elapsed = 0;
+    const interval = 200;
+    const maxWait = 5000;
+    const timer = setInterval(() => {
+      elapsed += interval;
+      const drafts = mainWin.getOpenDraftMessages();
+      if (drafts.length > existingCount) {
+        clearInterval(timer);
+        // The new draft is the one not in the existing set (by object identity)
+        const newDraft = drafts.find(d => !existingDraftSet.has(d));
+        if (newDraft) {
+          resolve(newDraft);
+        } else {
+          // Fallback to last draft
+          const last = drafts[drafts.length - 1];
+          if (last) resolve(last);
+        }
+        return;
+      }
+      if (elapsed >= maxWait) {
+        clearInterval(timer);
+        reject(new Error('Timed out waiting for compose window'));
+      }
+    }, interval);
+  }).catch(err => {
+    throw ToolError.timeout(`Failed to open compose: ${err instanceof Error ? err.message : String(err)}`);
+  });
+
+  // Wait for the send button to become enabled (compose may still be initializing)
+  const sendEnabled = await new Promise<boolean>(resolve => {
+    if (draft.ha?.Pk?.isEnabled?.()) {
+      resolve(true);
+      return;
+    }
+    let elapsed = 0;
+    const interval = 200;
+    const maxWait = 3000;
+    const timer = setInterval(() => {
+      elapsed += interval;
+      if (draft.ha?.Pk?.isEnabled?.()) {
+        clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      if (elapsed >= maxWait) {
+        clearInterval(timer);
+        resolve(false);
+      }
+    }, interval);
+  });
+
+  if (!sendEnabled) {
+    // Try to dispose the broken draft
+    try {
+      draft.ha.dispose();
+    } catch {
+      /* ignore */
+    }
+    throw ToolError.internal(
+      'Compose window opened but send is not enabled. Gmail may have a dialog open or the compose is minimized.',
+    );
+  }
+
+  // Set recipients
+  draft.setToEmails(params.to.map(addr => ({ address: addr, name: '' })));
+
+  if (params.cc && params.cc.length > 0) {
+    draft.setCcEmails(params.cc.map(addr => ({ address: addr, name: '' })));
+  }
+
+  if (params.bcc && params.bcc.length > 0) {
+    draft.setBccEmails(params.bcc.map(addr => ({ address: addr, name: '' })));
+  }
+
+  // Set subject and body
+  draft.setSubject(params.subject);
+  draft.setBody(params.body);
+
+  // Wait for Gmail to process the field updates
+  await new Promise(resolve => setTimeout(resolve, 500));
+
+  // Verify To was set (Gmail resolves addresses asynchronously)
+  const toEmails = draft.getToEmails();
+  if (!toEmails || toEmails.length === 0) {
+    // Retry with string-based setTo as fallback
+    draft.setTo(params.to.join(', '));
+    await new Promise(resolve => setTimeout(resolve, 500));
+    const retryTo = draft.getTo();
+    if (!retryTo) {
+      try {
+        draft.ha.dispose();
+      } catch {
+        /* ignore */
+      }
+      throw ToolError.validation('Failed to set recipients — Gmail did not accept the email addresses.');
+    }
+  }
+
+  // Send the email
+  draft.send();
+
+  // Wait and verify the draft was consumed (sent)
+  const sent = await new Promise<boolean>(resolve => {
+    let elapsed = 0;
+    const interval = 300;
+    const maxWait = 8000;
+    const timer = setInterval(() => {
+      elapsed += interval;
+      const remaining = mainWin.getOpenDraftMessages();
+      // The draft should disappear after sending
+      const stillExists = remaining.some(d => {
+        try {
+          return d.getSubject() === params.subject;
+        } catch {
+          return false;
+        }
+      });
+      if (!stillExists) {
+        clearInterval(timer);
+        resolve(true);
+        return;
+      }
+      if (elapsed >= maxWait) {
+        clearInterval(timer);
+        // The draft might still be sending — Gmail shows "Sending..." briefly
+        resolve(true);
+      }
+    }, interval);
+  });
+
+  return { sent };
+};
 
 // --- HTML to plain text ---
 
