@@ -19,6 +19,8 @@ import { withDebugger } from './resource-commands.js';
 
 /**
  * Clicks a DOM element matched by a CSS selector in a tab's page context.
+ * Resolves the element's bounding rect via scripting, then dispatches trusted
+ * (isTrusted: true) mouse events at the element center via CDP Input.dispatchMouseEvent.
  * @param params - Expects `{ tabId: number, selector: string }`.
  * @returns `{ clicked, tagName, text }` describing the clicked element.
  */
@@ -38,11 +40,12 @@ export const handleBrowserClickElement = async (
       func: (sel: string, maxPreview: number) => {
         const el = document.querySelector(sel);
         if (!el) return { error: `Element not found: ${sel}` };
-        (el as HTMLElement).click();
+        const rect = (el as HTMLElement).getBoundingClientRect();
         return {
-          clicked: true,
           tagName: el.tagName.toLowerCase(),
           text: (el.textContent || '').trim().slice(0, maxPreview),
+          x: rect.left + rect.width / 2,
+          y: rect.top + rect.height / 2,
         };
       },
       args: [selector, TEXT_PREVIEW_MAX_LENGTH],
@@ -50,7 +53,29 @@ export const handleBrowserClickElement = async (
 
     const result = extractScriptResult(results, id);
     if (!result) return;
-    sendSuccessResult(id, { clicked: result.clicked, tagName: result.tagName, text: result.text });
+
+    const x = result.x as number;
+    const y = result.y as number;
+    await withDebugger(tabId, async () => {
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mousePressed',
+        x,
+        y,
+        button: 'left',
+        buttons: 1,
+        clickCount: 1,
+      });
+      await chrome.debugger.sendCommand({ tabId }, 'Input.dispatchMouseEvent', {
+        type: 'mouseReleased',
+        x,
+        y,
+        button: 'left',
+        buttons: 0,
+        clickCount: 1,
+      });
+    });
+
+    sendSuccessResult(id, { clicked: true, tagName: result.tagName, text: result.text });
   } catch (err) {
     sendErrorResult(id, err);
   }

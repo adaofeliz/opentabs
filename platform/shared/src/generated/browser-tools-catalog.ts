@@ -25,7 +25,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'browser_click_element',
     description:
-      'Click an element on the page matching the given CSS selector. Dispatches a click event on the first matching element. Returns the tag name and trimmed text content of the clicked element. Useful for submitting forms, toggling buttons, and navigating.',
+      'Click an element on the page matching the given CSS selector. Dispatches trusted (isTrusted: true) mouse events (mousedown + mouseup) via Chrome DevTools Protocol Input.dispatchMouseEvent at the element center. Returns the tag name and trimmed text content of the clicked element. Useful for submitting forms, toggling buttons, and navigating.',
     summary: 'Click an element on the page',
     icon: 'mouse-pointer-click',
     group: 'Page Interaction',
