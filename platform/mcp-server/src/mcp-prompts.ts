@@ -532,7 +532,17 @@ npm run check  # build + type-check + lint + format:check
 5. **HttpOnly cookies are invisible to plugin code** — use \`credentials: 'include'\` for the browser to send them automatically, detect auth status from DOM signals
 6. **Parse error response bodies before classifying by HTTP status** — many apps reuse 403 for both auth and permission errors
 7. **Cross-origin API + cookies: check CORS before choosing fetch strategy**
-8. **Always run \`npm run format\` after writing code** — Biome config uses single quotes`;
+8. **Always run \`npm run format\` after writing code** — Biome config uses single quotes
+9. **Adapter injection timing** — adapters are injected at \`loading\` (before page JS runs) and \`complete\` (after full load). \`isReady()\` is called at both points. Cache tokens from localStorage at loading time before the host app deletes them.
+10. **Token persistence on \`globalThis\` survives re-injection** — use \`globalThis.__openTabs.tokenCache.<pluginName>\` to persist auth tokens. Module-level variables reset when the extension reloads. Clear the persisted token on 401 responses to handle token rotation.
+11. **Error classification: parse body before HTTP status** — many apps return JSON error codes in the response body that distinguish auth errors from permission errors. Parse the body first, then fall back to HTTP status classification.
+12. **Cookie-based auth may require CSRF tokens for writes** — apps using HttpOnly session cookies often require a CSRF token header for non-GET requests. The CSRF token is typically in a non-HttpOnly cookie. Check \`window.__initialData.csrfCookieName\` or similar bootstrap globals to discover the cookie name.
+13. **Check bootstrap globals for auth signals** — \`window.__initialData\`, \`window.__INITIAL_STATE__\`, \`window.boot_data\` are more reliable than DOM for auth detection. Inspect these early during exploration.
+14. **Some apps use internal APIs instead of public REST** — the public API may require OAuth2, but the web client uses internal same-origin endpoints with cookie auth. Look for internal endpoints when public API rejects auth.
+15. **Intercepted headers must survive adapter re-injection** — store captured tokens on \`globalThis.__<pluginName>CapturedTokens\`. Re-patch XHR on each adapter load. Avoid stale \`if (installed) return\` guards that skip re-patching after re-injection.
+16. **Trusted Types CSP blocks \`innerHTML\`** — use regex \`html.replace(/<[^>]+>/g, '')\` for HTML-to-text conversion instead. Never use \`innerHTML\`, \`outerHTML\`, or \`insertAdjacentHTML\` in plugin code.
+17. **Opaque auth headers can only be captured, not generated** — some apps use cryptographic tokens computed by obfuscated JS. Capture them from the XHR interceptor and implement a polling wait with timeout for the header to appear.
+18. **Write operations may silently fail without cryptographic tokens** — if a write returns 200 but the action does not take effect, the API likely requires an opaque auth header. Omit the tool rather than shipping one that silently fails.`;
 };
 
 // ---------------------------------------------------------------------------
