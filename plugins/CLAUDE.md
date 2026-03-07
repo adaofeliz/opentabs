@@ -27,6 +27,24 @@ Each plugin follows the same pattern:
 3. **Define tools** (`plugins/<name>/src/tools/`): One file per tool using `defineTool()` with Zod schemas. The `handle(params, context?)` function receives an optional `ToolHandlerContext` as its second argument for reporting progress during long-running operations
 4. **Build**: `cd plugins/<name> && npm install && npm run build` (runs `tsc` then `opentabs-plugin build`, which produces `dist/adapter.iife.js` and `dist/tools.json`, auto-registers the plugin in `localPlugins`, and calls `POST /reload` to notify the MCP server)
 
+## Plugin Icons
+
+Place an `icon.svg` file in the plugin root directory. The build tool auto-generates inactive, dark, and dark-inactive variants. Follow these rules:
+
+- **No explicit `width`/`height` attributes on `<svg>`.** The side panel renders icons in a small container (19x19px) with `overflow: hidden`. An SVG with hardcoded dimensions (e.g., `width="74" height="74"`) renders at that fixed size and gets clipped — the icon appears blank because the visible content is outside the tiny viewport. Use `viewBox` only — the SVG scales to fit the container automatically.
+- **Use hardcoded colors, not `currentColor`.** The build tool's dark/inactive variant generator skips `currentColor` (it's a passthrough value). Use `fill="black"` for monochrome icons — the generator detects low contrast against the dark background (`#1c1c1c`) and auto-inverts to white. Plugins like GitHub and Notion use this pattern.
+- **The `viewBox` must be square.** The build tool validates this. If the source logo has a non-square aspect ratio (e.g., `0 0 74 64`), pad the viewBox to square and center the path coordinates.
+
+Example of a correct monochrome icon:
+
+```svg
+<svg viewBox="0 0 74 74" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M37 5L74 69H0L37 5Z" fill="black"/>
+</svg>
+```
+
+For multi-color icons or when automatic dark generation produces poor results, provide an explicit `icon-dark.svg` alongside `icon.svg`.
+
 ## Building Plugins
 
 ```bash
