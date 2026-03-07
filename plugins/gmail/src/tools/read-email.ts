@@ -7,7 +7,7 @@ export const readEmail = defineTool({
   name: 'read_email',
   displayName: 'Read Email',
   description:
-    'Read an email thread via the Gmail sync API. ' +
+    'Read an email thread. ' +
     'Returns messages in the thread with sender, recipients, subject, text snippet, and metadata. ' +
     'Requires a thread ID (e.g., "thread-f:1858936416969478478") from list_emails or search_emails.',
   summary: 'Read an email thread',

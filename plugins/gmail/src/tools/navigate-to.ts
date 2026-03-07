@@ -5,9 +5,9 @@ export const navigateTo = defineTool({
   name: 'navigate_to',
   displayName: 'Navigate To',
   description:
-    'Navigate Gmail to a specific view using URL hash routing: inbox, starred, sent, drafts, trash, spam, all mail, ' +
-    'a specific label, or a search query. This triggers Gmail SPA to fetch and render the corresponding data.',
-  summary: 'Navigate to a Gmail label or view',
+    'Navigate Gmail to a specific view: inbox, starred, sent, drafts, trash, spam, all mail, ' +
+    'a specific label, or a search query. This triggers Gmail to fetch and render the corresponding data.',
+  summary: 'Navigate to a Gmail view',
   icon: 'navigation',
   group: 'Navigation',
   input: z.object({

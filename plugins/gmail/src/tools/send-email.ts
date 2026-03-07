@@ -7,9 +7,7 @@ export const sendEmail = defineTool({
   displayName: 'Send Email',
   description:
     'Send an email from the authenticated Gmail account. ' +
-    'Supports multiple To, CC, and BCC recipients. ' +
-    'The body is plain text. ' +
-    "Uses Gmail's internal compose API to send the email through the user's authenticated session.",
+    'Supports multiple To, CC, and BCC recipients. The body is plain text.',
   summary: 'Send an email from Gmail',
   icon: 'send',
   group: 'Actions',

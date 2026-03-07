@@ -14,7 +14,7 @@ export const searchEmails = defineTool({
   name: 'search_emails',
   displayName: 'Search Emails',
   description:
-    'Search emails using Gmail search syntax via the internal sync API. Supports all Gmail search operators: ' +
+    'Search emails using Gmail search syntax. Supports all Gmail search operators: ' +
     '"from:user@example.com", "to:me", "subject:invoice", "has:attachment", ' +
     '"is:unread", "is:starred", "label:work", "after:2024/01/01", "before:2024/12/31", ' +
     '"newer_than:7d", "older_than:1m", etc. Returns matching threads.',

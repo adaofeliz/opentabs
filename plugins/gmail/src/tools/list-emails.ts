@@ -14,10 +14,10 @@ export const listEmails = defineTool({
   name: 'list_emails',
   displayName: 'List Emails',
   description:
-    'List recent email threads from Gmail via the internal sync API. ' +
+    'List recent email threads from Gmail. ' +
     'Returns threads with sender, subject, snippet, timestamp, read/starred status, and labels. ' +
     'Use search_emails for filtered results.',
-  summary: 'List recent email threads from Gmail',
+  summary: 'List recent email threads',
   icon: 'inbox',
   group: 'Reading',
   input: z.object({}),

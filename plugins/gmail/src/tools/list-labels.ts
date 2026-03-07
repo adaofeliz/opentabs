@@ -7,10 +7,10 @@ export const listLabels = defineTool({
   name: 'list_labels',
   displayName: 'List Labels',
   description:
-    'List Gmail labels with unread and total message counts via the sync API. ' +
+    'List Gmail labels with unread and total message counts. ' +
     'Includes system labels (Inbox, Sent, Drafts, Trash, Spam, Starred) and category labels ' +
     '(Personal, Social, Promotions, Updates).',
-  summary: 'List Gmail labels and their message counts',
+  summary: 'List Gmail labels with message counts',
   icon: 'tag',
   group: 'Labels',
   input: z.object({}),

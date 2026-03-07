@@ -19,7 +19,7 @@ export const threadSummarySchema = z.object({
 
 export const messageSchema = z.object({
   message_id: z.string().describe('Message ID (e.g., "msg-f:1858936416969478478")'),
-  hex_id: z.string().describe('Hex message ID used for action API calls'),
+  hex_id: z.string().describe('Hex message ID (16-character hex string, e.g., "19c40ed6e9aa7c1e")'),
   from: participantSchema.describe('Message sender'),
   to: z.array(participantSchema).describe('To recipients'),
   cc: z.array(participantSchema).describe('CC recipients'),
