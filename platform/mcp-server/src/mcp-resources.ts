@@ -857,7 +857,21 @@ const waitForToken = async (): Promise<string> => {
 };
 \`\`\`
 
-If a write operation returns 200 but the action does not take effect, the cryptographic token may be missing or stale. Omit the tool rather than shipping one that silently fails.
+If a write operation returns 200 but the action does not take effect, the cryptographic token may be missing or stale. Capture and replay the token using the XHR interceptor pattern above.
+
+### Extension/Programmatic APIs
+
+When standard API paths are blocked (undocumented crypto tokens, deprecated endpoints), complex web apps often expose higher-level programmatic interfaces:
+
+- Internal extension APIs on \`window\` (compose, send, draft management)
+- JavaScript-exposed infrastructure for accessibility or testing
+- \`webpackChunk\`-based module access to internal stores
+
+Discovery: use \`browser_execute_script\` with \`Object.keys(window).filter(k => !['location', 'chrome', 'document', 'navigator'].includes(k))\` to find non-standard globals, then explore their methods.
+
+### API Deprecation
+
+Internal API endpoints can be deprecated without warning. When multiple API generations exist, test each endpoint independently. If an endpoint returns 404 or 403 unexpectedly, it may be deprecated for that account or region. Remove tools that depend on deprecated endpoints rather than shipping broken tools.
 
 ## CSP Considerations
 
