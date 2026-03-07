@@ -77,6 +77,19 @@ export abstract class OpenTabsPlugin {
    * @see https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns
    */
   abstract readonly urlPatterns: string[];
+  /**
+   * Chrome match patterns for URLs that should NOT match this plugin.
+   * Tabs matching both urlPatterns and excludePatterns are excluded.
+   * Useful when a broad urlPattern overlaps with another plugin's domain.
+   * @see https://developer.chrome.com/docs/extensions/develop/concepts/match-patterns
+   */
+  readonly excludePatterns?: string[];
+  /**
+   * URL to open when no matching tab exists and the user triggers an
+   * 'open tab' action from the side panel. Should be a concrete URL
+   * (e.g., 'https://github.com'), not a match pattern.
+   */
+  readonly homepage?: string;
   /** All tool definitions for this plugin */
   abstract readonly tools: ToolDefinition[];
   /**
