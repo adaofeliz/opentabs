@@ -1,4 +1,4 @@
-import type { ConfigStatePlugin, TabState, ToolPermission } from '@opentabs-dev/shared';
+import type { ConfigStatePlugin, PluginTabInfo, TabState, ToolPermission } from '@opentabs-dev/shared';
 import { clearAllConfirmationBadges, clearConfirmationBadge, getPendingConfirmations } from './confirmation-badge.js';
 import { buildWsUrl, SERVER_PORT_KEY, WS_CONNECTED_KEY } from './constants.js';
 import type { DisconnectReason, InternalMessage, PluginTabStateInfo } from './extension-messages.js';
@@ -181,11 +181,13 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
 
       // Tab state from lastKnownState cache (serialized JSON)
       let tabState: TabState = 'closed';
+      let tabs: PluginTabInfo[] | undefined;
       const serialized = tabStates.get(meta.name);
       if (serialized) {
         try {
           const parsed = JSON.parse(serialized) as PluginTabStateInfo;
           tabState = parsed.state;
+          if (parsed.tabs.length > 0) tabs = parsed.tabs;
         } catch {
           // Fall back to 'closed' on parse error
         }
@@ -219,6 +221,7 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
         permission: serverPlugin?.permission ?? meta.permission,
         tools,
         tabState,
+        tabs,
         source: serverPlugin?.source ?? 'local',
         reviewed: serverPlugin?.reviewed ?? false,
         sdkVersion: serverPlugin?.sdkVersion,
