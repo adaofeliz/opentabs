@@ -61,7 +61,7 @@ const ConnectionRefusedState = () => {
     <Empty className="border-destructive/60">
       <Empty.Content>
         <Empty.Icon className="h-10 w-10 text-destructive/60">
-          <Unplug className="h-full w-full" />
+          <Unplug size={40} />
         </Empty.Icon>
         <Empty.Title>Cannot Reach MCP Server</Empty.Title>
         <Empty.Separator className="bg-destructive" />
@@ -85,7 +85,7 @@ const AuthFailedState = () => (
   <Empty className="border-destructive/60">
     <Empty.Content>
       <Empty.Icon className="h-10 w-10 text-destructive/60">
-        <KeyRound className="h-full w-full" />
+        <KeyRound size={40} />
       </Empty.Icon>
       <Empty.Title>Authentication Failed</Empty.Title>
       <Empty.Separator className="bg-destructive" />

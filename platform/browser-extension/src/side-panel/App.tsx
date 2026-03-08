@@ -507,7 +507,7 @@ const App = () => {
                   <Empty className="border-muted" role="status">
                     <Empty.Content>
                       <Empty.Icon className="h-10 w-10 text-muted-foreground">
-                        <Package className="h-full w-full" />
+                        <Package size={40} />
                       </Empty.Icon>
                       <Empty.Title className="text-base">No Plugins Installed</Empty.Title>
                       <Empty.Separator />

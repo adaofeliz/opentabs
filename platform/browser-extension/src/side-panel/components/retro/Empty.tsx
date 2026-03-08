@@ -24,8 +24,8 @@ const EmptyContent = ({ className, ...props }: IEmptyProps) => (
 EmptyContent.displayName = 'Empty.Content';
 
 const EmptyIcon = ({ children, className, ...props }: IEmptyProps) => (
-  <div className={cn(className)} {...props}>
-    {children || <Ghost className="h-full w-full" />}
+  <div className={cn('flex items-center justify-center', className)} {...props}>
+    {children || <Ghost size={40} />}
   </div>
 );
 EmptyIcon.displayName = 'Empty.Icon';
