@@ -194,37 +194,38 @@ test.describe('Side panel open tab', () => {
       const iconButton = sidePanelPage.locator('button[aria-label="Open E2E Test (2 tabs)"]');
       await expect(iconButton).toBeVisible({ timeout: 5_000 });
 
-      // First click — focuses one tab
-      await sidePanelPage.bringToFront();
-      await iconButton.click();
-
-      // Determine which tab got focus
-      const tab1Focused = await appTab1.evaluate(() => document.hasFocus()).catch(() => false);
-      const tab2Focused = await appTab2.evaluate(() => document.hasFocus()).catch(() => false);
-      expect(tab1Focused || tab2Focused).toBe(true);
-
-      const firstFocusedTab = tab1Focused ? appTab1 : appTab2;
-      const otherTab = tab1Focused ? appTab2 : appTab1;
-
-      // Second click — should cycle to the other tab
+      // appTab2 was opened last, so it is the currently active tab. Verify
+      // that the first click focuses appTab1 (the non-active tab) — this is
+      // the regression case where the old code would re-focus the active tab.
       await sidePanelPage.bringToFront();
       await iconButton.click();
 
       await expect
-        .poll(() => otherTab.evaluate(() => document.hasFocus()).catch(() => false), {
+        .poll(() => appTab1.evaluate(() => document.hasFocus()).catch(() => false), {
           timeout: 5_000,
-          message: 'Second click did not cycle to the other tab',
+          message: 'First click should focus the non-active tab (appTab1), not the already-active appTab2',
         })
         .toBe(true);
 
-      // Third click — should cycle back to the first tab
+      // Second click — should cycle to appTab2
       await sidePanelPage.bringToFront();
       await iconButton.click();
 
       await expect
-        .poll(() => firstFocusedTab.evaluate(() => document.hasFocus()).catch(() => false), {
+        .poll(() => appTab2.evaluate(() => document.hasFocus()).catch(() => false), {
           timeout: 5_000,
-          message: 'Third click did not cycle back to the first tab',
+          message: 'Second click did not cycle to appTab2',
+        })
+        .toBe(true);
+
+      // Third click — should cycle back to appTab1
+      await sidePanelPage.bringToFront();
+      await iconButton.click();
+
+      await expect
+        .poll(() => appTab1.evaluate(() => document.hasFocus()).catch(() => false), {
+          timeout: 5_000,
+          message: 'Third click did not cycle back to appTab1',
         })
         .toBe(true);
 
