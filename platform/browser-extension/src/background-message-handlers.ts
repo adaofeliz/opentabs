@@ -220,13 +220,7 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
       // state), tabState (from live tab cache), permission (from server cache,
       // which reflects the latest user-configured value), and server-only
       // fields (source, sdkVersion, update).
-      const {
-        tools: _metaTools,
-        sourcePath: _sourcePath,
-        adapterHash: _adapterHash,
-        adapterFile: _adapterFile,
-        ...metaFields
-      } = meta;
+      const { tools: _metaTools, adapterHash: _adapterHash, adapterFile: _adapterFile, ...metaFields } = meta;
       return {
         ...metaFields,
         permission: serverPlugin?.permission ?? meta.permission,
@@ -249,6 +243,7 @@ const handleBgGetFullState: MessageHandler = (_message, sendResponse) => {
       browserTools: serverCache.browserTools,
       browserPermission: serverCache.browserPermission,
       serverVersion: serverCache.serverVersion,
+      serverSourcePath: serverCache.serverSourcePath,
       skipPermissions: serverCache.skipPermissions,
       pendingConfirmations: getPendingConfirmations(),
     });
@@ -608,6 +603,18 @@ const handleBgUpdatePlugin: MessageHandler = (message, sendResponse) => {
     });
 };
 
+/** Handle bg:openFolder — relay folder open request to MCP server */
+const handleBgOpenFolder: MessageHandler = (message, sendResponse) => {
+  const path = message.path as string;
+  sendServerRequest('folder.open', { path })
+    .then((result: unknown) => {
+      sendResponse(result);
+    })
+    .catch((err: unknown) => {
+      sendResponse({ error: err instanceof Error ? err.message : String(err) });
+    });
+};
+
 /** Handle port-changed — relay port change to offscreen document for reconnect */
 const handlePortChanged: MessageHandler = (message, sendResponse) => {
   chrome.runtime.sendMessage(message as unknown as InternalMessage).catch(() => {
@@ -704,6 +711,7 @@ const backgroundHandlers = new Map<InternalMessage['type'], MessageHandler>([
   ['bg:removeFailedPlugin', handleBgRemoveFailedPlugin],
   ['bg:updatePlugin', handleBgUpdatePlugin],
   ['bg:openPluginTab', handleBgOpenPluginTab],
+  ['bg:openFolder', handleBgOpenFolder],
   ['plugin:logs', handlePluginLogs],
   ['tool:progress', handleToolProgress],
   ['sp:confirmationResponse', handleSpConfirmationResponse],
@@ -727,6 +735,7 @@ const EXTENSION_ONLY_TYPES: ReadonlySet<InternalMessage['type']> = new Set([
   'bg:removeFailedPlugin',
   'bg:updatePlugin',
   'bg:openPluginTab',
+  'bg:openFolder',
   'offscreen:getLogs',
   'sp:confirmationResponse',
   'port-changed',
@@ -765,6 +774,7 @@ export {
   backgroundHandlerNames,
   handleBgGetFullState,
   handleBgInstallPlugin,
+  handleBgOpenFolder,
   handleBgOpenPluginTab,
   handleBgRemoveFailedPlugin,
   handleBgRemovePlugin,

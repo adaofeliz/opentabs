@@ -17,7 +17,7 @@ import type {
 import type { DisconnectReason } from '../extension-messages.js';
 
 /** Plugin state as displayed in the side panel. tools is optional to reflect that the server response may omit it. */
-type PluginState = Omit<ConfigStatePlugin, 'tools'> & { tools?: WireToolDef[] };
+type PluginState = Omit<ConfigStatePlugin, 'tools'> & { tools?: WireToolDef[]; sourcePath?: string };
 
 /** Failed plugin state as displayed in the side panel */
 type FailedPluginState = ConfigStateFailedPlugin;
@@ -62,6 +62,7 @@ interface FullStateResult {
   browserTools: BrowserToolState[];
   browserPermission?: ToolPermission;
   serverVersion?: string;
+  serverSourcePath?: string;
   skipPermissions?: boolean;
   pendingConfirmations?: FullStateConfirmation[];
 }
@@ -158,6 +159,10 @@ const setSkipPermissions = (skipPermissions: boolean): Promise<unknown> =>
 const openPluginTab = (pluginName: string): Promise<{ opened: boolean; tabId?: number }> =>
   sendBgMessage<{ opened: boolean; tabId?: number }>({ type: 'bg:openPluginTab', pluginName });
 
+/** Open a folder in the system file manager (relayed to MCP server) */
+const openFolder = (path: string): Promise<{ ok: true }> =>
+  sendBgMessage<{ ok: true }>({ type: 'bg:openFolder', path });
+
 /** Send a confirmation response to the MCP server via the background script (fire-and-forget) */
 const sendConfirmationResponse = (id: string, decision: 'allow' | 'deny', alwaysAllow?: boolean): void => {
   chrome.runtime
@@ -185,6 +190,7 @@ export {
   installPlugin,
   matchesPlugin,
   matchesTool,
+  openFolder,
   openPluginTab,
   removeFailedPlugin,
   removePlugin,
