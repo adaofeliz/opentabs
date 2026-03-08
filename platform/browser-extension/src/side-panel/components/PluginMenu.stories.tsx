@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react';
+import { expect, screen, userEvent, within } from 'storybook/test';
 import type { PluginState } from '../bridge';
 import { PluginMenu } from './PluginMenu';
 
@@ -187,5 +188,23 @@ const Muted: Story = {
   ),
 };
 
+const VersionInMenu: Story = {
+  render: () => (
+    <PluginMenu
+      plugin={mockNpmPlugin()}
+      onUpdate={() => undefined}
+      onRemove={() => undefined}
+      updating={false}
+      removing={false}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const menuTrigger = canvas.getByLabelText('Plugin options');
+    await userEvent.click(menuTrigger);
+    await expect(screen.getByText('v0.1.0')).toBeVisible();
+  },
+};
+
 export default meta;
-export { Default, WithUpdate, LocalPlugin, WithConfirmDialog, UpdateBadge, AllStates, Muted };
+export { Default, WithUpdate, LocalPlugin, WithConfirmDialog, UpdateBadge, AllStates, Muted, VersionInMenu };

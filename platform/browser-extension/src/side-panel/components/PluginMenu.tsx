@@ -1,4 +1,4 @@
-import { ArrowUpCircle, MoreHorizontal, Trash2 } from 'lucide-react';
+import { ArrowUpCircle, MoreHorizontal, Package, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import type { PluginState } from '../bridge';
 import { Button } from './retro/Button';
@@ -49,6 +49,10 @@ const PluginMenu = ({ plugin, onUpdate, onRemove, updating, removing, muted, cla
           </button>
         </Menu.Trigger>
         <Menu.Content align="end">
+          <Menu.Item disabled className="text-muted-foreground">
+            <Package className="h-3.5 w-3.5" />v{plugin.version}
+          </Menu.Item>
+          <Menu.Separator />
           {plugin.update && (
             <Menu.Item onClick={onUpdate}>
               {updating ? <Loader size="sm" /> : <ArrowUpCircle className="h-3.5 w-3.5" />}
