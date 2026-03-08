@@ -1,4 +1,12 @@
-import { ToolError, parseRetryAfterMs } from '@opentabs-dev/plugin-sdk';
+import {
+  ToolError,
+  clearAuthCache,
+  getAuthCache,
+  getPageGlobal,
+  parseRetryAfterMs,
+  setAuthCache,
+  waitUntil,
+} from '@opentabs-dev/plugin-sdk';
 
 // --- Auth ---
 
@@ -39,13 +47,8 @@ export const getAtokHeader = (): string | null => getAtok();
 
 /** Read ATOK from the bootstrap global set by the dashboard's server-rendered script */
 const getAtok = (): string | null => {
-  try {
-    const bootstrap = (window as unknown as Record<string, unknown>).bootstrap as Record<string, unknown> | undefined;
-    const atok = bootstrap?.atok;
-    return typeof atok === 'string' && atok.length > 0 ? atok : null;
-  } catch {
-    return null;
-  }
+  const atok = getPageGlobal('bootstrap.atok');
+  return typeof atok === 'string' && atok.length > 0 ? atok : null;
 };
 
 /**
@@ -58,43 +61,20 @@ const extractAccountId = (): string | null => {
   return match?.[1] ?? null;
 };
 
-// --- Account ID persistence on globalThis ---
+// --- Account ID persistence ---
 
 interface PersistedCloudflare {
   accountId: string | null;
 }
 
-const getPersistedAccountId = (): string | null => {
-  try {
-    const ns = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
-    const cache = ns?.tokenCache as Record<string, PersistedCloudflare | undefined> | undefined;
-    return cache?.cloudflare?.accountId ?? null;
-  } catch {
-    return null;
-  }
-};
+const getPersistedAccountId = (): string | null => getAuthCache<PersistedCloudflare>('cloudflare')?.accountId ?? null;
 
 const setPersistedAccountId = (accountId: string | null): void => {
-  try {
-    const g = globalThis as Record<string, unknown>;
-    if (!g.__openTabs) g.__openTabs = {};
-    const ns = g.__openTabs as Record<string, unknown>;
-    if (!ns.tokenCache) ns.tokenCache = {};
-    const cache = ns.tokenCache as Record<string, PersistedCloudflare | undefined>;
-    cache.cloudflare = { accountId };
-  } catch {
-    // Silently ignore
-  }
+  setAuthCache('cloudflare', { accountId });
 };
 
 const clearPersistedAuth = (): void => {
-  try {
-    const ns = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
-    const cache = ns?.tokenCache as Record<string, PersistedCloudflare | undefined> | undefined;
-    if (cache) cache.cloudflare = undefined;
-  } catch {
-    // Silently ignore
-  }
+  clearAuthCache('cloudflare');
 };
 
 // --- Public auth helpers ---
@@ -102,23 +82,10 @@ const clearPersistedAuth = (): void => {
 export const isCloudflareAuthenticated = (): boolean => getAuth() !== null;
 
 export const waitForCloudflareAuth = (): Promise<boolean> =>
-  new Promise(resolve => {
-    let elapsed = 0;
-    const interval = 500;
-    const maxWait = 5000;
-    const timer = setInterval(() => {
-      elapsed += interval;
-      if (isCloudflareAuthenticated()) {
-        clearInterval(timer);
-        resolve(true);
-        return;
-      }
-      if (elapsed >= maxWait) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, interval);
-  });
+  waitUntil(() => isCloudflareAuthenticated(), { interval: 500, timeout: 5000 }).then(
+    () => true,
+    () => false,
+  );
 
 /** Get the account ID from the current URL, if present */
 export const getAccountId = (): string | null => {
