@@ -436,15 +436,15 @@ After completing any task, you **must** invoke \`contribute_learnings\` and writ
 
 ## Workflow Triggers
 
-When the user's request matches a pattern below, you **MUST** invoke the corresponding prompt before proceeding — do not attempt the task from general knowledge. These prompts contain accumulated patterns, gotchas, and workflows from previous AI sessions that are critical for success.
+When the user's request matches a pattern below, you **MUST** invoke the corresponding prompt OR call \`plugin_get_workflow\` before proceeding — do not attempt the task from general knowledge. These workflows contain accumulated patterns, gotchas, and techniques from previous AI sessions that are critical for success. Prompts (slash commands) are preferred, but \`plugin_get_workflow\` returns the same content as a tool call — use it if prompt invocation is not available.
 
-| User intent | Prompt to invoke | Also fetch these resources |
+| User intent | Prompt (slash command) | \`plugin_get_workflow\` alternative |
 |---|---|---|
-| Build / create / develop a plugin | \`build_plugin(url, name?)\` | \`opentabs://guide/plugin-development\`, \`opentabs://reference/sdk-api\` |
-| Troubleshoot a failing tool or platform issue | \`troubleshoot(error?)\` | \`opentabs://guide/troubleshooting\` |
-| Install / set up / enable / configure a plugin | \`setup_plugin(name)\` | \`opentabs://guide/quick-start\` |
+| Build / create / develop a plugin | \`build_plugin(url, name?)\` | \`plugin_get_workflow(workflow: "build_plugin", url: "...")\` |
+| Troubleshoot a failing tool or platform issue | \`troubleshoot(error?)\` | \`plugin_get_workflow(workflow: "troubleshoot", error: "...")\` |
+| Install / set up / enable / configure a plugin | \`setup_plugin(name)\` | \`plugin_get_workflow(workflow: "setup_plugin", name: "...")\` |
 | Add or update a plugin icon | \`plugin_icon(plugin)\` | — |
-| Audit or improve AI-facing documentation | \`audit_ai_docs\` | All resources |
+| Audit or improve AI-facing documentation | \`audit_ai_docs\` | — |
 | MANDATORY after completing ANY task | \`contribute_learnings(task?)\` | — |
 
 **Always fetch \`opentabs://status\` first** when diagnosing issues.

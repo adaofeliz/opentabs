@@ -53,7 +53,12 @@ test.describe('Config watcher — auto-discovery', () => {
 
       // Initially only browser tools and platform tools should be present
       const toolsBefore = await client.listTools();
-      const builtInToolSet = new Set([...BROWSER_TOOL_NAMES, 'plugin_inspect', 'plugin_mark_reviewed']);
+      const builtInToolSet = new Set([
+        ...BROWSER_TOOL_NAMES,
+        'plugin_inspect',
+        'plugin_mark_reviewed',
+        'plugin_get_workflow',
+      ]);
       const pluginToolsBefore = toolsBefore.filter(t => !builtInToolSet.has(t.name));
       expect(pluginToolsBefore.length).toBe(0);
 
