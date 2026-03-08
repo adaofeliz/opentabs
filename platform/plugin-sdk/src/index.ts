@@ -171,7 +171,14 @@ export { ToolError } from './errors.js';
 // ---------------------------------------------------------------------------
 
 export type { ObserveDOMOptions, WaitForSelectorOptions } from './dom.js';
-export { getTextContent, observeDOM, querySelectorAll, waitForSelector, waitForSelectorRemoval } from './dom.js';
+export {
+  getMetaContent,
+  getTextContent,
+  observeDOM,
+  querySelectorAll,
+  waitForSelector,
+  waitForSelectorRemoval,
+} from './dom.js';
 
 // ---------------------------------------------------------------------------
 // SDK utilities — Fetch
