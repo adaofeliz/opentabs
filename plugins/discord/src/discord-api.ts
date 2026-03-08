@@ -1,79 +1,19 @@
-import { parseRetryAfterMs, ToolError } from '@opentabs-dev/plugin-sdk';
+import {
+  clearAuthCache,
+  getAuthCache,
+  getLocalStorage,
+  parseRetryAfterMs,
+  setAuthCache,
+  ToolError,
+  waitUntil,
+} from '@opentabs-dev/plugin-sdk';
 
 interface DiscordAuth {
   token: string;
 }
 
 /**
- * Discord deletes `window.localStorage` from the main frame but the underlying
- * storage is still accessible via a temporary same-origin iframe. This function
- * creates a hidden iframe, reads the value, and removes the iframe.
- */
-const readLocalStorage = (key: string): string | null => {
-  // Fast path: localStorage is directly available
-  if (typeof window.localStorage !== 'undefined' && window.localStorage !== null) {
-    try {
-      return window.localStorage.getItem(key);
-    } catch {
-      // Fall through to iframe approach
-    }
-  }
-
-  // Iframe approach: Discord removes window.localStorage but same-origin iframes retain access
-  const iframe = document.createElement('iframe');
-  iframe.style.display = 'none';
-  document.body.appendChild(iframe);
-  try {
-    const storage = iframe.contentWindow?.localStorage;
-    if (!storage) return null;
-    return storage.getItem(key);
-  } catch {
-    return null;
-  } finally {
-    document.body.removeChild(iframe);
-  }
-};
-
-/**
- * Persistent token cache stored on `globalThis.__openTabs` so it survives
- * adapter re-injection (extension reloads re-execute the IIFE, which creates
- * new module-level variables — but globalThis persists across injections).
- */
-const getPersistedToken = (): string | null => {
-  try {
-    const ns = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
-    const cache = ns?.tokenCache as Record<string, string | undefined> | undefined;
-    return cache?.discord ?? null;
-  } catch {
-    return null;
-  }
-};
-
-const setPersistedToken = (token: string): void => {
-  try {
-    const g = globalThis as Record<string, unknown>;
-    if (!g.__openTabs) g.__openTabs = {};
-    const ns = g.__openTabs as Record<string, unknown>;
-    if (!ns.tokenCache) ns.tokenCache = {};
-    const cache = ns.tokenCache as Record<string, string | undefined>;
-    cache.discord = token;
-  } catch {
-    // globalThis access failed — nothing to persist
-  }
-};
-
-const clearPersistedToken = (): void => {
-  try {
-    const ns = (globalThis as Record<string, unknown>).__openTabs as Record<string, unknown> | undefined;
-    const cache = ns?.tokenCache as Record<string, string | undefined> | undefined;
-    if (cache) cache.discord = undefined;
-  } catch {
-    // ignore
-  }
-};
-
-/**
- * Extract auth token from Discord. Checks three sources in order:
+ * Extract auth token from Discord. Checks two sources in order:
  * 1. Persisted cache on globalThis (survives adapter re-injection)
  * 2. localStorage via direct access or iframe fallback
  *
@@ -83,25 +23,20 @@ const clearPersistedToken = (): void => {
  * localStorage deletion and extension-triggered adapter re-injection.
  */
 const getAuth = (): DiscordAuth | null => {
-  const persisted = getPersistedToken();
+  const persisted = getAuthCache<string>('discord');
   if (persisted) return { token: persisted };
 
-  const raw = readLocalStorage('token');
+  const raw = getLocalStorage('token');
   if (!raw) return null;
 
   try {
     const token = JSON.parse(raw) as unknown;
     if (typeof token !== 'string' || token.length === 0) return null;
-    setPersistedToken(token);
+    setAuthCache('discord', token);
     return { token };
   } catch {
     return null;
   }
-};
-
-/** Clear the cached auth token — called on 401 responses to handle token rotation. */
-const clearAuthCache = (): void => {
-  clearPersistedToken();
 };
 
 export const isDiscordAuthenticated = (): boolean => getAuth() !== null;
@@ -110,24 +45,14 @@ export const isDiscordAuthenticated = (): boolean => getAuth() !== null;
  * Wait for Discord to populate the auth token after SPA hydration.
  * Polls at 500ms intervals for up to 5 seconds.
  */
-export const waitForDiscordAuth = (): Promise<boolean> =>
-  new Promise(resolve => {
-    let elapsed = 0;
-    const interval = 500;
-    const maxWait = 5000;
-    const timer = setInterval(() => {
-      elapsed += interval;
-      if (isDiscordAuthenticated()) {
-        clearInterval(timer);
-        resolve(true);
-        return;
-      }
-      if (elapsed >= maxWait) {
-        clearInterval(timer);
-        resolve(false);
-      }
-    }, interval);
-  });
+export const waitForDiscordAuth = async (): Promise<boolean> => {
+  try {
+    await waitUntil(() => isDiscordAuthenticated(), { interval: 500, timeout: 5000 });
+    return true;
+  } catch {
+    return false;
+  }
+};
 
 // Discord API error codes that map to specific error categories
 const AUTH_ERRORS = new Set([
@@ -266,13 +191,13 @@ export const discordApi = async <T extends Record<string, unknown>>(
         throw ToolError.notFound(`Discord API error: ${discordMessage ?? errorBody} (code ${String(discordCode)})`);
       }
       if (AUTH_ERRORS.has(discordCode)) {
-        clearAuthCache();
+        clearAuthCache('discord');
         throw ToolError.auth(`Discord API error: ${discordMessage ?? errorBody} (code ${String(discordCode)})`);
       }
     }
 
     if (response.status === 401 || response.status === 403) {
-      clearAuthCache();
+      clearAuthCache('discord');
       throw ToolError.auth(`Discord API auth error (${String(response.status)}): ${errorBody}`);
     }
     if (response.status === 404) {
