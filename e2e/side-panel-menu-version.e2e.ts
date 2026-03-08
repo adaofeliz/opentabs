@@ -4,6 +4,12 @@
  * Verifies:
  *   1. Local plugin version item: FolderOpen icon, correct version text,
  *      not disabled, remove item says "Remove" with top border separator
+ *   2. Browser tools version item: FolderOpen icon (local dev server),
+ *      correct version from /health, not disabled
+ *
+ * Note: The npm branch of ServerVersionItem (Package icon, npmjs.com link)
+ * is not covered in E2E because it requires a server installed via npm,
+ * which is not achievable in the E2E environment.
  */
 
 import fs from 'node:fs';
@@ -96,6 +102,66 @@ test.describe('Side panel — menu version items', () => {
 
       // The destructive Remove item has a top border separator (border-t class)
       await expect(removeItem).toHaveClass(/border-t/);
+    } finally {
+      await context.close();
+      await server.kill();
+      await testServer.kill();
+      cleanupTestConfigDir(configDir);
+      if (cleanupDir) fs.rmSync(cleanupDir, { recursive: true, force: true });
+    }
+  });
+
+  test('browser tools version item shows FolderOpen icon, correct version, and is enabled', async () => {
+    const absPluginPath = path.resolve(E2E_TEST_PLUGIN_DIR);
+
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'opentabs-e2e-menu-version-bt-'));
+    writeTestConfig(configDir, {
+      localPlugins: [absPluginPath],
+      permissions: { 'e2e-test': { permission: 'auto' } },
+    });
+
+    const server = await startMcpServer(configDir, true);
+    const testServer = await startTestServer();
+    const { context, cleanupDir, extensionDir } = await launchExtensionContext(server.port, server.secret);
+    setupAdapterSymlink(configDir, extensionDir);
+
+    try {
+      await waitForExtensionConnected(server);
+      await waitForLog(server, 'tab.syncAll received', 15_000);
+
+      await openTestAppTab(context, testServer.url, server, testServer);
+      const sidePanelPage = await openSidePanel(context);
+
+      // Wait for the browser tools card to appear
+      await expect(sidePanelPage.getByText('Browser')).toBeVisible({ timeout: 30_000 });
+
+      // Fetch the server version from the /health endpoint
+      const health = await server.health();
+      expect(health).not.toBeNull();
+      const serverVersion = health!.version;
+      expect(serverVersion).toBeTruthy();
+
+      // Open the browser tools three-dot menu
+      const menuButton = sidePanelPage.locator('[aria-label="Browser tools options"]');
+      await expect(menuButton).toBeVisible();
+      await menuButton.click();
+
+      // --- Server version item assertions ---
+
+      // Version item shows "Server v<version>"
+      const versionItem = sidePanelPage.locator('[role="menuitem"]', { hasText: `Server v${serverVersion}` });
+      await expect(versionItem).toBeVisible({ timeout: 5_000 });
+
+      // Version item contains a FolderOpen icon (E2E server runs from local monorepo, not node_modules)
+      const folderOpenIcon = versionItem.locator('svg.lucide-folder-open');
+      await expect(folderOpenIcon).toBeVisible();
+
+      // Version item does NOT contain a Package icon
+      const packageIcon = versionItem.locator('svg.lucide-package');
+      await expect(packageIcon).not.toBeVisible();
+
+      // Version item is not disabled (no data-disabled attribute)
+      await expect(versionItem).not.toHaveAttribute('data-disabled');
     } finally {
       await context.close();
       await server.kill();
