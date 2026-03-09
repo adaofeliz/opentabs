@@ -1,33 +1,7 @@
 import { defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { api } from '../github-api.js';
-
-const commitSchema = z.object({
-  sha: z.string().describe('Full commit SHA'),
-  message: z.string().describe('Commit message'),
-  author_name: z.string().describe('Author name'),
-  author_email: z.string().describe('Author email'),
-  date: z.string().describe('Authored date ISO 8601 timestamp'),
-  url: z.string().describe('URL to the commit on GitHub'),
-});
-
-interface RawCommit {
-  sha?: string;
-  commit?: {
-    message?: string;
-    author?: { name?: string; email?: string; date?: string };
-  };
-  html_url?: string;
-}
-
-const mapCommit = (c: RawCommit) => ({
-  sha: c.sha ?? '',
-  message: c.commit?.message ?? '',
-  author_name: c.commit?.author?.name ?? '',
-  author_email: c.commit?.author?.email ?? '',
-  date: c.commit?.author?.date ?? '',
-  url: c.html_url ?? '',
-});
+import { type RawCommit, commitSchema, mapCommit } from './schemas.js';
 
 export const listCommits = defineTool({
   name: 'list_commits',

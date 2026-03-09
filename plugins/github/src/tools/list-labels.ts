@@ -1,27 +1,7 @@
 import { defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { api } from '../github-api.js';
-
-const labelSchema = z.object({
-  id: z.number().describe('Label ID'),
-  name: z.string().describe('Label name'),
-  color: z.string().describe('Label hex color (without #)'),
-  description: z.string().describe('Label description'),
-});
-
-interface RawLabel {
-  id?: number;
-  name?: string;
-  color?: string;
-  description?: string | null;
-}
-
-const mapLabel = (l: RawLabel) => ({
-  id: l.id ?? 0,
-  name: l.name ?? '',
-  color: l.color ?? '',
-  description: l.description ?? '',
-});
+import { type RawLabel, labelSchema, mapLabel } from './schemas.js';
 
 export const listLabels = defineTool({
   name: 'list_labels',

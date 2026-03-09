@@ -1,45 +1,7 @@
 import { defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { api } from '../github-api.js';
-
-const releaseSchema = z.object({
-  id: z.number().describe('Release ID'),
-  tag_name: z.string().describe('Git tag name'),
-  name: z.string().describe('Release title'),
-  body: z.string().describe('Release notes in Markdown'),
-  draft: z.boolean().describe('Whether this is a draft release'),
-  prerelease: z.boolean().describe('Whether this is a prerelease'),
-  created_at: z.string().describe('Created ISO 8601 timestamp'),
-  published_at: z.string().describe('Published ISO 8601 timestamp'),
-  html_url: z.string().describe('URL to the release on GitHub'),
-  author_login: z.string().describe('Login of the release author'),
-});
-
-interface RawRelease {
-  id?: number;
-  tag_name?: string;
-  name?: string | null;
-  body?: string | null;
-  draft?: boolean;
-  prerelease?: boolean;
-  created_at?: string;
-  published_at?: string | null;
-  html_url?: string;
-  author?: { login?: string };
-}
-
-const mapRelease = (r: RawRelease) => ({
-  id: r.id ?? 0,
-  tag_name: r.tag_name ?? '',
-  name: r.name ?? '',
-  body: r.body ?? '',
-  draft: r.draft ?? false,
-  prerelease: r.prerelease ?? false,
-  created_at: r.created_at ?? '',
-  published_at: r.published_at ?? '',
-  html_url: r.html_url ?? '',
-  author_login: r.author?.login ?? '',
-});
+import { type RawRelease, mapRelease, releaseSchema } from './schemas.js';
 
 export const listReleases = defineTool({
   name: 'list_releases',
