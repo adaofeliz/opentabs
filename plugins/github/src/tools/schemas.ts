@@ -132,7 +132,7 @@ export const mapRepository = (r: RawRepo) => ({
   updated_at: r.updated_at ?? '',
 });
 
-interface RawLabel {
+interface RawLabelRef {
   name?: string;
 }
 
@@ -147,7 +147,7 @@ interface RawIssue {
   body?: string | null;
   html_url?: string;
   user?: RawUser | null;
-  labels?: RawLabel[];
+  labels?: RawLabelRef[];
   assignees?: RawUser[];
   comments?: number;
   created_at?: string;
@@ -181,7 +181,7 @@ interface RawPullRequest {
   user?: RawUser | null;
   head?: { ref?: string };
   base?: { ref?: string };
-  labels?: RawLabel[];
+  labels?: RawLabelRef[];
   draft?: boolean;
   merged?: boolean;
   mergeable?: boolean | null;
@@ -296,4 +296,135 @@ export const mapNotification = (n: RawNotification) => ({
   subject_url: n.subject?.url ?? '',
   repository_full_name: n.repository?.full_name ?? '',
   updated_at: n.updated_at ?? '',
+});
+
+// --- Label schemas ---
+
+export const labelSchema = z.object({
+  id: z.number().describe('Label ID'),
+  name: z.string().describe('Label name'),
+  color: z.string().describe('Label hex color (without #)'),
+  description: z.string().describe('Label description'),
+});
+
+export interface RawLabel {
+  id?: number;
+  name?: string;
+  color?: string;
+  description?: string | null;
+}
+
+export const mapLabel = (l: RawLabel) => ({
+  id: l.id ?? 0,
+  name: l.name ?? '',
+  color: l.color ?? '',
+  description: l.description ?? '',
+});
+
+// --- Workflow run schemas ---
+
+export const workflowRunSchema = z.object({
+  id: z.number().describe('Workflow run ID'),
+  name: z.string().describe('Workflow name'),
+  status: z.string().describe('Run status: queued, in_progress, completed, etc.'),
+  conclusion: z.string().describe('Run conclusion: success, failure, cancelled, skipped, etc.'),
+  head_branch: z.string().describe('Branch the workflow ran on'),
+  head_sha: z.string().describe('HEAD commit SHA'),
+  html_url: z.string().describe('URL to the workflow run on GitHub'),
+  created_at: z.string().describe('Created ISO 8601 timestamp'),
+  updated_at: z.string().describe('Updated ISO 8601 timestamp'),
+});
+
+export interface RawWorkflowRun {
+  id?: number;
+  name?: string;
+  status?: string;
+  conclusion?: string | null;
+  head_branch?: string;
+  head_sha?: string;
+  html_url?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export const mapWorkflowRun = (r: RawWorkflowRun) => ({
+  id: r.id ?? 0,
+  name: r.name ?? '',
+  status: r.status ?? '',
+  conclusion: r.conclusion ?? '',
+  head_branch: r.head_branch ?? '',
+  head_sha: r.head_sha ?? '',
+  html_url: r.html_url ?? '',
+  created_at: r.created_at ?? '',
+  updated_at: r.updated_at ?? '',
+});
+
+// --- Release schemas ---
+
+export const releaseSchema = z.object({
+  id: z.number().describe('Release ID'),
+  tag_name: z.string().describe('Git tag name'),
+  name: z.string().describe('Release title'),
+  body: z.string().describe('Release notes in Markdown'),
+  draft: z.boolean().describe('Whether this is a draft release'),
+  prerelease: z.boolean().describe('Whether this is a prerelease'),
+  created_at: z.string().describe('Created ISO 8601 timestamp'),
+  published_at: z.string().describe('Published ISO 8601 timestamp'),
+  html_url: z.string().describe('URL to the release on GitHub'),
+  author_login: z.string().describe('Login of the release author'),
+});
+
+export interface RawRelease {
+  id?: number;
+  tag_name?: string;
+  name?: string | null;
+  body?: string | null;
+  draft?: boolean;
+  prerelease?: boolean;
+  created_at?: string;
+  published_at?: string | null;
+  html_url?: string;
+  author?: { login?: string };
+}
+
+export const mapRelease = (r: RawRelease) => ({
+  id: r.id ?? 0,
+  tag_name: r.tag_name ?? '',
+  name: r.name ?? '',
+  body: r.body ?? '',
+  draft: r.draft ?? false,
+  prerelease: r.prerelease ?? false,
+  created_at: r.created_at ?? '',
+  published_at: r.published_at ?? '',
+  html_url: r.html_url ?? '',
+  author_login: r.author?.login ?? '',
+});
+
+// --- Commit schemas ---
+
+export const commitSchema = z.object({
+  sha: z.string().describe('Full commit SHA'),
+  message: z.string().describe('Commit message'),
+  author_name: z.string().describe('Author name'),
+  author_email: z.string().describe('Author email'),
+  date: z.string().describe('Authored date ISO 8601 timestamp'),
+  url: z.string().describe('URL to the commit on GitHub'),
+});
+
+export interface RawCommit {
+  sha?: string;
+  commit?: {
+    message?: string;
+    author?: { name?: string; email?: string; date?: string };
+  };
+  html_url?: string;
+}
+
+export const mapCommit = (c: RawCommit) => ({
+  sha: c.sha ?? '',
+  message: c.commit?.message ?? '',
+  author_name: c.commit?.author?.name ?? '',
+  author_email: c.commit?.author?.email ?? '',
+  date: c.commit?.author?.date ?? '',
+  url: c.html_url ?? '',
 });
