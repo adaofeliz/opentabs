@@ -805,6 +805,48 @@ Use Lucide icons consistently:
 | Send message | `send` |
 | Settings/config | `settings` |
 
+### Pagination Patterns
+
+**Offset pagination** (most common — GitHub, GitLab, Bitbucket, Zendesk):
+```typescript
+input: z.object({
+  page: z.number().int().min(1).optional().describe('Page number (default 1)'),
+  per_page: z.number().int().min(1).max(100).optional().describe('Results per page (default 30, max 100)'),
+}),
+output: z.object({
+  items: z.array(itemSchema),
+  // no cursor needed — caller increments page
+}),
+```
+
+**Cursor pagination** (Sentry, Bluesky, Slack):
+```typescript
+input: z.object({
+  cursor: z.string().optional().describe('Pagination cursor from a previous response'),
+  limit: z.number().int().min(1).max(100).optional().describe('Max results (default 25)'),
+}),
+output: z.object({
+  items: z.array(itemSchema),
+  cursor: z.string().describe('Cursor for next page, empty if no more'),
+}),
+```
+
+### Commerce Plugin Template
+
+For food ordering, e-commerce, or any transactional service, the standard flow is:
+
+| Phase | Tools | Notes |
+|---|---|---|
+| 1. Find location | `find_stores`, `search_address` | Input: lat/lng or address text |
+| 2. Browse menu | `get_menu_categories`, `get_product` | Always requires store ID |
+| 3. Manage cart | `create_cart`, `add_product_to_cart`, `update_product_quantity`, `get_cart` | Cart state may be server-side (UUID) or client-side (Redux) |
+| 4. Checkout | `get_checkout_summary`, `navigate_to_checkout` | navigate_to_checkout brings the user to the payment page |
+
+**UI sync after mutations:** When the plugin mutates state (add to cart, etc.) through APIs, the SPA's UI may not reflect the change. Three proven strategies:
+1. **BroadcastChannel** — post a sync message on the app's own channel
+2. **Redux dispatch** — dispatch the app's own action (e.g., `store.dispatch({ type: 'ADD_PRODUCT_TO_CART' })`)
+3. **localStorage + reload** — stash state, navigate, apply on load
+
 ---
 
 ## Auth Patterns
