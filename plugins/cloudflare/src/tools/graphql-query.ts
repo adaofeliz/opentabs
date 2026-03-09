@@ -1,4 +1,4 @@
-import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
+import { ToolError, defineTool, postJSON } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
 import { getAtokHeader } from '../cloudflare-api.js';
 
@@ -26,26 +26,13 @@ export const graphqlQuery = defineTool({
     if (params.variables) body.variables = params.variables;
 
     // GraphQL endpoint returns { data, errors } directly — not the standard Cloudflare envelope.
-    const response = await fetch('/api/v4/graphql', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'x-atok': atok },
-      body: JSON.stringify(body),
-      credentials: 'same-origin',
-      signal: AbortSignal.timeout(30_000),
+    const result = await postJSON<{ data?: unknown; errors?: unknown[] }>('/api/v4/graphql', body, {
+      headers: { 'x-atok': atok },
     });
 
-    if (!response.ok) {
-      const errorBody = (await response.text().catch(() => '')).substring(0, 512);
-      if (response.status === 401 || response.status === 403) {
-        throw ToolError.auth(`Auth error (${response.status}): ${errorBody}`);
-      }
-      throw ToolError.internal(`GraphQL error (${response.status}): ${errorBody}`);
-    }
-
-    const result = (await response.json()) as { data?: unknown; errors?: unknown[] };
     return {
-      data: result.data ?? null,
-      errors: Array.isArray(result.errors) ? result.errors : null,
+      data: result?.data ?? null,
+      errors: Array.isArray(result?.errors) ? result.errors : null,
     };
   },
 });
