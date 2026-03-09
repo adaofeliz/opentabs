@@ -13,6 +13,7 @@ import {
   postFormData,
   postJSON,
   putJSON,
+  stripUndefined,
 } from './fetch.js';
 
 // ---------------------------------------------------------------------------
@@ -922,5 +923,31 @@ describe('parseRetryAfterMs', () => {
   test('returns undefined for past HTTP-date', () => {
     const pastDate = new Date(Date.now() - 60_000).toUTCString();
     expect(parseRetryAfterMs(pastDate)).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// stripUndefined
+// ---------------------------------------------------------------------------
+
+describe('stripUndefined', () => {
+  test('filters out undefined values', () => {
+    const result = stripUndefined({ a: 1, b: undefined, c: 'hello' });
+    expect(result).toEqual({ a: 1, c: 'hello' });
+  });
+
+  test('keeps null values', () => {
+    const result = stripUndefined({ a: null, b: undefined });
+    expect(result).toEqual({ a: null });
+  });
+
+  test('keeps falsy values (0, false, empty string)', () => {
+    const result = stripUndefined({ a: 0, b: false, c: '', d: undefined });
+    expect(result).toEqual({ a: 0, b: false, c: '' });
+  });
+
+  test('returns empty object for all-undefined input', () => {
+    const result = stripUndefined({ a: undefined, b: undefined });
+    expect(result).toEqual({});
   });
 });

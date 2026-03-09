@@ -208,6 +208,7 @@ export {
   postFormData,
   postJSON,
   putJSON,
+  stripUndefined,
 } from './fetch.js';
 
 // ---------------------------------------------------------------------------

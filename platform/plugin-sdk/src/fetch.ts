@@ -58,6 +58,10 @@ export const parseRetryAfterMs = (value: string): number | undefined => {
   return undefined;
 };
 
+/** Filters out keys with undefined values from an object. Keeps null, 0, false, and empty string. */
+export const stripUndefined = <T extends Record<string, unknown>>(obj: T): Partial<T> =>
+  Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Partial<T>;
+
 /** Builds a URL query string from a record, filtering out undefined values. */
 export const buildQueryString = (params: Record<string, string | number | boolean | string[] | undefined>): string => {
   const searchParams = new URLSearchParams();
