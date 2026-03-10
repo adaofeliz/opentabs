@@ -4,7 +4,7 @@ description: API reference for OpenTabsPlugin — the abstract base class every 
 lastUpdated: 2026-03-01
 ---
 
-Every OpenTabs plugin extends `OpenTabsPlugin` from the SDK. This class defines your plugin's identity, URL matching, readiness probe, and tool registrations.
+Every OpenTabs plugin is a subclass of `OpenTabsPlugin`. This is the one class you need to extend — it holds everything the platform needs to discover, inject, and run your plugin: identity, URL patterns, readiness probe, and tool list. All in one place.
 
 ## Import
 

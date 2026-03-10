@@ -4,7 +4,7 @@ description: API reference for defineTool — define type-safe MCP tools with Zo
 lastUpdated: 2026-03-03
 ---
 
-Tools are the primary way plugins expose actions to AI agents. Each tool has a name, input/output Zod schemas, and a handler that runs in the browser page context with full access to the page's session.
+Tools are how your plugin talks to AI agents. Each tool is a named, typed function with a Zod input schema, a Zod output schema, and a handler that runs directly in the browser page — with full access to your authenticated session. The agent calls it, the platform validates the input, and your handler executes.
 
 ## Import
 
