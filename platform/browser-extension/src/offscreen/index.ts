@@ -127,6 +127,8 @@ let reconnectScheduledByWatchdog = false;
 let connecting = false;
 /** Tracks why the last connection attempt failed, for side panel error state display */
 let lastDisconnectReason: DisconnectReason | undefined;
+/** Stable connection ID per extension installation — sent in WebSocket subprotocol header */
+let connectionId: string | null = null;
 
 const sendToBackground = (message: InternalMessage): void => {
   chrome.runtime.sendMessage(message).catch(() => {
@@ -273,10 +275,12 @@ const connect = async (): Promise<void> => {
       scheduleReconnect();
       return;
     }
-    // Send auth token via Sec-WebSocket-Protocol header (not URL query)
-    // to keep it out of server logs, browser history, and proxy logs.
+    // Send auth token and connection ID via Sec-WebSocket-Protocol header (not URL query)
+    // to keep them out of server logs, browser history, and proxy logs.
+    // Format: ['opentabs', '<secret>', '<connectionId>']
     const protocols: string[] = ['opentabs'];
     if (wsSecret) protocols.push(wsSecret);
+    if (connectionId) protocols.push(connectionId);
     ws = protocols.length > 1 ? new WebSocket(mcpServerUrl, protocols) : new WebSocket(mcpServerUrl);
   } catch {
     lastDisconnectReason = 'connection_refused';
@@ -559,14 +563,14 @@ const bootstrapFromAuthFile = async (): Promise<void> => {
 void (async () => {
   await bootstrapFromAuthFile();
 
-  // Check if the user has configured a custom server URL in chrome.storage.local.
-  // The background script reads it and relays here since offscreen docs cannot
-  // access chrome.storage APIs directly.
+  // Read config from the background script: custom server URL and connectionId.
+  // The background script reads these from chrome.storage.local and relays here
+  // since offscreen docs cannot access chrome.storage APIs directly.
   try {
-    const response = await new Promise<{ url?: string } | undefined>(resolve => {
+    const response = await new Promise<{ url?: string; connectionId?: string } | undefined>(resolve => {
       chrome.runtime.sendMessage(
         { type: 'offscreen:getUrl' } satisfies InternalMessage,
-        (resp: { url?: string } | undefined) => {
+        (resp: { url?: string; connectionId?: string } | undefined) => {
           if (chrome.runtime.lastError) {
             resolve(undefined);
             return;
@@ -577,6 +581,9 @@ void (async () => {
     });
     if (response?.url && typeof response.url === 'string' && response.url !== mcpServerUrl) {
       mcpServerUrl = response.url;
+    }
+    if (response?.connectionId && typeof response.connectionId === 'string') {
+      connectionId = response.connectionId;
     }
   } catch {
     // Background not ready — use URL from auth.json or default

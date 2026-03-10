@@ -243,10 +243,10 @@ const handleWsUpgrade = (req: Request, server: ServerAdapter, state: ServerState
     }
   }
 
-  // Store the parsed connectionId (or generate a fallback UUID) so createHandleWsOpen can retrieve it.
-  // The connectionId is stored temporarily in state.wsConnectionIds, keyed by WsHandle in the open handler.
-  const connectionId = parsedConnectionId ?? crypto.randomUUID();
-  state._pendingConnectionId = connectionId;
+  // Store the parsed connectionId so createHandleWsOpen can retrieve it.
+  // Only set when the client explicitly sent one — the open handler generates a fallback UUID otherwise.
+  // This distinction lets the open handler detect backwards-compatible single-connection clients.
+  state._pendingConnectionId = parsedConnectionId;
 
   const upgraded = server.upgrade(req, {
     data: undefined,

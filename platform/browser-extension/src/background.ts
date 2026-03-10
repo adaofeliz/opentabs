@@ -112,6 +112,21 @@ chrome.tabs.onReplaced.addListener((addedTabId, removedTabId) => {
 
 initBackgroundMessageHandlers();
 
+// --- Connection identity ---
+
+/**
+ * Ensure a stable connectionId exists in chrome.storage.local.
+ * Generated once per extension installation; persists across reloads and restarts.
+ * chrome.storage.local is isolated per browser profile, so regular and incognito
+ * profiles get distinct connectionIds without any incognito detection logic.
+ */
+const ensureConnectionId = async (): Promise<void> => {
+  const data = await chrome.storage.local.get('connectionId');
+  if (typeof data.connectionId !== 'string') {
+    await chrome.storage.local.set({ connectionId: crypto.randomUUID() });
+  }
+};
+
 // --- Extension lifecycle ---
 
 chrome.alarms.onAlarm.addListener(() => {
@@ -122,6 +137,7 @@ chrome.alarms.onAlarm.addListener(() => {
 
 chrome.runtime.onInstalled.addListener(() => {
   void (async () => {
+    await ensureConnectionId();
     await ensureOffscreenDocument();
     await setupKeepaliveAlarm();
     await reinjectStoredPlugins();
@@ -130,13 +146,16 @@ chrome.runtime.onInstalled.addListener(() => {
 
 chrome.runtime.onStartup.addListener(() => {
   void (async () => {
+    await ensureConnectionId();
     await ensureOffscreenDocument();
     await setupKeepaliveAlarm();
     await reinjectStoredPlugins();
   })().catch((err: unknown) => console.warn('[opentabs] onStartup failed:', err));
 });
 
-ensureOffscreenDocument().catch((err: unknown) => console.warn('[opentabs] offscreen creation failed:', err));
+ensureConnectionId()
+  .then(() => ensureOffscreenDocument())
+  .catch((err: unknown) => console.warn('[opentabs] offscreen creation failed:', err));
 setupKeepaliveAlarm().catch((err: unknown) => console.warn('[opentabs] keepalive alarm failed:', err));
 reinjectStoredPlugins().catch((err: unknown) => console.warn('[opentabs] plugin reinjection failed:', err));
 initConfirmationBadge();

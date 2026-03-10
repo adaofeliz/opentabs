@@ -88,16 +88,17 @@ const persistWsConnected = (connected: boolean): void => {
 /** Handler signature for background message dispatch */
 type MessageHandler = (message: Record<string, unknown>, sendResponse: (response: unknown) => void) => void;
 
-/** Handle offscreen:getUrl — return the WebSocket URL derived from user-configured port */
+/** Handle offscreen:getUrl — return the WebSocket URL and connectionId for the offscreen document */
 const handleOffscreenGetUrl: MessageHandler = (_message, sendResponse) => {
   (async () => {
     const stored: Record<string, unknown> = await chrome.storage.local
-      .get(SERVER_PORT_KEY)
+      .get([SERVER_PORT_KEY, 'connectionId'])
       .catch(() => ({}) as Record<string, unknown>);
     const port =
       typeof stored[SERVER_PORT_KEY] === 'number' && stored[SERVER_PORT_KEY] > 0 ? stored[SERVER_PORT_KEY] : undefined;
     const url = port ? buildWsUrl(port) : undefined;
-    sendResponse({ url });
+    const connectionId = typeof stored.connectionId === 'string' ? stored.connectionId : undefined;
+    sendResponse({ url, connectionId });
   })().catch(() => {
     sendResponse({ url: undefined });
   });
