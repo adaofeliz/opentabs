@@ -8,16 +8,7 @@ Build a production-ready OpenTabs plugin. Each phase builds on the previous — 
 
 **Plugin self-sufficiency is non-negotiable.** A plugin adapter must be able to complete any task entirely on its own — through its own tools, using SDK utilities and the site's APIs. Browser tools (`browser_execute_script`, `browser_click_element`, etc.) are development aids for testing and debugging during the build process. They are NOT part of the plugin's runtime capabilities. Users may disable browser tools entirely during normal use, and the AI agent must still be able to accomplish every workflow using only the plugin's tools. If a workflow requires browser interaction (e.g., clicking a checkout button), the plugin must expose a tool that does it programmatically via the site's API or DOM manipulation within the adapter — not rely on the agent calling a browser tool.
 
-**Self-review is not optional and is not a separate step the user must ask for.** Before declaring a plugin complete, you must:
-
-1. **Re-read every file you wrote** — the API wrapper, schemas, every tool file, the plugin class. Read them as if you are seeing them for the first time.
-2. **Eliminate dead code** — no unused exports, no unused imports, no unused types, no commented-out code.
-3. **Eliminate duplication** — if two schemas share fields, use `.extend()`. If two mappers share logic, compose them. If a pattern repeats across tools, extract a helper.
-4. **Verify every function earns its existence** — no functions that extract data nobody uses, no return types with fields no caller reads, no parameters that are always the same value.
-5. **Verify consistency** — naming conventions are uniform, all tools follow the same structural pattern, all mappers use the same defensive style.
-6. **Run `npm run format` then `npm run check`** — every command must exit 0.
-
-**The standard is simple: could this code be published in official documentation as the canonical example of how to build a plugin?** If the answer is no, it is not done. Fix it before declaring completion.
+**Self-review is mandatory and automatic** — do not wait for the user to ask. See Phase 7 "Mandatory Self-Review Before Completion" for the full checklist. The standard: could this code be published as the canonical example of how to build a plugin? If not, fix it.
 
 ---
 
@@ -569,7 +560,7 @@ If `skipPermissions` is already set, this step is unnecessary.
 
 ### Mandatory Tool Verification
 
-**The plugin is not done until every tool has been called against the live browser.**
+**The plugin is not done until every tool has been called against the live browser AND independently verified.**
 
 **If running in hot reload mode (`npm run dev`):** After `npm run build` in the plugin directory, the MCP server detects the change, reloads plugins, and sends `tools/list_changed` to the MCP client. The new `<plugin>_*` tools should appear in your tool list immediately — just call them directly like any other MCP tool. This is the expected workflow.
 
@@ -592,17 +583,45 @@ curl -s -X POST http://127.0.0.1:$PORT/mcp \
   -d '{"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"<plugin>_<tool>","arguments":{...}}}'
 ```
 
-**Test every tool:**
+### The Zero-Trust Verification Rule
 
-1. Call every read-only tool — verify real data with correct field mappings. If a tool returns empty results when you know data exists, the response shape assumption is wrong. Use `browser_execute_script` to debug the raw JSON and compare actual field names against your interface definitions.
-2. Call every write tool with round-trip tests (create → verify → update → delete → verify)
-3. Test error classification — call with invalid ID, verify `ToolError.notFound`
-4. Fix every failure — use `browser_execute_script` to debug raw API responses
-5. **Test complete workflows using only plugin tools** — for every critical user path, verify it can be completed end-to-end by calling only the plugin's tools in sequence, without any `browser_*` tool calls. Browser tools are for debugging during development — the shipped plugin must stand on its own.
+**NEVER trust a tool's own response as proof that it works.** A tool returning `{ success: true }` or `{ items: [...] }` proves nothing — the data could be stale, the write silently dropped, or the mapper returning default values for every field. **You must independently verify every tool using browser tools** (`browser_screenshot_tab`, `browser_execute_script`, `browser_get_tab_content`).
 
-**Commerce flow testing:** For plugins with purchase/order workflows, test the full flow (browse → cart → checkout) but **do not trigger actual payment** unless the human explicitly asks you to test it. Stop at the `navigate_to_checkout` step and verify the cart state is correct.
+**An unverified tool MUST be removed.** We would rather ship 10 proven tools than 30 where 5 silently return garbage. An unverified tool is worse than a missing one — it gives false confidence.
 
-Remove tools you cannot verify rather than shipping them broken.
+### How to Verify Each Tool
+
+| Tool type | Call the tool, then... | Red flags |
+|---|---|---|
+| **Read** (list, get, search) | Cross-check returned data against `browser_screenshot_tab` or `browser_execute_script` reading the same data from the page. Compare field by field: names, counts, IDs, timestamps. | All fields are `""`, `0`, or `[]` (mapper defaults). Tool returns 5 items but UI shows 20. |
+| **Write** (create, update, send) | After the tool returns, independently confirm the mutation persisted: screenshot the UI, call the corresponding read tool, or query the API via `browser_execute_script`. | Tool returns `{ success: true }` but data is not visible in UI or readable via API. |
+| **Delete/state-change** (delete, archive, close) | Try to read the resource back — it should 404 or disappear from the list. Screenshot to confirm. | Resource still exists after "successful" delete. |
+| **Error paths** | Call with invalid ID → should return `ToolError.notFound`, not a 500 or empty result. | Generic error or silent empty response instead of classified ToolError. |
+
+**For every tool, all of these must be true:**
+- Called with realistic inputs
+- Result independently verified via a browser tool — NOT just by reading the tool's response
+- Returned field values are real data, not mapper defaults
+- For write tools: mutation confirmed via separate read or screenshot
+
+**Additional testing:**
+- **Workflow tests**: Complete every critical user path end-to-end using only plugin tools (no `browser_*` calls), then `browser_screenshot_tab` to confirm the final state
+- **Commerce flows**: Test browse → cart → checkout, stop at `navigate_to_checkout`, and screenshot to verify cart state — do not trust `get_cart` alone. Do not trigger actual payment unless the human explicitly asks.
+
+### When a Tool Fails Verification
+
+**Do not give up easily.** Removing a tool is the last resort after exhausting every legitimate technique:
+
+1. **Debug the root cause** — `browser_execute_script` to inspect raw API response, compare field names against your Raw interface
+2. **Try alternative endpoints** — REST, GraphQL, internal RPC, page globals
+3. **Web search** — `<service> API <endpoint>` or `<service> developer docs <operation>`
+4. **Read JS bundles** — `browser_list_resources` + `browser_get_resource_content` for endpoint paths and request formats
+5. **Test variations** — different HTTP methods, Content-Type, auth header formats, request body structures
+6. **Study network capture** — `browser_enable_network_capture`, perform the action in the UI, compare what the browser sends vs what your tool sends
+
+Only after multiple genuine attempts across these techniques should you remove the tool. The standard is "I exhausted every reasonable approach" — not "it failed once."
+
+**When you remove a tool, document why.** At the end of the plugin build, list every skipped tool with what you tried and why it failed (e.g., "create_comment — POST /api/comments returns 404; tried GraphQL mutation, also 404; JS bundle search found no alternative endpoint; appears to require a signed request header"). This gives future developers a trail to pick up where you left off.
 
 ### Mandatory Self-Review Before Completion
 
@@ -709,11 +728,7 @@ Zod types must be precise: use `.int()` for integer fields, `.min()`/`.max()` fo
 
 - One file per tool in `src/tools/`
 - Defensive mapping with fallback defaults (`data.field ?? ''`) — never trust API shapes
-- **Use SDK fetch utilities** (`fetchJSON`, `postJSON`, etc.) — they automatically handle `credentials: 'include'`, 30-second timeout, and HTTP error classification. Never use raw `fetch()` with manual timeout/error handling.
-- **Use SDK storage utilities** (`getLocalStorage`, `getCookie`, `getPageGlobal`, `getMetaContent`) — never access `localStorage`, `document.cookie`, or `window` globals directly
-- **Use SDK auth cache** (`getAuthCache`, `setAuthCache`, `clearAuthCache`) — never access `globalThis.__openTabs.tokenCache` directly
-- **Use SDK `waitUntil`** for polling — never use manual `setInterval` + elapsed counter
-- **Use SDK `buildQueryString`** for URL parameters — never manually construct `URLSearchParams`
+- **SDK-First Rule applies to all code** — see the SDK-First Rule table in Phase 1 for the full MUST/NEVER reference. Never use raw `fetch()`, `localStorage.getItem()`, `document.cookie`, `window` global casts, manual `setInterval` polling, or `URLSearchParams` construction.
 - `.js` extension on all imports (ESM)
 - No `.transform()`/`.pipe()`/`.preprocess()` in Zod schemas (breaks JSON Schema serialization)
 - `.refine()` callbacks must never throw — Zod 4 runs them even on invalid base values
@@ -736,16 +751,13 @@ When building plugins with 15+ tools, inconsistency across files is the primary 
 
 ### Code Cleanliness
 
-Plugin code serves as a learning reference for other agents and developers. Every file must be clean, tidy, and self-evident:
+No dead code, no duplication, no unused imports/exports. Beyond the general standard (see Production Quality Standard), these plugin-specific rules apply:
 
-- **No dead exports** — if a schema, type, or function is not imported anywhere, delete it
-- **No duplication** — use `.extend()` for Zod schema inheritance, spread for mapper composition (`...mapTag(t)`)
-- **API wrapper exports only what tools need** — do not extract auth fields (fkey, CSRF tokens, account IDs) unless a tool actually uses them
-- **SEResponse type is minimal** — only include fields the tools actually read (items, has_more, quota_remaining), not the full API spec
-- **Mappers reuse each other** — if `tagInfoSchema` extends `tagSchema`, then `mapTagInfo` should spread `mapTag(t)` and add extra fields, not repeat all fields manually
-- **No inline fallback objects** — if a mapper already provides safe defaults for all fields, call the mapper with an empty object (`mapUser(data ?? {})`) instead of writing a 15-line manual default
-- **Consistent structure across tools** — every list tool returns `{ items, has_more, quota_remaining }`, every get tool returns `{ item }`, every search tool returns `{ results, has_more, quota_remaining }`. Structural consistency makes the plugin predictable.
-- **Import only what you use** — no `import type { SEResponse }` if the tool never references that type directly
+- **API wrapper exports only what tools need** — do not extract auth fields unless a tool uses them
+- **Response types are minimal** — only include fields the tools actually read, not the full API spec
+- **Mappers reuse each other** — `mapTagInfo` should spread `mapTag(t)` and add extra fields, not repeat all fields
+- **No inline fallback objects** — call the mapper with an empty object (`mapUser(data ?? {})`) instead of a manual default block
+- **Consistent return structure** — every list tool returns `{ items, ... }`, every get tool returns the entity directly. Structural consistency makes the plugin predictable
 
 ### Schema and Mapper Pattern
 
@@ -882,6 +894,8 @@ For food ordering, e-commerce, or any transactional service, the standard flow i
 
 ### Auth Detection Sources
 
+Use SDK utilities for every auth source — never reimplement cookie parsing, localStorage access, or global reading.
+
 | Source | SDK Utility | Example |
 |---|---|---|
 | Non-HttpOnly cookie | `getCookie('token')` | Sentry, Bitbucket, LinkedIn, Reddit |
@@ -892,15 +906,8 @@ For food ordering, e-commerce, or any transactional service, the standard flow i
 | Webpack chunks | Custom extraction from `webpackChunk_*` | X (GraphQL operation hashes) |
 | XHR interception | Monkey-patch XMLHttpRequest | ClickUp (WebSocket JWT) |
 | Computed hash (SAPISIDHASH) | `getCookie('SAPISID')` + `crypto.subtle.digest` | YouTube (Google services) |
-
-**SDK utilities for auth detection (use these, never reimplement):**
-- `getCookie(name)` — read non-HttpOnly cookies (CSRF tokens, login indicators)
-- `getLocalStorage(key)` — read localStorage tokens (handles iframe fallback for apps that delete `window.localStorage`)
-- `getPageGlobal('path.to.value')` — read page globals like `window.boot_data.token` (safe deep access with prototype pollution protection)
-- `getMetaContent('meta-name')` — read `<meta>` tag content (common for CSRF tokens and user IDs)
-- `getAuthCache<T>(namespace)` / `setAuthCache(namespace, value)` / `clearAuthCache(namespace)` — persist tokens to survive adapter re-injection
-- `waitUntil(() => isAuthenticated(), { interval: 500, timeout: 5000 })` — poll for auth readiness
-- `findLocalStorageEntry(key => key.includes('auth'))` — search localStorage keys by pattern (for MSAL tokens, Auth0 keys, etc.)
+| Token persistence | `getAuthCache<T>(ns)` / `setAuthCache(ns, val)` / `clearAuthCache(ns)` | Survives adapter re-injection |
+| Auth polling | `waitUntil(() => isAuthenticated(), { interval: 500, timeout: 5000 })` | `isReady()` implementation |
 
 ### Session Cookies (most common)
 Apps using HttpOnly session cookies: SDK's `fetchJSON`/`postJSON` automatically include `credentials: 'include'`. Detect auth via `getPageGlobal('__initialData.isAuthenticated')`, `getCookie('session_indicator')`, or `getMetaContent('user-id')`. Mutating requests often need a CSRF token — check three sources: `getMetaContent('csrf-token')`, `getCookie('csrf_token')`, or `getPageGlobal('initData.csrfToken')`. The CSRF value is typically sent as a header (`X-CSRF-Token`) or a body field (`_csrf`).
@@ -968,9 +975,8 @@ Some apps compute cryptographic tokens via obfuscated JS — capture and replay,
 36. **Cross-origin API CORS support varies per service endpoint.** When a web app makes API calls to multiple cross-origin service endpoints (e.g., AWS Console calling `ec2.us-east-2.amazonaws.com`, `iam.amazonaws.com`, `s3.us-east-2.amazonaws.com`), each endpoint may have its own CORS policy. Some allow `Access-Control-Allow-Origin: *`, others only allow specific origins, and some block cross-origin entirely. During Phase 2, test CORS for every service endpoint you plan to use — not just one representative endpoint. A `fetch()` that throws "Failed to fetch" (TypeError, not an HTTP status) is the signature of a CORS block. When an endpoint is CORS-blocked, do not clear the auth cache on failure — the credentials are valid, only the endpoint is unreachable. Build tools only for endpoints that pass CORS preflight from the page origin
 37. **Same-origin iframe credential interception via Response.prototype.json.** Apps with micro-frontend architectures (e.g., AWS Console, Azure Portal) load service modules in same-origin iframes that independently obtain credentials via HTTP token exchange. The adapter cannot intercept the initial exchange (it runs at `document_idle`, after iframe scripts), but can capture subsequent exchanges by patching `Response.prototype.json` in each iframe's window context. Use a `MutationObserver` on `document.body` to detect new iframes and patch them on their `load` event. The interceptor checks for credential-shaped objects in every JSON response and persists them via SDK `setAuthCache`. Guard the installation with `typeof document !== 'undefined'` for Node.js build compatibility
 38. **CSP `connect-src` blocks cross-origin API calls from the page context.** Adapter file-based injection bypasses `script-src` CSP, but `connect-src 'self'` (or `default-src 'self'` with no `connect-src` override) blocks all cross-origin `fetch`/`XHR` from adapter code. During Phase 2, check for CSP headers: `browser_execute_script` → `fetch('/any-page').then(r => r.headers.get('content-security-policy'))`. If `connect-src` or `default-src` restricts origins, cross-origin APIs (even with valid CORS) are unreachable. The workaround is to use same-origin server-rendered pages: fetch HTML via `fetchText('/path')`, parse with `new DOMParser().parseFromString(html, 'text/html')`, and extract data from the DOM tree. This works because same-origin requests are always allowed by CSP. The approach is viable for sites with stable, simple HTML (e.g., Hacker News) but fragile for SPAs with complex or frequently changing markup
-40. **Bot protection systems (PerimeterX, HUMAN, DataDome) may protect some endpoints but not others.** Sites using bot protection middleware (e.g., `x-px-blocked: 1` header) may block most API endpoints from adapter-originated fetch calls while leaving certain internal routes unprotected. The protected vs unprotected distinction typically follows CDN routing — pages behind CloudFront with PX origin-verify are protected, while serverless function routes or static-origin routes bypass the protection layer. During Phase 2, test every endpoint you plan to use individually: if a simple fetch returns HTML with a captcha or 403 with `x-px-blocked: 1`, that endpoint is bot-protected. Keep testing other endpoints — the app likely has internal APIs on different routing paths that do not trigger bot detection. For Zillow specifically, the search API (`PUT /async-create-search-page-state`) and the autocomplete API (on `zillowstatic.com`) bypass PerimeterX, while GraphQL and most REST APIs are protected
-
 39. **GraphQL BFF servers rejecting standard `$variable` type declarations.** Some enterprise GraphQL BFF (Backend-for-Frontend) servers do not expose their input type names or use non-standard type names internally. Queries with proper `$variable: TypeName!` declarations return HTTP 400 with opaque errors (e.g., `{"errors":[null]}`), while the same query with inline arguments (values embedded directly in the query string) succeeds. During Phase 2, test every GraphQL query both ways: first with parameterized variables (`query Foo($bar: BarInput!) { ... }` + `variables: { bar: {...} }`), then with inline arguments (`query Foo { foo(bar: {field: "value"}) { ... } }` + empty variables). If parameterized queries fail but inline queries succeed, the server's type system is opaque — use inline arguments throughout. Note that inline arguments require careful string escaping for user-provided values to prevent query injection. Prefer this pattern only for values you control (account numbers, enum strings) and sanitize any free-text input
+40. **Bot protection systems (PerimeterX, HUMAN, DataDome) may protect some endpoints but not others.** Sites using bot protection middleware (e.g., `x-px-blocked: 1` header) may block most API endpoints from adapter-originated fetch calls while leaving certain internal routes unprotected. The protected vs unprotected distinction typically follows CDN routing — pages behind CloudFront with PX origin-verify are protected, while serverless function routes or static-origin routes bypass the protection layer. During Phase 2, test every endpoint you plan to use individually: if a simple fetch returns HTML with a captcha or 403 with `x-px-blocked: 1`, that endpoint is bot-protected. Keep testing other endpoints — the app likely has internal APIs on different routing paths that do not trigger bot detection
 41. **Relay persisted queries with deployment-specific `doc_id` via internal module system.** Facebook and similar React/Relay apps use persisted GraphQL queries where each operation is identified by a numeric `doc_id` that changes on every client-side deployment. Unlike Apollo persisted queries (gotcha #22 which use sha256 hashes), these `doc_id` values are accessible at runtime via the app's internal module system: `require('<OperationName>_facebookRelayOperation')` returns the doc_id as a string. Not all modules are loaded on every route — cache resolved doc_ids on `globalThis` so they survive SPA route transitions. Additionally, scan SSR `<script>` tags for `{ queryID: "...", queryName: "..." }` patterns to find doc_ids for queries that are only loaded via server-side preloaders (e.g., search bootstrap). When both data and errors are present in the GraphQL response, only throw on errors if no `data` field exists — Facebook returns non-critical `missing_required_variable_value` errors alongside valid data when optional variables are omitted
 42. **SSR search pages with batch product enrichment.** Some e-commerce sites serve search results as server-rendered HTML with no JSON search API. The search page HTML contains embedded SKU/product IDs (in `data-sku-id` attributes, inline JSON, or script tags) but not full product details. The workaround: fetch the search page via `fetchText('/search?q=QUERY')`, extract product IDs with regex (`/data-sku-id="(\d+)"/g` or `/"skuId"\s*:\s*"(\d+)"/g`), then batch-fetch full product details from a separate product details API (e.g., `/api/3.0/priceBlocks?skus=ID1,ID2,...`). Filter out empty results — some IDs may be sponsored placements or ads that the product API doesn't recognize. This two-step pattern (HTML parse for IDs → batch API enrichment) is the correct approach when search has no JSON endpoint but product details do
 43. **Next.js SSR data extraction via `__NEXT_DATA__` as primary data access.** When a Next.js app's API endpoints (GraphQL, REST) are fully protected by bot detection (Akamai, PerimeterX) and return 418/403 for all adapter-originated `fetch()` calls, the same-origin HTML pages still work because they go through the standard CDN/SSR pipeline. Fetch pages via `fetchFromPage(url, { headers: { accept: 'text/html' } })`, extract the `<script id="__NEXT_DATA__" ...>` tag with a regex (`/<script id="__NEXT_DATA__"[^>]*>([\s\S]*?)<\/script>/`), and parse the JSON. The `__NEXT_DATA__.props.pageProps` object contains all SSR-injected data: search results, product details, user profiles, order history, etc. This pattern works reliably because: (a) same-origin HTML requests always pass bot detection, (b) Next.js embeds the full `getServerSideProps` return value in the page, and (c) the JSON structure is stable across deployments (tied to the page route, not client JS bundles). The tradeoff is latency — each tool call fetches a full HTML page (~1-2MB) instead of a lightweight JSON API response. For write operations (add to cart, place order), this approach does not work since mutations require API calls. If the API is fully protected, expose `navigate_to_*` tools that set `window.location.href` and let the user complete actions in the browser
