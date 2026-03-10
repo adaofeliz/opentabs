@@ -4,11 +4,11 @@ description: Build an OpenTabs plugin from scratch — scaffold, define tools, u
 lastUpdated: 2026-03-03
 ---
 
-This guide walks you through creating an OpenTabs plugin from scratch. By the end, you'll have a working plugin that gives AI agents access to a web application through the user's browser.
+This is the part I'm most excited about. You can point an AI agent at any web app and it'll build a plugin for you in minutes — but if you want to understand what's happening under the hood, or build one by hand, this guide walks you through the whole thing from scratch. By the end, you'll have a working plugin that gives AI agents access to a web application through the user's browser.
 
 ## Scaffold Your Plugin
 
-The fastest way to start is with the scaffolder:
+The fastest way to start is with the scaffolder — it sets up the whole project structure so you can skip straight to writing tools:
 
 ```bash
 npx @opentabs-dev/create-plugin my-app --domain .example.com --display "My App"
@@ -72,7 +72,7 @@ The plugin is registered in `~/.opentabs/config.json` during the first `npm run 
 
 ## Understand the Plugin Class
 
-Open `src/index.ts`. Every plugin extends `OpenTabsPlugin` and exports a default instance:
+Open `src/index.ts` — this is the heart of your plugin. Every plugin extends `OpenTabsPlugin` and exports a default instance:
 
 ```typescript
 import { OpenTabsPlugin, type ToolDefinition } from '@opentabs-dev/plugin-sdk';
@@ -146,7 +146,7 @@ async isReady(): Promise<boolean> {
 
 ## Define Tools
 
-Each tool lives in its own file under `src/tools/`. Use `defineTool()` to create one:
+Now the fun part. Each tool lives in its own file under `src/tools/`. Use `defineTool()` to create one:
 
 ```typescript
 import { defineTool } from '@opentabs-dev/plugin-sdk';
@@ -212,7 +212,7 @@ You do **not** have access to Chrome extension APIs or Node.js modules.
 
 ### Writing good descriptions
 
-Tool descriptions are how AI agents decide which tool to use. Write them like you're explaining the tool to a colleague:
+Tool descriptions are how AI agents decide which tool to use. I've seen agents make bad tool choices because the description was vague — write them like you're explaining the tool to a colleague:
 
 ```typescript
 // Bad — too vague
@@ -249,11 +249,11 @@ class MyAppPlugin extends OpenTabsPlugin {
 
 ## Use SDK Utilities
 
-The plugin SDK provides utility functions that reduce boilerplate for common operations. All utilities run in the page context.
+This is where the SDK really pays off. I find myself reaching for these utilities constantly — they handle credentials, timeouts, structured errors, and all the little things you'd otherwise have to wire up yourself in every single tool. All utilities run in the page context.
 
 ### Fetch with session cookies
 
-Use `fetchJSON` and `postJSON` instead of raw `fetch` — they include credentials automatically, handle timeouts, and throw structured `ToolError` on failure:
+Use `fetchJSON` and `postJSON` instead of raw `fetch`. They include credentials automatically, handle timeouts, and throw structured `ToolError` on failure — so you can stop writing the same boilerplate in every tool handler:
 
 ```typescript
 import { fetchJSON, postJSON, ToolError } from '@opentabs-dev/plugin-sdk';
@@ -270,7 +270,7 @@ const result = await postJSON<{ id: string }>('/api/items', {
 if (!result) throw ToolError.internal('No data returned');
 ```
 
-When building request bodies with optional fields, use `stripUndefined` to remove `undefined` keys instead of writing manual `if` checks. It keeps `null`, `0`, `false`, and empty string — only `undefined` is filtered out:
+Here's a small thing that saves real time: when building request bodies with optional fields, use `stripUndefined` instead of writing manual `if` checks for every parameter. It keeps `null`, `0`, `false`, and empty string — only `undefined` is filtered out:
 
 ```typescript
 import { postJSON, stripUndefined } from '@opentabs-dev/plugin-sdk';
@@ -325,7 +325,7 @@ const uploaded = await postFormData<{ id: string }>('/api/upload', formData);
 
 ### Runtime response validation
 
-All fetch utilities accept an optional Zod schema as the last parameter. When provided, the response is validated at runtime and the return type is inferred from the schema — no separate type annotation needed. The full signatures are:
+All fetch utilities accept an optional Zod schema as the last parameter. When provided, the response is validated at runtime and the return type is inferred from the schema — no separate type annotation needed, which I think is a really nice developer experience. The full signatures are:
 
 - `fetchJSON(url, init?, schema?)` — GET without a body (same for `deleteJSON`)
 - `postJSON(url, body, init?, schema?)` — POST/PUT/PATCH with a body (same for `putJSON`, `patchJSON`)
@@ -347,7 +347,7 @@ If validation fails, the fetch helper throws a `ToolError` with a structured val
 
 ### Choosing the right fetch utility
 
-The SDK provides several fetch wrappers. All of them automatically include `credentials: 'include'` (so session cookies are sent) and apply a **30-second default timeout** via `AbortSignal.timeout()`. Use this table to pick the right one:
+There are several fetch wrappers and it's worth knowing which to reach for. All of them automatically include `credentials: 'include'` (so session cookies are sent) and apply a **30-second default timeout** via `AbortSignal.timeout()`. Here's the cheat sheet:
 
 <Table>
   <Table.Header>
@@ -388,7 +388,7 @@ The SDK provides several fetch wrappers. All of them automatically include `cred
   </Table.Body>
 </Table>
 
-All the JSON and form helpers throw a `ToolError` on non-2xx responses, so you don't need manual status checks. If you need custom error handling, use `fetchFromPage` directly and inspect the `Response`.
+All the JSON and form helpers throw a `ToolError` on non-2xx responses, so you don't need to write manual status checks — that's one less thing to forget. If you need custom error handling, use `fetchFromPage` directly and inspect the `Response`.
 
 ### Wait for DOM elements
 
@@ -437,11 +437,11 @@ const session = getLocalStorage('session_id');
 const authCookie = getCookie('auth_token');
 ```
 
-These examples cover the most commonly used utilities. For the complete list — including `fetchFromPage`, `getCurrentUrl`, `getPageTitle`, `waitForSelectorRemoval`, `querySelectorAll`, `observeDOM`, `sleep`, and all storage helpers — see the [SDK Utilities reference](/docs/sdk/utilities).
+These are the utilities I reach for most often, but there's more. For the complete list — including `fetchFromPage`, `getCurrentUrl`, `getPageTitle`, `waitForSelectorRemoval`, `querySelectorAll`, `observeDOM`, `sleep`, and all storage helpers — see the [SDK Utilities reference](/docs/sdk/utilities).
 
 ## Handle Errors
 
-Use `ToolError` for structured errors that AI agents can understand and act on:
+This is worth getting right. Use `ToolError` for structured errors that AI agents can understand and act on — the difference between an agent that retries intelligently and one that gives the user a useless error message comes down to how you report failures:
 
 ```typescript
 import { ToolError } from '@opentabs-dev/plugin-sdk';
@@ -465,9 +465,9 @@ handle: async params => {
 };
 ```
 
-`ToolError` has six factory methods — `auth()`, `notFound()`, `rateLimited()`, `timeout()`, `validation()`, and `internal()`. Each sets the right category and retryable flags so AI agents can decide whether to retry, wait, or give up. See the [Error Handling guide](/docs/guides/error-handling) for details.
+`ToolError` has six factory methods — `auth()`, `notFound()`, `rateLimited()`, `timeout()`, `validation()`, and `internal()`. Each sets the right category and retryable flags so AI agents can make smart decisions about whether to retry, wait, or give up. I spent a lot of time getting these categories right — the [Error Handling guide](/docs/guides/error-handling) goes deep on why they matter and when to use each one.
 
-When using `fetchFromPage` directly (instead of `fetchJSON` / `postJSON` which handle errors automatically), use `httpStatusToToolError` to convert HTTP status codes into the correct `ToolError` category:
+If you're using `fetchFromPage` directly (instead of `fetchJSON` / `postJSON` which handle errors automatically), `httpStatusToToolError` saves you from writing a big `switch` statement over HTTP status codes:
 
 ```typescript
 import { fetchFromPage, httpStatusToToolError } from '@opentabs-dev/plugin-sdk';
@@ -483,7 +483,7 @@ const data = await response.json();
 
 ## Add Logging
 
-Use `log` from the SDK to send structured logs through the platform:
+Trust me on this one: add logging from the start. Use `log` from the SDK to send structured logs through the platform — when something breaks, these are the only thing standing between you and blindly guessing what happened:
 
 ```typescript
 import { log, fetchJSON, ToolError } from '@opentabs-dev/plugin-sdk';
@@ -497,11 +497,11 @@ handle: async params => {
 };
 ```
 
-Logs flow from your adapter through the Chrome extension to the MCP server, where they appear in `opentabs logs --plugin my-app` and in MCP client log messages. Four levels: `log.debug`, `log.info`, `log.warn`, `log.error`. See the [Logging & Debugging guide](/docs/guides/logging-debugging) for the full debugging workflow.
+Logs flow from your adapter through the Chrome extension to the MCP server, where they appear in `opentabs logs --plugin my-app` and in MCP client log messages. Four levels: `log.debug`, `log.info`, `log.warn`, `log.error`. The [Logging & Debugging guide](/docs/guides/logging-debugging) walks through my full debugging workflow — it's saved me hours.
 
 ## Zod Schema Rules
 
-Tool schemas are serialized to JSON Schema for the MCP protocol. Keep them serialization-compatible:
+Here's where I see people get tripped up. Tool schemas are serialized to JSON Schema for the MCP protocol, and not every Zod feature survives that conversion. Keep your schemas serialization-compatible:
 
 - **Never use `.transform()`** — transforms can't be represented in JSON Schema. Normalize input in `handle()` instead.
 - **Avoid `.pipe()` and `.preprocess()`** — same reason.
@@ -547,7 +547,7 @@ opentabs status
 
 ### Development workflow
 
-Use watch mode for a fast iteration loop:
+This is one of the things I'm most proud of — use watch mode for a fast iteration loop:
 
 ```bash
 npm run dev
@@ -561,7 +561,7 @@ This runs `tsc --watch` and `opentabs-plugin build --watch` in parallel. When yo
 4. The server pushes the updated adapter to the Chrome extension
 5. The extension re-injects the adapter into matching tabs
 
-No server restart or extension reload needed — just save and test.
+No server restart, no extension reload — just save and test. The whole pipeline runs in under a second. It's the kind of developer experience I wish every platform had.
 
 ### Testing with an AI agent
 
@@ -575,7 +575,7 @@ Use `opentabs status` to verify plugin state, `opentabs logs --plugin my-app` to
 
 ## Publish to npm
 
-When your plugin is ready, publish it so others can install it with a single command.
+Honestly, I recommend building your own plugins over installing pre-built ones when you can — you understand every line of code, and you can tailor the tools exactly to your workflow. But when your plugin is ready, publishing it means anyone else can install it with a single command.
 
 ### Prepare package.json
 
@@ -616,7 +616,9 @@ The MCP server auto-discovers packages matching `opentabs-plugin-*` in global `n
 
 ## Next Steps
 
-- [Error Handling](/docs/guides/error-handling) — structured errors for AI agent retry logic
-- [Logging & Debugging](/docs/guides/logging-debugging) — debug your plugin with `opentabs logs` and `opentabs doctor`
-- [Streaming & Progress](/docs/guides/streaming-progress) — report progress for long-running tools
-- [SDK Reference](/docs/sdk/plugin-class) — full API reference for `OpenTabsPlugin`, `defineTool`, and utilities
+Here's where I'd go from here — these are the guides I find myself recommending most:
+
+- [Error Handling](/docs/guides/error-handling) — the difference between an agent that retries intelligently and one that gives up. Worth reading.
+- [Logging & Debugging](/docs/guides/logging-debugging) — my full debugging workflow with `opentabs logs` and `opentabs doctor`. You'll need this the first time something goes wrong.
+- [Streaming & Progress](/docs/guides/streaming-progress) — if your tools do anything slow (bulk exports, multi-page scrapes), you'll want progress reporting.
+- [SDK Reference](/docs/sdk/plugin-class) — the full API reference for `OpenTabsPlugin`, `defineTool`, and all the utilities.
