@@ -1,6 +1,6 @@
 import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
-import { findChatByIdOrThrow, queryGroupInviteCode } from '../whatsapp-api.js';
+import { findChatByIdOrThrow, isChatGroup, queryGroupInviteCode } from '../whatsapp-api.js';
 
 export const getGroupInviteLink = defineTool({
   name: 'get_group_invite_link',
@@ -17,7 +17,7 @@ export const getGroupInviteLink = defineTool({
   }),
   handle: async params => {
     const chat = findChatByIdOrThrow(params.chat_id);
-    if (!chat.isGroup) throw ToolError.validation('Chat is not a group');
+    if (!isChatGroup(chat)) throw ToolError.validation('Chat is not a group');
     const code = await queryGroupInviteCode(chat);
     return { invite_link: `https://chat.whatsapp.com/${code}` };
   },

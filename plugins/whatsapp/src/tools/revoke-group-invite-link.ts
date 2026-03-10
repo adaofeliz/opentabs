@@ -1,6 +1,6 @@
 import { ToolError, defineTool } from '@opentabs-dev/plugin-sdk';
 import { z } from 'zod';
-import { findChatByIdOrThrow, revokeGroupInvite } from '../whatsapp-api.js';
+import { findChatByIdOrThrow, isChatGroup, revokeGroupInvite } from '../whatsapp-api.js';
 
 export const revokeGroupInviteLink = defineTool({
   name: 'revoke_group_invite_link',
@@ -18,7 +18,7 @@ export const revokeGroupInviteLink = defineTool({
   }),
   handle: async params => {
     const chat = findChatByIdOrThrow(params.chat_id);
-    if (!chat.isGroup) throw ToolError.validation('Chat is not a group');
+    if (!isChatGroup(chat)) throw ToolError.validation('Chat is not a group');
     await revokeGroupInvite(chat);
     return { success: true };
   },

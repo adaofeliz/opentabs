@@ -36,7 +36,6 @@ interface WAChatModel {
   unreadCount: number;
   archive: boolean;
   pin: number;
-  isGroup: boolean;
   isReadOnly: boolean;
   isLocked: boolean;
   muteExpiration: number | { sentinel: string };
@@ -166,6 +165,9 @@ export const findChatByIdOrThrow = (chatId: string): WAChatModel => {
   return chat;
 };
 
+/** WhatsApp Web determines group status from the ID server, not a model property. */
+export const isChatGroup = (chat: WAChatModel): boolean => chat.id?.server === 'g.us';
+
 // ---------------------------------------------------------------------------
 // Contact lookup
 // ---------------------------------------------------------------------------
@@ -201,7 +203,7 @@ export const serializeChat = (c: WAChatModel): SerializedChat => {
   return {
     id: c.id?._serialized ?? '',
     name: c.formattedTitle ?? c.name ?? '',
-    is_group: c.isGroup ?? false,
+    is_group: c.id?.server === 'g.us',
     unread_count: Math.max(0, rawUnread),
     marked_unread: rawUnread === -1,
     timestamp: c.t ?? 0,
@@ -279,6 +281,21 @@ export const loadMessages = async (chat: WAChatModel): Promise<WAMsgModel[]> => 
 };
 
 // ---------------------------------------------------------------------------
+// Chat navigation
+// ---------------------------------------------------------------------------
+
+const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** Open a chat in the WhatsApp Web UI using the internal command system. */
+export const openChat = async (chat: WAChatModel): Promise<void> => {
+  const cmdMod = waRequire<{ Cmd: { openChatBottom: (opts: { chat: WAChatModel }) => void } }>('WAWebCmd');
+  if (!cmdMod) throw ToolError.internal('WAWebCmd module not available');
+  cmdMod.Cmd.openChatBottom({ chat });
+  // Wait for the UI to render the chat panel and compose box
+  await delay(500);
+};
+
+// ---------------------------------------------------------------------------
 // Actions
 // ---------------------------------------------------------------------------
 
@@ -287,18 +304,12 @@ export const sendTextMessage = async (chat: WAChatModel, text: string): Promise<
   // execution context. The reliable approach is to open the chat, paste text
   // into the Lexical compose box via ClipboardEvent, and press Enter.
 
-  const delay = (ms: number) => new Promise(r => setTimeout(r, ms));
-
-  // 1. Open the chat by clicking its entry in the chat list
-  const chatItem = document.querySelector(`[data-id="${chat.id._serialized}"]`) as HTMLElement | null;
-  if (chatItem) {
-    chatItem.click();
-    await delay(400);
-  }
+  // 1. Open the chat via the internal command system
+  await openChat(chat);
 
   // 2. Find the compose box (Lexical rich text editor)
   const composeBox = document.querySelector('[data-tab="10"][contenteditable="true"]') as HTMLElement | null;
-  if (!composeBox) throw ToolError.internal('Compose box not found — open the chat in WhatsApp Web first');
+  if (!composeBox) throw ToolError.internal('Compose box not found after opening chat');
 
   // 3. Focus and clear any existing content via Ctrl+A + Backspace
   composeBox.focus();
@@ -425,12 +436,15 @@ export const deleteMessages = async (chat: WAChatModel, msgIds: string[]): Promi
 
 export const revokeMessages = async (chat: WAChatModel, msgIds: string[]): Promise<void> => {
   const mod = waRequire<{
-    sendRevokeMsgs: (chat: WAChatModel, msgs: WAMsgModel[]) => Promise<unknown>;
+    sendRevokeMsgs: (
+      chat: WAChatModel,
+      msgSet: { type: string; list: WAMsgModel[] },
+    ) => Promise<unknown>;
   }>('WAWebChatSendMessages');
   if (!mod) throw ToolError.internal('WAWebChatSendMessages module not available');
   const msgs = chat.msgs.getModelsArray().filter(m => msgIds.includes(m.id._serialized));
   if (msgs.length === 0) throw ToolError.notFound('No matching messages found');
-  await mod.sendRevokeMsgs(chat, msgs);
+  await mod.sendRevokeMsgs(chat, { type: 'message', list: msgs });
 };
 
 export const blockContact = async (contactId: string): Promise<void> => {
