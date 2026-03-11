@@ -346,6 +346,8 @@ interface NpmSearchJsonEntry {
   publisher?: { username?: string };
 }
 
+const extractShortName = (name: string): string => (name.split('/').pop() ?? name).replace(/^opentabs-plugin-/, '');
+
 /**
  * Search for opentabs plugins via `npm search`.
  * Delegates auth to npm itself.
@@ -357,7 +359,7 @@ const npmSearchPlugins = (query?: string): NpmSearchPackage[] => {
 
   try {
     const entries = JSON.parse(result.stdout.trim()) as NpmSearchJsonEntry[];
-    return entries.map(entry => ({
+    const results = entries.map(entry => ({
       name: entry.name,
       description: entry.description,
       version: entry.version,
@@ -367,6 +369,13 @@ const npmSearchPlugins = (query?: string): NpmSearchPackage[] => {
           ? { username: entry.author.name }
           : undefined,
     }));
+    if (query) {
+      const q = query.toLowerCase();
+      return results.filter(
+        r => extractShortName(r.name).toLowerCase().includes(q) || (r.description ?? '').toLowerCase().includes(q),
+      );
+    }
+    return results;
   } catch {
     return [];
   }
