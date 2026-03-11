@@ -180,7 +180,7 @@ const getMcpClientConfigs = (
       cliCommand: claudeCliCommand,
       json: {
         mcpServers: {
-          opentabs: { type: 'streamable-http', url: mcpUrl, ...(authHeaders && { headers: authHeaders }) },
+          opentabs: { type: 'http', url: mcpUrl, ...(authHeaders && { headers: authHeaders }) },
         },
       },
     },
@@ -444,7 +444,7 @@ const registerStartCommand = (program: Command): void => {
     .description('Start the MCP server')
     .option('--port <number>', 'Server port (default: 9515)', parsePort)
     .option('--background', 'Start the server in the background')
-    .option('--show-config', 'Print full MCP client configuration even on subsequent runs')
+    .option('--show-config', 'Print MCP client configuration and exit without starting the server')
     .addHelpText(
       'after',
       `

@@ -105,7 +105,7 @@ Use `opentabs audit` to see recent tool invocations with their durations and err
    ```bash
    opentabs config show --json --show-secret | jq -r .secret
    ```
-4. **Client config** — For Claude Code, verify your MCP config has `"type": "streamable-http"` and the correct URL and Authorization header
+4. **Client config** — For Claude Code, verify your MCP config has `"type": "http"` and the correct URL and Authorization header
 5. **CORS** — The server rejects requests with a browser `Origin` header. Native MCP clients don't send Origin headers, so this should only affect browser-based testing.
 
 ---

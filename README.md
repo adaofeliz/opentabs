@@ -67,7 +67,7 @@ Here's what makes it interesting: **every time an AI builds a plugin, it writes 
 If you prefer to build by hand:
 
 ```bash
-opentabs plugin create my-app --domain example.com
+opentabs plugin create my-app --domain .example.com
 cd my-app && npm install
 ```
 
