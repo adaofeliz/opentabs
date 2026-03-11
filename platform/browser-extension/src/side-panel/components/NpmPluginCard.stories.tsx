@@ -4,6 +4,7 @@ import { NpmPluginCard } from './NpmPluginCard';
 
 const mockNpmPlugin = (overrides?: Partial<PluginSearchResult>): PluginSearchResult => ({
   name: '@opentabs-dev/opentabs-plugin-slack',
+  displayName: 'Slack',
   description: 'OpenTabs plugin for Slack — send messages, list channels, and search conversations.',
   version: '1.2.0',
   author: 'opentabs-dev',

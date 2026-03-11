@@ -1,5 +1,4 @@
 import type { PluginSearchResult } from '../bridge';
-import { extractShortName } from '../bridge';
 import { PluginIcon } from './PluginIcon';
 import { Alert } from './retro/Alert';
 import { Badge } from './retro/Badge';
@@ -14,7 +13,7 @@ interface NpmPluginCardProps {
 }
 
 const NpmPluginCard = ({ plugin, installing, error, onInstall }: NpmPluginCardProps) => {
-  const displayName = extractShortName(plugin.name);
+  const displayName = plugin.displayName;
 
   return (
     <div className="space-y-2 rounded border-2 border-border bg-card p-3 shadow-md transition-all hover:shadow-sm">

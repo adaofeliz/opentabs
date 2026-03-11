@@ -1826,7 +1826,7 @@ describe('handleBgSetAllToolsPermission', () => {
 describe('handleBgSearchPlugins', () => {
   test('relays plugin.search to the server and returns results', async () => {
     const results = {
-      results: [{ name: 'opentabs-plugin-test', description: 'test', version: '1.0.0' }],
+      results: [{ name: 'opentabs-plugin-test', displayName: 'Test', description: 'test', version: '1.0.0' }],
     };
     mockSendServerRequest.mockResolvedValueOnce(results);
 

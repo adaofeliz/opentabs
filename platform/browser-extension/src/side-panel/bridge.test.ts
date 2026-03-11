@@ -195,7 +195,7 @@ describe('setPluginPermission', () => {
 describe('searchPlugins', () => {
   test('sends bg:searchPlugins with correct params', async () => {
     mockResponse = {
-      results: [{ name: 'slack', description: 'Slack', version: '1.0', author: 'x' }],
+      results: [{ name: 'slack', displayName: 'Slack', description: 'Slack', version: '1.0', author: 'x' }],
     };
 
     const result = await searchPlugins('slack');

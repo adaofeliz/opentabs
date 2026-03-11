@@ -28,6 +28,7 @@ type BrowserToolState = ConfigStateBrowserTool;
 /** npm registry search result for a plugin package */
 interface PluginSearchResult {
   name: string;
+  displayName: string;
   description: string;
   version: string;
   author: string;

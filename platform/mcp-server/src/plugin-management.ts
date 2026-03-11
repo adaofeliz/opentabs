@@ -29,6 +29,7 @@ import type { RegisteredPlugin, ServerState } from './state.js';
 
 interface PluginSearchResult {
   name: string;
+  displayName: string;
   description: string;
   version: string;
   author: string;
@@ -150,6 +151,24 @@ const runNpmGlobal = async (command: string, packageName: string): Promise<{ std
 // npm registry search
 // ---------------------------------------------------------------------------
 
+/**
+ * Extracts a short name from an npm package name.
+ * "@opentabs-dev/opentabs-plugin-slack" → "slack"
+ * "opentabs-plugin-datadog" → "datadog"
+ */
+const extractShortName = (name: string): string => (name.split('/').pop() ?? name).replace(/^opentabs-plugin-/, '');
+
+/**
+ * Converts a package name to a human-readable display name.
+ * "@opentabs-dev/opentabs-plugin-slack" → "Slack"
+ * "@opentabs-dev/opentabs-plugin-google-calendar" → "Google Calendar"
+ */
+const toDisplayName = (name: string): string =>
+  extractShortName(name)
+    .split('-')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+
 /** npm search --json result shape */
 interface NpmSearchJsonEntry {
   name: string;
@@ -196,12 +215,24 @@ const searchNpmPlugins = async (query?: string): Promise<PluginSearchResult[]> =
 
   try {
     const entries = JSON.parse(result.stdout.trim()) as NpmSearchJsonEntry[];
-    return entries.map(entry => ({
+    const results = entries.map(entry => ({
       name: entry.name,
+      displayName: toDisplayName(entry.name),
       description: entry.description ?? '',
       version: entry.version,
       author: entry.publisher?.username ?? entry.author?.name ?? 'unknown',
     }));
+
+    // npm search is full-text relevance-based: `keywords:opentabs-plugin slack` returns ALL
+    // opentabs plugins ranked by relevance, not just those matching "slack". Post-filter to
+    // only include results where the query appears in the short name or description.
+    if (query) {
+      const q = query.toLowerCase();
+      return results.filter(
+        r => extractShortName(r.name).toLowerCase().includes(q) || r.description.toLowerCase().includes(q),
+      );
+    }
+    return results;
   } catch {
     const error = new Error('Failed to parse npm search output') as Error & { code: number };
     error.code = -32603;
