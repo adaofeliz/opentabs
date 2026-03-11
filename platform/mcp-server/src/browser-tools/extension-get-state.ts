@@ -14,12 +14,23 @@ const extensionGetState = defineBrowserTool({
     'Get the complete internal state of the OpenTabs Chrome extension. ' +
     'Returns WebSocket connection status, all registered plugins with their tab states, ' +
     'active network captures, and offscreen document status. ' +
-    'Use this tool to quickly understand the overall health of the extension without opening DevTools.',
+    'Use this tool to quickly understand the overall health of the extension without opening DevTools. ' +
+    'When multiple browser profiles are connected, use connectionId to target a specific profile.',
   summary: 'Get extension internal state',
   icon: 'settings',
   group: 'Extension',
-  input: z.object({}),
-  handler: async (_args, state) => dispatchToExtension(state, 'extension.getState', {}),
+  input: z.object({
+    connectionId: z
+      .string()
+      .optional()
+      .describe(
+        'Target a specific browser profile by connection ID. Use browser_list_tabs to discover available connectionIds.',
+      ),
+  }),
+  handler: async (args, state) =>
+    dispatchToExtension(state, 'extension.getState', {
+      ...(args.connectionId ? { connectionId: args.connectionId } : {}),
+    }),
 });
 
 export { extensionGetState };

@@ -199,7 +199,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'browser_open_tab',
     description:
-      'Open a new browser tab with the specified URL. Returns the new tab ID, which can be used with browser_navigate_tab, browser_close_tab, and browser_execute_script.',
+      'Open a new browser tab with the specified URL. Returns the new tab ID, which can be used with browser_navigate_tab, browser_close_tab, and browser_execute_script. When multiple browser profiles are connected, use connectionId to target a specific profile (get connectionIds from browser_list_tabs). Without connectionId, opens in an arbitrary profile.',
     summary: 'Open a new browser tab',
     icon: 'plus',
     group: 'Tabs',
@@ -279,7 +279,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'extension_force_reconnect',
     description:
-      'Force the Chrome extension to disconnect its WebSocket and reconnect to the MCP server. This tears down the current connection, resets the backoff timer, and initiates an immediate reconnection attempt. The normal sync.full flow resumes after reconnection. Use this to recover from stale connections without a full extension reload.',
+      'Force the Chrome extension to disconnect its WebSocket and reconnect to the MCP server. This tears down the current connection, resets the backoff timer, and initiates an immediate reconnection attempt. The normal sync.full flow resumes after reconnection. Use this to recover from stale connections without a full extension reload. When multiple browser profiles are connected, use connectionId to target a specific profile.',
     summary: 'Force WebSocket reconnection',
     icon: 'refresh-cw',
     group: 'Extension',
@@ -287,7 +287,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'extension_get_logs',
     description:
-      'Retrieve internal logs from the OpenTabs Chrome extension (background script and offscreen document). Returns log entries with timestamp, level, source, and message. Use this to see error messages, WebSocket events, and plugin injection warnings without opening DevTools.',
+      'Retrieve internal logs from the OpenTabs Chrome extension (background script and offscreen document). Returns log entries with timestamp, level, source, and message. Use this to see error messages, WebSocket events, and plugin injection warnings without opening DevTools. When multiple browser profiles are connected, use connectionId to target a specific profile.',
     summary: 'Get extension internal logs',
     icon: 'scroll-text',
     group: 'Extension',
@@ -295,7 +295,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'extension_get_side_panel',
     description:
-      'Get the side panel state and rendered HTML. Returns the React state (connected, loading, plugins) and the root innerHTML. If the side panel is not open, returns { open: false }.',
+      'Get the side panel state and rendered HTML. Returns the React state (connected, loading, plugins) and the root innerHTML. If the side panel is not open, returns { open: false }. When multiple browser profiles are connected, use connectionId to target a specific profile.',
     summary: 'Get side panel state and HTML',
     icon: 'panel-right',
     group: 'Extension',
@@ -303,7 +303,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'extension_get_state',
     description:
-      'Get the complete internal state of the OpenTabs Chrome extension. Returns WebSocket connection status, all registered plugins with their tab states, active network captures, and offscreen document status. Use this tool to quickly understand the overall health of the extension without opening DevTools.',
+      'Get the complete internal state of the OpenTabs Chrome extension. Returns WebSocket connection status, all registered plugins with their tab states, active network captures, and offscreen document status. Use this tool to quickly understand the overall health of the extension without opening DevTools. When multiple browser profiles are connected, use connectionId to target a specific profile.',
     summary: 'Get extension internal state',
     icon: 'settings',
     group: 'Extension',

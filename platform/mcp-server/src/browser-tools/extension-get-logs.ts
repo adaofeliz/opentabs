@@ -13,7 +13,8 @@ const extensionGetLogs = defineBrowserTool({
   description:
     'Retrieve internal logs from the OpenTabs Chrome extension (background script and offscreen document). ' +
     'Returns log entries with timestamp, level, source, and message. ' +
-    'Use this to see error messages, WebSocket events, and plugin injection warnings without opening DevTools.',
+    'Use this to see error messages, WebSocket events, and plugin injection warnings without opening DevTools. ' +
+    'When multiple browser profiles are connected, use connectionId to target a specific profile.',
   summary: 'Get extension internal logs',
   icon: 'scroll-text',
   group: 'Extension',
@@ -28,6 +29,12 @@ const extensionGetLogs = defineBrowserTool({
       .describe('Filter by source context. Defaults to all sources.'),
     limit: z.number().int().positive().optional().describe('Maximum number of entries to return. Defaults to 100.'),
     since: z.number().optional().describe('Only return entries with timestamp >= this value (ms since epoch).'),
+    connectionId: z
+      .string()
+      .optional()
+      .describe(
+        'Target a specific browser profile by connection ID. Use browser_list_tabs to discover available connectionIds.',
+      ),
   }),
   handler: async (args, state) =>
     dispatchToExtension(state, 'extension.getLogs', {
@@ -35,6 +42,7 @@ const extensionGetLogs = defineBrowserTool({
       ...(args.source !== undefined && args.source !== 'all' ? { source: args.source } : {}),
       ...(args.limit !== undefined ? { limit: args.limit } : {}),
       ...(args.since !== undefined ? { since: args.since } : {}),
+      ...(args.connectionId ? { connectionId: args.connectionId } : {}),
     }),
 });
 

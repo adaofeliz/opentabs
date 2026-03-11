@@ -14,12 +14,23 @@ const extensionForceReconnect = defineBrowserTool({
     'Force the Chrome extension to disconnect its WebSocket and reconnect to the MCP server. ' +
     'This tears down the current connection, resets the backoff timer, and initiates an immediate ' +
     'reconnection attempt. The normal sync.full flow resumes after reconnection. ' +
-    'Use this to recover from stale connections without a full extension reload.',
+    'Use this to recover from stale connections without a full extension reload. ' +
+    'When multiple browser profiles are connected, use connectionId to target a specific profile.',
   summary: 'Force WebSocket reconnection',
   icon: 'refresh-cw',
   group: 'Extension',
-  input: z.object({}),
-  handler: async (_args, state) => dispatchToExtension(state, 'extension.forceReconnect', {}),
+  input: z.object({
+    connectionId: z
+      .string()
+      .optional()
+      .describe(
+        'Target a specific browser profile by connection ID. Use browser_list_tabs to discover available connectionIds.',
+      ),
+  }),
+  handler: async (args, state) =>
+    dispatchToExtension(state, 'extension.forceReconnect', {
+      ...(args.connectionId ? { connectionId: args.connectionId } : {}),
+    }),
 });
 
 export { extensionForceReconnect };

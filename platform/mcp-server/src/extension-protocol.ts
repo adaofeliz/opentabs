@@ -154,6 +154,13 @@ const resolveConnection = (state: ServerState, params: Record<string, unknown>):
   if (state.extensionConnections.size === 1) {
     return state.extensionConnections.values().next().value as ExtensionConnection;
   }
+  // Explicit connection targeting takes priority
+  const connectionId = typeof params.connectionId === 'string' ? params.connectionId : undefined;
+  if (connectionId !== undefined) {
+    const conn = state.extensionConnections.get(connectionId);
+    if (conn) return conn;
+  }
+  // Tab-based routing
   const tabId = typeof params.tabId === 'number' ? params.tabId : undefined;
   if (tabId !== undefined) {
     const conn = getConnectionForTab(state, tabId);

@@ -12,12 +12,23 @@ const extensionGetSidePanel = defineBrowserTool({
   description:
     'Get the side panel state and rendered HTML. ' +
     'Returns the React state (connected, loading, plugins) and the root innerHTML. ' +
-    'If the side panel is not open, returns { open: false }.',
+    'If the side panel is not open, returns { open: false }. ' +
+    'When multiple browser profiles are connected, use connectionId to target a specific profile.',
   summary: 'Get side panel state and HTML',
   icon: 'panel-right',
   group: 'Extension',
-  input: z.object({}),
-  handler: async (_args, state) => dispatchToExtension(state, 'extension.getSidePanel', {}),
+  input: z.object({
+    connectionId: z
+      .string()
+      .optional()
+      .describe(
+        'Target a specific browser profile by connection ID. Use browser_list_tabs to discover available connectionIds.',
+      ),
+  }),
+  handler: async (args, state) =>
+    dispatchToExtension(state, 'extension.getSidePanel', {
+      ...(args.connectionId ? { connectionId: args.connectionId } : {}),
+    }),
 });
 
 export { extensionGetSidePanel };
