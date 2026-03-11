@@ -21,7 +21,8 @@ interface PluginMenuProps {
 const VersionItem = ({ plugin }: { plugin: PluginState }) => {
   if (plugin.source === 'npm') {
     return (
-      <Menu.Item onSelect={() => window.open(`https://www.npmjs.com/package/${plugin.name}`, '_blank')}>
+      <Menu.Item
+        onSelect={() => window.open(`https://www.npmjs.com/package/${plugin.npmPackageName ?? plugin.name}`, '_blank')}>
         <Package className="h-3.5 w-3.5" />v{plugin.version}
       </Menu.Item>
     );

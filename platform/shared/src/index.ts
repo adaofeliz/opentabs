@@ -310,6 +310,8 @@ export interface ConfigStatePlugin {
   version: string;
   permission: ToolPermission;
   source: 'npm' | 'local';
+  /** Full npm package name (e.g., '@opentabs-dev/opentabs-plugin-github'). Only present for npm-sourced plugins. */
+  npmPackageName?: string;
   tabState: TabState;
   /** Individual matching tabs with per-tab details. Only present when tabState is not 'closed'. */
   tabs?: PluginTabInfo[];

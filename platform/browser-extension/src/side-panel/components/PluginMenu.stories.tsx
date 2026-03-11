@@ -9,6 +9,7 @@ const mockNpmPlugin = (overrides?: Partial<PluginState>): PluginState => ({
   version: '0.1.0',
   permission: 'auto',
   source: 'npm',
+  npmPackageName: '@opentabs-dev/opentabs-plugin-slack',
   tabState: 'ready',
   urlPatterns: ['*://*.slack.com/*'],
   sdkVersion: '0.0.3',
