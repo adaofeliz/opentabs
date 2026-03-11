@@ -20,12 +20,15 @@ jobs:
         with:
           node-version: 22
           cache: npm
+          cache-dependency-path: docs/package-lock.json
 
       - name: Install dependencies
         run: npm ci
+        working-directory: docs
 
       - name: Build docs
-        run: npm run build:docs
+        run: npm run build
+        working-directory: docs
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3
