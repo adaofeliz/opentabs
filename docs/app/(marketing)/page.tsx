@@ -312,26 +312,30 @@ export default function Home() {
         </Text>
         <div className="space-y-10">
           <div>
-            <p className="mb-3 font-bold text-foreground">
-              Why not just use the official MCP server for Slack / GitHub / etc.?
-            </p>
+            <p className="mb-3 font-bold text-foreground">Why not just use official MCP servers?</p>
             <p className="max-w-3xl text-muted-foreground text-sm leading-relaxed">
-              If an official MCP server works well for you, absolutely use it. I started building OpenTabs for apps
-              that don&apos;t ship official MCP support — Discord, Figma, Linear, and many others had nothing when I
-              began. And some probably never will — I&apos;m not holding my breath for a Domino&apos;s MCP server.
-              Along the way, I noticed that setting up separate API keys for each service adds up when you use ten of
-              them, and the web app often has access to more features than the public API exposes. I see OpenTabs and
-              official servers as complementary — use whatever works best, or mix and match.
+              If an official MCP server works well for you, use it. I started building OpenTabs for the apps that
+              don&apos;t have MCP support — many had none when I began, and some probably never will. Along the way, I
+              also built plugins for apps that do have official servers, partly for learning, partly because I noticed a
+              few things: setting up separate API keys or OAuth flows for each service adds up when you use a dozen of
+              them. Public APIs sometimes have stricter rate limits or a smaller feature set than the web app. And the
+              web app is always the superset — internal APIs, real-time data, features that never make it to the public
+              API. I see OpenTabs and official servers as complementary — use whatever fits, or mix and match.
             </p>
           </div>
           <div>
-            <p className="mb-3 font-bold text-foreground">How is this different from browser automation tools?</p>
+            <p className="mb-3 font-bold text-foreground">
+              How is this different from browser automation (Playwright, Stagehand, Browser-Use)?
+            </p>
             <p className="max-w-3xl text-muted-foreground text-sm leading-relaxed">
-              Tools like Playwright MCP, Stagehand, and Browser-Use are great — they work on any site out of the box by
-              navigating the page visually. The difference is that whatever the AI figures out during a session is gone
-              afterward. There&apos;s no way to share or reuse that knowledge. OpenTabs plugins call internal APIs
-              directly, so once a plugin is built, it&apos;s a structured, typed package anyone can install. The
-              knowledge accumulates — every plugin built makes the platform more useful for everyone.
+              Those are great tools. Both approaches have real strengths, and I want to be honest about the tradeoffs.
+              Browser automation simulates what a human would do — click, type, read the screen. It works on any site
+              out of the box, and that&apos;s a real advantage. The cost is speed, tokens, and the knowledge stays
+              trapped in that one session. If a popup appears or the layout changes, the AI figures it out again from
+              scratch. OpenTabs plugins call the web app&apos;s internal APIs directly. A send-message tool isn&apos;t
+              clicking a text box — it&apos;s making the same API call the web app&apos;s frontend makes. Fast, cheap
+              on tokens, and the knowledge is packaged into a reusable plugin. The downside is you need a plugin per
+              site, and internal APIs can change. If a plugin breaks, open a PR — I want to keep everything working.
             </p>
           </div>
           <div>
@@ -341,11 +345,13 @@ export default function Home() {
                 href="https://developer.chrome.com/blog/webmcp-epp"
                 target="_blank"
                 className="underline underline-offset-4">
-                WebMCP
+                Chrome&apos;s WebMCP
               </Link>{' '}
-              is a proposal where websites expose structured MCP tools natively. I think it&apos;s a great idea —
-              it&apos;s how the web should probably work long-term. The timeline depends on adoption, though. OpenTabs
-              works right now, in about five minutes. When WebMCP is widespread, OpenTabs plugins can evolve to use it.
+              is a proposal where websites expose structured MCP tools natively in the browser. I think it&apos;s a
+              great idea — it&apos;s probably how this should work long-term. The timeline depends on web services
+              choosing to adopt it, and that kind of shift takes a while. WebMCP is in early preview today. OpenTabs
+              works right now, with the apps you already use, in about five minutes. If WebMCP becomes widespread,
+              OpenTabs plugins can evolve to use it.
             </p>
           </div>
         </div>
