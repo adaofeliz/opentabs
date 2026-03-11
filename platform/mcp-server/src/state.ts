@@ -495,7 +495,7 @@ export const findConnectionByWs = (state: ServerState, ws: WsHandle): ExtensionC
 };
 
 /** Picks the "most ready" tab state: ready > unavailable > closed */
-const pickBestTabState = (a: TabState, b: TabState): TabState => {
+export const pickBestTabState = (a: TabState, b: TabState): TabState => {
   const rank: Record<TabState, number> = { ready: 2, unavailable: 1, closed: 0 };
   return rank[a] >= rank[b] ? a : b;
 };

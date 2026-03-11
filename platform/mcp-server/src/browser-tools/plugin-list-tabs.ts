@@ -3,18 +3,52 @@
  *
  * Reads directly from the server's tabMapping (populated by tab.syncAll and
  * tab.stateChanged events from the extension) — no extension dispatch needed.
+ * Each tab entry includes a connectionId field identifying which browser profile owns it.
  */
 
+import type { PluginTabInfo, TabState } from '@opentabs-dev/shared';
 import { z } from 'zod';
-import { getMergedTabMapping } from '../state.js';
+import { pickBestTabState } from '../state.js';
 import { defineBrowserTool } from './definition.js';
+
+type AnnotatedTab = PluginTabInfo & { connectionId: string };
+
+interface AnnotatedMapping {
+  state: TabState;
+  tabs: AnnotatedTab[];
+}
+
+/**
+ * Build a merged tab mapping annotated with connectionId from all connections.
+ * Unlike getMergedTabMapping (which is used by the side panel and doesn't need
+ * connectionId), this annotates each tab with its source connection.
+ */
+const getMergedTabMappingWithConnectionId = (
+  connections: Iterable<{ connectionId: string; tabMapping: Map<string, { state: TabState; tabs: PluginTabInfo[] }> }>,
+): Map<string, AnnotatedMapping> => {
+  const merged = new Map<string, AnnotatedMapping>();
+  for (const conn of connections) {
+    for (const [pluginName, mapping] of conn.tabMapping) {
+      const withConn: AnnotatedTab[] = mapping.tabs.map(t => ({ ...t, connectionId: conn.connectionId }));
+      const existing = merged.get(pluginName);
+      if (existing) {
+        existing.tabs.push(...withConn);
+        existing.state = pickBestTabState(existing.state, mapping.state);
+      } else {
+        merged.set(pluginName, { state: mapping.state, tabs: withConn });
+      }
+    }
+  }
+  return merged;
+};
 
 const pluginListTabs = defineBrowserTool({
   name: 'plugin_list_tabs',
   description:
-    "List open browser tabs that match a plugin's URL patterns. Returns tab IDs, URLs, titles, and readiness " +
-    'status for each matching tab. Use this to discover which tabs are available before targeting a specific one ' +
-    'with the tabId parameter on plugin tools. When called without a plugin argument, returns tabs for all plugins.',
+    "List open browser tabs that match a plugin's URL patterns. Returns tab IDs, URLs, titles, readiness " +
+    'status, and connectionId (identifying the browser profile) for each matching tab. Use this to discover which ' +
+    'tabs are available before targeting a specific one with the tabId parameter on plugin tools. When called ' +
+    'without a plugin argument, returns tabs for all plugins.',
   summary: 'List tabs matching a plugin',
   icon: 'list',
   group: 'Plugins',
@@ -28,7 +62,7 @@ const pluginListTabs = defineBrowserTool({
   }),
   handler: (_args, state) => {
     const { plugin } = _args;
-    const mergedTabs = getMergedTabMapping(state);
+    const mergedTabs = getMergedTabMappingWithConnectionId(state.extensionConnections.values());
 
     if (plugin !== undefined) {
       const registered = state.registry.plugins.get(plugin);
@@ -53,7 +87,7 @@ const pluginListTabs = defineBrowserTool({
       plugin: string;
       displayName: string;
       state: string;
-      tabs: Array<{ tabId: number; url: string; title: string; ready: boolean }>;
+      tabs: AnnotatedTab[];
     }> = [];
 
     for (const registered of state.registry.plugins.values()) {

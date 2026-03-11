@@ -327,7 +327,7 @@ export const BROWSER_TOOLS_CATALOG: readonly BrowserToolMeta[] = [
   {
     name: 'plugin_list_tabs',
     description:
-      "List open browser tabs that match a plugin's URL patterns. Returns tab IDs, URLs, titles, and readiness status for each matching tab. Use this to discover which tabs are available before targeting a specific one with the tabId parameter on plugin tools. When called without a plugin argument, returns tabs for all plugins.",
+      "List open browser tabs that match a plugin's URL patterns. Returns tab IDs, URLs, titles, readiness status, and connectionId (identifying the browser profile) for each matching tab. Use this to discover which tabs are available before targeting a specific one with the tabId parameter on plugin tools. When called without a plugin argument, returns tabs for all plugins.",
     summary: 'List tabs matching a plugin',
     icon: 'list',
     group: 'Plugins',
