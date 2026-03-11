@@ -86,6 +86,10 @@ I know you're the kind of person who sets `DANGEROUSLY_SKIP_PERMISSIONS=1` the m
 
 I won't pretend this is bulletproof. Browser extensions that interact with your web apps are inherently a trust decision. But the defaults are safe, the controls are in your hands, and the code is open source — [read it](https://opentabs.dev/docs/reference/configuration).
 
+<p align="center">
+  <img src=".github/assets/permissions.gif" alt="Permission dialog asking for approval before a tool call executes" width="700" />
+</p>
+
 ## FAQ
 
 **Why not just use official MCP servers?**
