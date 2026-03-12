@@ -8,11 +8,17 @@
   "type": "module",
   "main": "dist/adapter.iife.js",
   "keywords": [
-    "opentabs-plugin"
+    "opentabs-plugin",
+    "opentabs",
+    "mcp",
+    "modelcontextprotocol",
+    "chrome-extension",
+    "ai-agent",
+    "browser-automation"
   ],
   "opentabs": {
     "displayName": "MiniMax Agent",
-    "description": "OpenTabs plugin for MiniMax Agent \u2014 AI assistant platform for chat, experts, and agent automation",
+    "description": "OpenTabs plugin for MiniMax Agent — AI assistant platform for chat, experts, and agent automation",
     "urlPatterns": [
       "*://agent.minimax.io/*",
       "*://agent.minimaxi.com/*"

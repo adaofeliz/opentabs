@@ -5,14 +5,20 @@
   "type": "module",
   "main": "dist/adapter.iife.js",
   "keywords": [
-    "opentabs-plugin"
+    "opentabs-plugin",
+    "opentabs",
+    "mcp",
+    "modelcontextprotocol",
+    "chrome-extension",
+    "ai-agent",
+    "browser-automation"
   ],
   "publishConfig": {
     "access": "public"
   },
   "opentabs": {
     "displayName": "Starbucks",
-    "description": "OpenTabs plugin for Starbucks \u2014 manage rewards, find stores, browse the menu, and view your account",
+    "description": "OpenTabs plugin for Starbucks — manage rewards, find stores, browse the menu, and view your account",
     "urlPatterns": [
       "*://*.starbucks.com/*"
     ],
