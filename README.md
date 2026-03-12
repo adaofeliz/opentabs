@@ -2,6 +2,8 @@
 
 **Your browser is already logged in. Let your AI use it.**
 
+Here's Claude checking a Robinhood portfolio, ordering Panda Express on DoorDash, and sending a Discord message — all through the browser, in one shot:
+
 <p align="center">
   <a href="https://www.youtube.com/watch?v=PBvUXDAGVM8">
     <img src="https://img.youtube.com/vi/PBvUXDAGVM8/maxresdefault.jpg" alt="Demo: AI checks stocks, orders food, and sends a Discord message — all through the browser" />
@@ -93,7 +95,7 @@ I know you're the kind of person who sets `DANGEROUSLY_SKIP_PERMISSIONS=1` the m
 - **Runs locally.** No cloud. No telemetry. Everything lives in `~/.opentabs/` on your machine.
 - **Full audit log.** Every tool call is logged — what ran, when, whether it succeeded.
 
-I won't pretend this is bulletproof. Browser extensions that interact with your web apps are inherently a trust decision. But the defaults are safe, the controls are in your hands, and the code is open source — [read it](https://opentabs.dev/docs/reference/configuration).
+I won't pretend this is bulletproof. Browser extensions that interact with your web apps are inherently a trust decision. But the defaults are safe, the controls are in your hands, and the code is open source — [read it](https://opentabs.dev/docs/reference/configuration). Here's what the permission flow looks like in practice:
 
 <p align="center">
   <a href="https://youtu.be/6CL6kwk8d9w">
