@@ -7,7 +7,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { cleanupTestConfigDir, createTestConfigDir, expect, startMcpServer, test } from './fixtures.js';
-import { waitForLog } from './helpers.js';
+import { callToolExpectSuccess, setupToolTest, waitForLog, waitForToolResult } from './helpers.js';
 
 test.describe('Eager adapter file writes', () => {
   test('adapter files exist on disk before extension connects', async () => {
@@ -76,5 +76,48 @@ test.describe('Eager adapter file writes', () => {
       await server.kill();
       cleanupTestConfigDir(configDir);
     }
+  });
+});
+
+test.describe('Eager adapter injection on first connect', () => {
+  test('extension injects adapters and reaches ready state on first connection', async ({
+    mcpServer,
+    testServer,
+    extensionContext,
+    mcpClient,
+  }) => {
+    await setupToolTest(mcpServer, testServer, extensionContext, mcpClient);
+
+    // Verify tool dispatch succeeds — proves the adapter was injected and the
+    // plugin reached ready state on the first connection attempt.
+    const result = await waitForToolResult(
+      mcpClient,
+      'e2e-test_echo',
+      { message: 'eager-adapters' },
+      { isError: false },
+      15_000,
+    );
+    expect(result.content).toContain('eager-adapters');
+
+    // Verify via extension_check_adapter that the adapter is present, hash
+    // matches, and the plugin is ready — confirming no re-injection was needed.
+    const checkResult = await callToolExpectSuccess(mcpClient, mcpServer, 'extension_check_adapter', {
+      plugin: 'e2e-test',
+    });
+
+    expect(checkResult.plugin).toBe('e2e-test');
+
+    const tabs = checkResult.matchingTabs as Array<{
+      adapterPresent: boolean;
+      hashMatch: boolean;
+      isReady: boolean;
+    }>;
+    expect(tabs.length).toBeGreaterThanOrEqual(1);
+
+    const tab = tabs[0];
+    if (!tab) throw new Error('Expected at least one matching tab');
+    expect(tab.adapterPresent).toBe(true);
+    expect(tab.hashMatch).toBe(true);
+    expect(tab.isReady).toBe(true);
   });
 });
