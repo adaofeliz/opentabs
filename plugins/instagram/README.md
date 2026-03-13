@@ -1,159 +1,98 @@
-# opentabs-plugin-instagram
+# Instagram
 
-OpenTabs plugin for Instagram
+OpenTabs plugin for Instagram — gives AI agents access to Instagram through your authenticated browser session.
 
-## Project Structure
-
-```
-instagram/
-├── package.json          # Plugin metadata (name, opentabs field, dependencies)
-├── icon.svg              # Optional custom icon (square SVG, max 8KB)
-├── icon-inactive.svg     # Optional manual inactive icon override
-├── src/
-│   ├── index.ts          # Plugin class (extends OpenTabsPlugin)
-│   └── tools/            # One file per tool (using defineTool)
-│       └── example.ts
-└── dist/                 # Build output (generated)
-    ├── adapter.iife.js   # Bundled adapter injected into matching tabs
-    └── tools.json        # Tool schemas for MCP registration
-```
-
-## Configuration
-
-Plugin metadata is defined in `package.json` under the `opentabs` field:
-
-```json
-{
-  "name": "opentabs-plugin-instagram",
-  "main": "dist/adapter.iife.js",
-  "opentabs": {
-    "displayName": "Instagram",
-    "description": "OpenTabs plugin for Instagram",
-    "urlPatterns": ["*://*.www.instagram.com/*"]
-  }
-}
-```
-
-- **`main`** — entry point for the bundled adapter IIFE
-- **`opentabs.displayName`** — human-readable name shown in the side panel
-- **`opentabs.description`** — short description of what the plugin does
-- **`opentabs.urlPatterns`** — Chrome match patterns for tabs where the adapter is injected
-
-## Custom Icons
-
-By default, the side panel shows a colored letter avatar for your plugin. To use a custom icon, place an `icon.svg` file in the plugin root (next to `package.json`):
-
-```
-instagram/
-├── package.json
-├── icon.svg              ← custom icon (optional)
-├── icon-inactive.svg     ← manual inactive override (optional, requires icon.svg)
-├── src/
-│   └── ...
-```
-
-**How it works:**
-
-- `opentabs-plugin build` reads `icon.svg`, validates it, auto-generates a grayscale inactive variant, and embeds both in `dist/tools.json`
-- To override the auto-generated inactive icon, provide `icon-inactive.svg` (must use only grayscale colors)
-- If no `icon.svg` is provided, the letter avatar is used automatically
-
-**Icon requirements:**
-
-- Square SVG with a `viewBox` attribute (e.g., `viewBox="0 0 32 32"`)
-- Maximum 8 KB file size
-- No embedded `<image>`, `<script>`, or event handler attributes (`onclick`, etc.)
-- Manual `icon-inactive.svg` must use only achromatic (grayscale) colors
-
-## Development
+## Install
 
 ```bash
-npm install
-npm run build       # tsc && opentabs-plugin build
-npm run dev         # watch mode (tsc --watch + opentabs-plugin build --watch)
-npm run type-check  # tsc --noEmit
-npm run lint        # biome
+opentabs plugin install instagram
 ```
 
-## Adding Tools
+Or install globally via npm:
 
-Create a new file in `src/tools/` using `defineTool`:
-
-```ts
-import { z } from 'zod';
-import { defineTool } from '@opentabs-dev/plugin-sdk';
-
-export const myTool = defineTool({
-  name: 'my_tool',
-  displayName: 'My Tool',
-  description: 'What this tool does',
-  icon: 'wrench',
-  input: z.object({ /* ... */ }),
-  output: z.object({ /* ... */ }),
-  handle: async (params) => {
-    // Tool implementation runs in the browser tab context
-    return { /* ... */ };
-  },
-});
+```bash
+npm install -g @opentabs-dev/opentabs-plugin-instagram
 ```
 
-Then register it in `src/index.ts` by adding it to the `tools` array.
+## Setup
 
-## Authentication
+1. Open [instagram.com](https://www.instagram.com) in Chrome and log in
+2. Open the OpenTabs side panel — the Instagram plugin should appear as **ready**
 
-Plugin tools run in the browser tab context, so they can read auth tokens directly from the page. The SDK provides utilities for the most common patterns:
+## Tools (28)
 
-```ts
-import { getLocalStorage, getCookie, getPageGlobal } from '@opentabs-dev/plugin-sdk';
+### Account (1)
 
-// localStorage — most common
-const token = getLocalStorage('token');
+| Tool | Description | Type |
+|---|---|---|
+| `get_current_user` | Get the logged-in user profile | Read |
 
-// Cookies — session tokens, JWTs
-const session = getCookie('session_id');
+### Users (4)
 
-// Page globals — SPA boot data (e.g., window.__APP_STATE__)
-const appState = getPageGlobal('__APP_STATE__');
-```
+| Tool | Description | Type |
+|---|---|---|
+| `get_user_profile` | Get a user profile by username | Read |
+| `search_users` | Search for users | Read |
+| `get_user_posts` | Get posts from a user | Read |
+| `get_user_stories` | Get a user's active stories | Read |
 
-**Iframe fallback:** Some apps (e.g., Discord) delete `window.localStorage` after boot. `getLocalStorage` automatically tries a hidden same-origin iframe fallback before returning `null`, so you don't need to handle this case manually.
+### Feed (2)
 
-**SPA hydration:** Auth tokens may not be available immediately on page load. Implement polling in `isReady()` to wait until the app has hydrated before your tools run. See the comments in `src/index.ts` for an example polling pattern.
+| Tool | Description | Type |
+|---|---|---|
+| `get_home_feed` | Get the home timeline feed | Read |
+| `get_stories_tray` | Get stories from followed users | Read |
 
-## Shared Schemas
+### Posts (8)
 
-When 3 or more tools share the same input or output shape, extract common Zod schemas into a shared file to avoid duplication:
+| Tool | Description | Type |
+|---|---|---|
+| `get_post` | Get a post by media ID | Read |
+| `get_post_comments` | Get comments on a post | Read |
+| `get_post_likers` | Get users who liked a post | Read |
+| `like_post` | Like a post | Write |
+| `unlike_post` | Unlike a post | Write |
+| `create_comment` | Comment on a post | Write |
+| `save_post` | Save a post | Write |
+| `unsave_post` | Unsave a post | Write |
 
-```ts
-// src/schemas/channel.ts
-import { z } from 'zod';
+### Social (6)
 
-export const channelSchema = z.object({
-  id: z.string().describe('Channel ID'),
-  name: z.string().describe('Channel name'),
-});
+| Tool | Description | Type |
+|---|---|---|
+| `follow_user` | Follow a user | Write |
+| `unfollow_user` | Unfollow a user | Write |
+| `get_friendship_status` | Check relationship with a user | Read |
+| `get_followers` | List a user's followers | Read |
+| `get_following` | List who a user follows | Read |
+| `get_suggested_users` | Get follow suggestions | Read |
 
-export type Channel = z.infer<typeof channelSchema>;
-```
+### Search (2)
 
-Then import and reuse in your tools:
+| Tool | Description | Type |
+|---|---|---|
+| `search` | Search users, hashtags, and places | Write |
+| `search_hashtags` | Search for hashtags | Read |
 
-```ts
-// src/tools/list-channels.ts
-import { channelSchema } from '../schemas/channel.js';
+### Messaging (3)
 
-export const listChannels = defineTool({
-  name: 'list_channels',
-  displayName: 'List Channels',
-  description: 'List all available channels',
-  icon: 'list',
-  input: z.object({}),
-  output: z.object({ channels: z.array(channelSchema) }),
-  handle: async () => {
-    // ...
-    return { channels: [] };
-  },
-});
-```
+| Tool | Description | Type |
+|---|---|---|
+| `list_conversations` | List DM conversations | Read |
+| `get_conversation_messages` | Get messages in a DM conversation | Read |
+| `send_message` | Send a direct message | Write |
 
-This keeps your tool schemas DRY and makes it easy to evolve shared types in one place.
+### Saved (2)
+
+| Tool | Description | Type |
+|---|---|---|
+| `list_saved_posts` | List your saved posts | Read |
+| `list_collections` | List saved collections | Read |
+
+## How It Works
+
+This plugin runs inside your Instagram tab through the [OpenTabs](https://opentabs.dev) Chrome extension. It uses your existing browser session — no API tokens or OAuth apps required. All operations happen as you, with your permissions.
+
+## License
+
+MIT
