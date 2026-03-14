@@ -124,7 +124,7 @@ This is the most important rule. Check the state below — if a post ID appears 
 - General AI news or philosophy
 - Posts where OpenTabs is not a direct answer to what they're asking
 - Posts that already have a good solution in comments
-- Posts older than 48 hours
+- Stale threads where the conversation is clearly dead (use your judgment — a 3-day-old post with active comments is fine, a 1-day-old post with zero engagement might not be worth it)
 - Our own posts (author: opentabs-dev)
 - Someone else's project launch thread (don't hijack their post)
 - Any post ID that appears in the state below
@@ -159,14 +159,17 @@ ${state}
 
 1. Use \`reddit_list_user_content\` (username: "opentabs-dev", where: "comments") to see our recent comments. Each comment has a \`link_id\` field (e.g. "t3_1rrf77i") — that's the post it belongs to. Collect all these link_ids plus the post_ids from the state file below — skip ALL of them.
 
-2. Search for relevant posts. Use \`reddit_search_posts\` with params: query (required), subreddit (optional), sort, t, limit. Examples:
-   - \`reddit_search_posts(query="MCP server for", subreddit="ClaudeAI", sort="new", t="week", limit=5)\`
-   - \`reddit_search_posts(query="browser-use alternative", sort="new", t="week", limit=5)\` (no subreddit = broad search)
-   Run these searches:
-   - r/ClaudeAI: "MCP server for", "connect Claude to", "browser automation"
-   - r/MCP: "looking for MCP", "browser MCP", "MCP server web"
-   - r/cursor: "MCP server", "connect cursor to"
-   - Broad (no subreddit): "MCP server slack", "MCP server jira", "browser-use alternative"
+2. Search for relevant posts. Use \`reddit_search_posts\` with params: query (required), subreddit (optional), sort, t, limit.
+   Example: \`reddit_search_posts(query="MCP server for slack", subreddit="ClaudeAI", sort="new", t="week", limit=5)\`
+   Omit subreddit for broad cross-Reddit searches.
+
+   Search wherever people might need OpenTabs. Some starting points, but use your judgment and add more:
+   - AI/dev subreddits: ClaudeAI, MCP, cursor, LocalLLaMA, ChatGPT, OpenAI, CodingWithAI
+   - Automation subreddits: selfhosted, webdev, programming, devops, sysadmin
+   - Specific tool subreddits: slack, jira, notion, figma, etc. (someone asking "how do I automate X?")
+   - Broad searches: "MCP server", "browser automation AI", "AI interact with web app", "browser-use alternative", "connect AI to"
+
+   Be creative with queries. Think about what someone frustrated with a problem would actually type.
 
 3. For each candidate, read the full post + comments with \`reddit_get_post\`. Evaluate:
    - Is this a question OpenTabs directly answers?
