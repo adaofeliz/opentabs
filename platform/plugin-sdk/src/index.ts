@@ -1,3 +1,4 @@
+import type { ConfigSchema } from '@opentabs-dev/shared';
 import type { z } from 'zod';
 import type { LucideIconName } from './lucide-icon-names.js';
 
@@ -5,7 +6,13 @@ import type { LucideIconName } from './lucide-icon-names.js';
 // Re-exports from @opentabs-dev/shared (single source of truth)
 // ---------------------------------------------------------------------------
 
-export type { ManifestTool, PluginManifest as Manifest } from '@opentabs-dev/shared';
+export type {
+  ConfigSchema,
+  ConfigSettingDefinition,
+  ConfigSettingType,
+  ManifestTool,
+  PluginManifest as Manifest,
+} from '@opentabs-dev/shared';
 export { NAME_REGEX, RESERVED_NAMES, validatePluginName, validateUrlPattern } from '@opentabs-dev/shared';
 export type { LucideIconName } from './lucide-icon-names.js';
 export { LUCIDE_ICON_NAMES } from './lucide-icon-names.js';
@@ -90,6 +97,8 @@ export abstract class OpenTabsPlugin {
    * (e.g., 'https://github.com'), not a match pattern.
    */
   readonly homepage?: string;
+  /** Typed configuration schema — declares settings that users provide via config.json or the side panel. */
+  readonly configSchema?: ConfigSchema;
   /** All tool definitions for this plugin */
   abstract readonly tools: ToolDefinition[];
   /**
@@ -236,6 +245,12 @@ export {
   setLocalStorage,
   setSessionStorage,
 } from './storage.js';
+
+// ---------------------------------------------------------------------------
+// SDK utilities — Config
+// ---------------------------------------------------------------------------
+
+export { getConfig } from './config.js';
 
 // ---------------------------------------------------------------------------
 // SDK utilities — Page State
