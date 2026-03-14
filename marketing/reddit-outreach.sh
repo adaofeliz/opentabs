@@ -201,15 +201,18 @@ ${state}
 
 1. Use \`reddit_list_user_content\` (username: "opentabs-dev", where: "comments") to see our recent comments. Each comment has a \`link_id\` field (e.g. "t3_1rrf77i") — that's the post it belongs to. Collect all these link_ids plus the post_ids from the state file below — skip ALL of them.
 
-2. Search for relevant posts. Use \`reddit_search_posts\` with params: query (required), subreddit (optional), sort, t, limit.
-   Example: \`reddit_search_posts(query="MCP server for slack", subreddit="ClaudeAI", sort="new", t="week", limit=5)\`
-   Omit subreddit for broad cross-Reddit searches.
+2. Search for relevant posts. The tool is \`reddit_search_posts\`. The parameter name for the search query is \`query\` (NOT \`q\`). Other params: subreddit (optional), sort, t, limit.
+   CORRECT:   reddit_search_posts(query="MCP server for slack", subreddit="ClaudeAI", sort="new", t="month", limit=10)
+   CORRECT:   reddit_search_posts(query="browser-use alternative", sort="relevance", t="month", limit=10)
+   WRONG:     reddit_search_posts(q="...")  ← this will fail, the param is called "query"
 
-   Search wherever people might need OpenTabs. Some starting points, but use your judgment and add more:
-   - AI/dev subreddits: ClaudeAI, MCP, cursor, LocalLLaMA, ChatGPT, OpenAI, CodingWithAI
-   - Automation subreddits: selfhosted, webdev, programming, devops, sysadmin
-   - Specific tool subreddits: slack, jira, notion, figma, etc. (someone asking "how do I automate X?")
-   - Broad searches: "MCP server", "browser automation AI", "AI interact with web app", "browser-use alternative", "connect AI to"
+   Do a maximum of 8-10 searches total. Don't keep searching in circles. If 10 searches find nothing, skip this run.
+
+   Search wherever people might need OpenTabs. Some starting points, but use your judgment:
+   - AI/dev subreddits: ClaudeAI, MCP, cursor, LocalLLaMA, ChatGPT, ClaudeCode
+   - Automation subreddits: selfhosted, webdev, programming
+   - Specific tool subreddits: slack, jira, notion, figma, etc.
+   - Broad searches (no subreddit): "MCP server", "browser automation AI", "connect AI to", "browser-use alternative"
 
    Be creative with queries. Think about what someone frustrated with a problem would actually type.
 
