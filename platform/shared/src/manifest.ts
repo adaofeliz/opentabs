@@ -9,6 +9,25 @@
 import type { Result } from './result.js';
 import { err, ok } from './result.js';
 
+/** Allowed types for a config setting field */
+type ConfigSettingType = 'url' | 'string' | 'number' | 'boolean' | 'select';
+
+/** A single field definition within a plugin's configSchema */
+interface ConfigSettingDefinition {
+  readonly type: ConfigSettingType;
+  readonly label: string;
+  readonly description?: string;
+  readonly required?: boolean;
+  readonly placeholder?: string;
+  /** Valid choices for select-type settings */
+  readonly options?: readonly string[];
+}
+
+/** A plugin's full configuration schema — keys are setting names */
+type ConfigSchema = Record<string, ConfigSettingDefinition>;
+
+const VALID_SETTING_TYPES = new Set<string>(['url', 'string', 'number', 'boolean', 'select']);
+
 /** Plugin-specific metadata in the `opentabs` field of package.json */
 interface PluginOpentabsField {
   readonly displayName: string;
@@ -16,6 +35,7 @@ interface PluginOpentabsField {
   readonly urlPatterns: string[];
   readonly excludePatterns?: string[];
   readonly homepage?: string;
+  readonly configSchema?: ConfigSchema;
 }
 
 /** A plugin's package.json with the required `opentabs` field */
@@ -94,8 +114,76 @@ const parsePluginPackageJson = (json: unknown, sourcePath: string): Result<Plugi
     return err(`Invalid package.json at ${sourcePath}: "opentabs.description" must be a non-empty string`);
   }
 
+  // Parse configSchema (optional, but must be parsed before urlPatterns to enable relaxation)
+  const rawConfigSchema = ot.configSchema;
+  let parsedConfigSchema: ConfigSchema | undefined;
+  if (rawConfigSchema !== undefined) {
+    if (typeof rawConfigSchema !== 'object' || rawConfigSchema === null || Array.isArray(rawConfigSchema)) {
+      return err(`Invalid package.json at ${sourcePath}: "opentabs.configSchema" must be an object`);
+    }
+    const cs = rawConfigSchema as Record<string, unknown>;
+    const validated: Record<string, ConfigSettingDefinition> = {};
+    for (const [key, value] of Object.entries(cs)) {
+      if (typeof value !== 'object' || value === null || Array.isArray(value)) {
+        return err(`Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}" must be an object`);
+      }
+      const field = value as Record<string, unknown>;
+      if (typeof field.type !== 'string' || !VALID_SETTING_TYPES.has(field.type)) {
+        return err(
+          `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.type" must be one of: url, string, number, boolean, select`,
+        );
+      }
+      if (typeof field.label !== 'string' || field.label.length === 0) {
+        return err(
+          `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.label" must be a non-empty string`,
+        );
+      }
+      if (field.description !== undefined && typeof field.description !== 'string') {
+        return err(
+          `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.description" must be a string`,
+        );
+      }
+      if (field.required !== undefined && typeof field.required !== 'boolean') {
+        return err(`Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.required" must be a boolean`);
+      }
+      if (field.placeholder !== undefined && typeof field.placeholder !== 'string') {
+        return err(
+          `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.placeholder" must be a string`,
+        );
+      }
+      if (field.options !== undefined) {
+        if (!Array.isArray(field.options) || field.options.length === 0) {
+          return err(
+            `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.options" must be a non-empty array of strings`,
+          );
+        }
+        for (let i = 0; i < field.options.length; i++) {
+          if (typeof field.options[i] !== 'string') {
+            return err(
+              `Invalid package.json at ${sourcePath}: "opentabs.configSchema.${key}.options[${i}]" must be a string`,
+            );
+          }
+        }
+      }
+      validated[key] = {
+        type: field.type as ConfigSettingType,
+        label: field.label,
+        ...(field.description !== undefined ? { description: field.description as string } : {}),
+        ...(field.required !== undefined ? { required: field.required as boolean } : {}),
+        ...(field.placeholder !== undefined ? { placeholder: field.placeholder as string } : {}),
+        ...(field.options !== undefined ? { options: field.options as string[] } : {}),
+      };
+    }
+    parsedConfigSchema = validated;
+  }
+
+  // Check if configSchema has at least one required url-type field (allows empty urlPatterns)
+  const hasRequiredUrlSetting =
+    parsedConfigSchema !== undefined &&
+    Object.values(parsedConfigSchema).some(f => f.type === 'url' && f.required === true);
+
   const urlPatterns = ot.urlPatterns;
-  if (!Array.isArray(urlPatterns) || urlPatterns.length === 0) {
+  if (!Array.isArray(urlPatterns) || (!hasRequiredUrlSetting && urlPatterns.length === 0)) {
     return err(`Invalid package.json at ${sourcePath}: "opentabs.urlPatterns" must be a non-empty array of strings`);
   }
   for (let i = 0; i < urlPatterns.length; i++) {
@@ -139,9 +227,10 @@ const parsePluginPackageJson = (json: unknown, sourcePath: string): Result<Plugi
       urlPatterns: urlPatterns as string[],
       ...(parsedExcludePatterns ? { excludePatterns: parsedExcludePatterns } : {}),
       ...(parsedHomepage ? { homepage: parsedHomepage } : {}),
+      ...(parsedConfigSchema ? { configSchema: parsedConfigSchema } : {}),
     },
   });
 };
 
 export { parsePluginPackageJson, isValidPluginPackageName };
-export type { PluginOpentabsField, PluginPackageJson };
+export type { ConfigSchema, ConfigSettingDefinition, ConfigSettingType, PluginOpentabsField, PluginPackageJson };

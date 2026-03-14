@@ -74,7 +74,13 @@ export {
 // Plugin package.json manifest — new plugin metadata format
 // ---------------------------------------------------------------------------
 
-export type { PluginOpentabsField, PluginPackageJson } from './manifest.js';
+export type {
+  ConfigSchema,
+  ConfigSettingDefinition,
+  ConfigSettingType,
+  PluginOpentabsField,
+  PluginPackageJson,
+} from './manifest.js';
 export {
   isValidPluginPackageName,
   parsePluginPackageJson,
@@ -335,6 +341,10 @@ export interface ConfigStatePlugin {
   reviewed: boolean;
   /** Present when a newer version of this plugin is available on npm */
   update?: { latestVersion: string; updateCommand: string };
+  /** Plugin's configuration schema, if declared */
+  configSchema?: import('./manifest.js').ConfigSchema;
+  /** Resolved setting values for this plugin */
+  resolvedSettings?: Record<string, string | number | boolean>;
 }
 
 /** A plugin that failed discovery, sent to the side panel for display */

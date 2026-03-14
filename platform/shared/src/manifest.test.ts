@@ -385,6 +385,266 @@ describe('parsePluginPackageJson', () => {
     });
   });
 
+  describe('opentabs.configSchema validation', () => {
+    test('parses valid configSchema with all field types', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: {
+            instanceUrl: {
+              type: 'url',
+              label: 'Instance URL',
+              description: 'Your instance URL',
+              required: true,
+              placeholder: 'https://example.com',
+            },
+            apiKey: { type: 'string', label: 'API Key' },
+            maxResults: { type: 'number', label: 'Max Results' },
+            enabled: { type: 'boolean', label: 'Enabled' },
+            theme: { type: 'select', label: 'Theme', options: ['light', 'dark'] },
+          },
+        },
+      };
+      const result = parsePluginPackageJson(json, sourcePath);
+      expect(isOk(result)).toBe(true);
+      const parsed = unwrap(result);
+      expect(parsed.opentabs.configSchema).toEqual({
+        instanceUrl: {
+          type: 'url',
+          label: 'Instance URL',
+          description: 'Your instance URL',
+          required: true,
+          placeholder: 'https://example.com',
+        },
+        apiKey: { type: 'string', label: 'API Key' },
+        maxResults: { type: 'number', label: 'Max Results' },
+        enabled: { type: 'boolean', label: 'Enabled' },
+        theme: { type: 'select', label: 'Theme', options: ['light', 'dark'] },
+      });
+    });
+
+    test('absent configSchema still parses successfully', () => {
+      const result = parsePluginPackageJson(validPackageJson, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.configSchema).toBeUndefined();
+    });
+
+    test('rejects non-object configSchema', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, configSchema: 'not-an-object' },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema" must be an object');
+    });
+
+    test('rejects configSchema as array', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, configSchema: [] },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema" must be an object');
+    });
+
+    test('rejects configSchema field that is not an object', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: { ...validPackageJson.opentabs, configSchema: { foo: 'bar' } },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo" must be an object');
+    });
+
+    test('rejects configSchema field with invalid type', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'invalid', label: 'Foo' } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.type" must be one of: url, string, number, boolean, select');
+    });
+
+    test('rejects configSchema field with missing label', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'string' } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.label" must be a non-empty string');
+    });
+
+    test('rejects configSchema field with empty label', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'string', label: '' } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.label" must be a non-empty string');
+    });
+
+    test('rejects configSchema field with non-string description', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'string', label: 'Foo', description: 42 } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.description" must be a string');
+    });
+
+    test('rejects configSchema field with non-boolean required', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'string', label: 'Foo', required: 'yes' } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.required" must be a boolean');
+    });
+
+    test('rejects configSchema field with non-string placeholder', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { foo: { type: 'string', label: 'Foo', placeholder: 123 } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.foo.placeholder" must be a string');
+    });
+
+    test('rejects select-type field with empty options', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { theme: { type: 'select', label: 'Theme', options: [] } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.theme.options" must be a non-empty array of strings');
+    });
+
+    test('rejects select-type field with non-array options', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { theme: { type: 'select', label: 'Theme', options: 'light' } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.theme.options" must be a non-empty array of strings');
+    });
+
+    test('rejects options containing non-string values', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          ...validPackageJson.opentabs,
+          configSchema: { theme: { type: 'select', label: 'Theme', options: ['light', 42] } },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.configSchema.theme.options[1]" must be a string');
+    });
+  });
+
+  describe('urlPatterns relaxation with configSchema', () => {
+    test('allows empty urlPatterns when configSchema has required url field', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          displayName: 'Custom App',
+          description: 'A configurable plugin',
+          urlPatterns: [],
+          configSchema: {
+            instanceUrl: { type: 'url', label: 'Instance URL', required: true },
+          },
+        },
+      };
+      const result = parsePluginPackageJson(json, sourcePath);
+      expect(isOk(result)).toBe(true);
+      expect(unwrap(result).opentabs.urlPatterns).toEqual([]);
+    });
+
+    test('rejects empty urlPatterns when configSchema has url field that is not required', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          displayName: 'Custom App',
+          description: 'A configurable plugin',
+          urlPatterns: [],
+          configSchema: {
+            instanceUrl: { type: 'url', label: 'Instance URL' },
+          },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.urlPatterns" must be a non-empty array of strings');
+    });
+
+    test('rejects empty urlPatterns when configSchema has no url fields', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          displayName: 'Custom App',
+          description: 'A configurable plugin',
+          urlPatterns: [],
+          configSchema: {
+            apiKey: { type: 'string', label: 'API Key', required: true },
+          },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.urlPatterns" must be a non-empty array of strings');
+    });
+
+    test('rejects empty urlPatterns when no configSchema is present', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          displayName: 'Custom App',
+          description: 'A configurable plugin',
+          urlPatterns: [],
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.urlPatterns" must be a non-empty array of strings');
+    });
+
+    test('rejects missing urlPatterns even with required url configSchema', () => {
+      const json = {
+        ...validPackageJson,
+        opentabs: {
+          displayName: 'Custom App',
+          description: 'A configurable plugin',
+          configSchema: {
+            instanceUrl: { type: 'url', label: 'Instance URL', required: true },
+          },
+        },
+      };
+      const error = expectErr(parsePluginPackageJson(json, sourcePath));
+      expect(error).toContain('"opentabs.urlPatterns" must be a non-empty array of strings');
+    });
+  });
+
   describe('error messages include source path', () => {
     test('error message includes the provided sourcePath', () => {
       const customPath = '/home/user/plugins/my-plugin/package.json';
