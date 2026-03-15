@@ -111,7 +111,12 @@ export default function Home() {
             Most MCP servers ask for your API keys. I thought that was a bit odd. You&apos;re already logged into Slack,
             GitHub, Jira, and a dozen other apps in Chrome.
           </p>
-          <p className="mx-auto mb-10 max-w-xl font-medium text-foreground text-lg">Let your AI use them.</p>
+          <p className="mx-auto mb-4 max-w-xl font-medium text-foreground text-lg">Let your AI use them.</p>
+          <p className="mx-auto mb-10 max-w-xl text-muted-foreground text-sm">
+            This is not another Playwright wrapper. We reverse-engineered the internal APIs that web apps use and exposed them as
+            MCP tools. Your AI calls the same backend endpoints the frontend calls — through your session. No screenshots.
+            No DOM. No guessing.
+          </p>
           <div className="flex flex-col items-center justify-center gap-4 sm:flex-row">
             <Link href="/docs/quick-start" passHref>
               <Button>Get Started</Button>

@@ -10,9 +10,9 @@ Here's Claude checking a Robinhood portfolio, ordering from Panda Express, and s
   </a>
 </p>
 
-Every web app has internal APIs — the same endpoints its own frontend calls. I asked Claude to reverse-engineer them and expose them as [MCP tools](https://modelcontextprotocol.io/) so your AI agent can call them directly.
+**This is not another Playwright wrapper.** We reverse-engineered the internal APIs that web apps call behind the scenes and exposed them as [MCP tools](https://modelcontextprotocol.io/). Your AI calls the same backend endpoints the web app's own frontend uses — running in your browser, through your existing session.
 
-No screenshots. No DOM scraping. No pixel-guessing. Your AI calls `discord_send_message` and it hits the same backend Discord's web app uses — running in your browser, using your existing session. It's fast, cheap on tokens (tokens are money), and the knowledge gets packaged into a reusable plugin anyone can install.
+No screenshots. No DOM scraping. No pixel-guessing. `discord_send_message` hits Discord's real backend — fast, deterministic, cheap on tokens, and the knowledge gets packaged into a reusable plugin anyone can install.
 
 ## How It Works
 
