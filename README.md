@@ -98,10 +98,10 @@ I know you're the kind of person who sets `DANGEROUSLY_SKIP_PERMISSIONS=1` the m
 I won't pretend this is bulletproof. Browser extensions that interact with your web apps are inherently a trust decision. But the defaults are safe, the controls are in your hands, and the code is open source — [read it](https://opentabs.dev/docs/reference/configuration). Here's what the permission flow looks like in practice:
 
 <p align="center">
-  <a href="https://youtu.be/6CL6kwk8d9w">
-    <img src="https://img.youtube.com/vi/6CL6kwk8d9w/maxresdefault.jpg" alt="Demo: Permission dialog asking for approval before a tool call executes" />
-  </a>
+  <img src="assets/demo-todoist-permissions.gif" alt="Demo: Permission dialog asking for approval before a tool call executes" />
 </p>
+
+[Watch the full video on YouTube](https://youtu.be/6CL6kwk8d9w)
 
 ## FAQ
 
