@@ -7,27 +7,30 @@ export const MAP_ID = 63;
 const MARKERS_ENDPOINT = '/wp-json/wpgmza/v1/markers';
 const MARKER_BY_ID_ENDPOINT = (id: string) => `/wp-json/wpgmza/v1/markers/${encodeURIComponent(id)}`;
 
-// Country category IDs from /wp-json/wpgmza/v1/categories?map_id=63
-// NOTE: Server-side category filtering is NOT supported by the API (all params ignored).
-// Country is derived client-side using geographic bounding boxes.
+// Country bounding boxes — checked in priority order (smaller/more specific regions first)
+// to handle overlapping boundaries correctly.
+const COUNTRY_PRIORITY_ORDER = [
+  { name: 'Portugal', latMin: 36.8, latMax: 42.2, lngMin: -9.5, lngMax: -6.2 },
+  { name: 'Belgium', latMin: 49.5, latMax: 51.5, lngMin: 2.5, lngMax: 6.4 },
+  { name: 'Poland', latMin: 49.0, latMax: 54.9, lngMin: 14.1, lngMax: 24.2 },
+  { name: 'Spain', latMin: 35.9, latMax: 43.8, lngMin: -9.3, lngMax: 4.3 },
+  { name: 'France', latMin: 41.3, latMax: 51.1, lngMin: -5.2, lngMax: 9.6 },
+];
+
 export const COUNTRY_BOUNDING_BOXES: Record<
   string,
   { latMin: number; latMax: number; lngMin: number; lngMax: number }
-> = {
-  Belgium: { latMin: 49.5, latMax: 51.5, lngMin: 2.5, lngMax: 6.4 },
-  France: { latMin: 41.3, latMax: 51.1, lngMin: -5.2, lngMax: 9.6 },
-  Poland: { latMin: 49.0, latMax: 54.9, lngMin: 14.1, lngMax: 24.2 },
-  Portugal: { latMin: 36.8, latMax: 42.2, lngMin: -9.5, lngMax: -6.2 },
-  Spain: { latMin: 35.9, latMax: 43.8, lngMin: -9.3, lngMax: 4.3 },
-};
+> = Object.fromEntries(COUNTRY_PRIORITY_ORDER.map(({ name, ...box }) => [name, box]));
 
-export const VALID_COUNTRIES = Object.keys(COUNTRY_BOUNDING_BOXES);
+export const VALID_COUNTRIES = COUNTRY_PRIORITY_ORDER.map(c => c.name);
 
-// Derive country from coordinates using bounding boxes
+// Derive country from coordinates using bounding boxes.
+// Countries are checked in priority order so that smaller/more specific regions
+// (Portugal, Belgium, Poland) are matched before larger overlapping ones (France, Spain).
 export const deriveCountry = (lat: number, lng: number): string => {
-  for (const [country, box] of Object.entries(COUNTRY_BOUNDING_BOXES)) {
-    if (lat >= box.latMin && lat <= box.latMax && lng >= box.lngMin && lng <= box.lngMax) {
-      return country;
+  for (const { name, latMin, latMax, lngMin, lngMax } of COUNTRY_PRIORITY_ORDER) {
+    if (lat >= latMin && lat <= latMax && lng >= lngMin && lng <= lngMax) {
+      return name;
     }
   }
   return 'Unknown';
